@@ -34,7 +34,7 @@ jobs:
         continue-on-error: true #Safety check runs if Snyk is missing token
 
       - name: 3. static Analysis (Bandit)
-        run: bandit -r app/security/pipeline.py -ll
+        run: bandit -r app/ -ll
 
       - name: 4. Run Kernal Tests (Pytest+Hypothesis)
         run: pytest 
@@ -55,6 +55,10 @@ jobs:
         env:
           PYNGUIN_DANGER_AWARE: 1
         run: |
-          pynguin --project-path . --output-path ./fuzz_results --module-name app.security.pipeline
+          #Use a loop to test the mist critical security files in your system
+          for module in app.security.pipeline app.security.auth_manager app.security.token_logic; do
+            pynguin --project-path . --output-path ./fuzz_results/$module --module-name $module --maximum-search-time 60
+          done
+          
           
          
