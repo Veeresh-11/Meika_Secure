@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SOC2ExportManifest",
+  "type": "object",
+  "required": [
+    "export_id",
+    "generated_at",
+    "hash_algorithm",
+    "bundle_hash",
+    "records"
+  ],
+  "properties": {
+    "export_id": {
+      "type": "string"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "hash_algorithm": {
+      "type": "string"
+    },
+    "bundle_hash": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["record_hash", "sequence"],
+        "properties": {
+          "record_hash": {
+            "type": "string",
+            "minLength": 64,
+            "maxLength": 64
+          },
+          "sequence": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

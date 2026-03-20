@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DevicePostureSignal",
+  "type": "object",
+  "required": [
+    "device_id",
+    "signal_name",
+    "signal_value",
+    "collected_at",
+    "expires_at",
+    "verification_status"
+  ],
+  "properties": {
+    "device_id": {
+      "type": "string",
+      "description": "Stable device identifier"
+    },
+    "signal_name": {
+      "type": "string",
+      "description": "Name of posture signal (e.g. secure_boot, debug_mode)"
+    },
+    "signal_value": {
+      "type": ["string", "boolean", "number", "null"],
+      "description": "Observed signal value"
+    },
+    "verification_status": {
+      "type": "string",
+      "enum": ["verified", "unverified", "failed"],
+      "description": "Cryptographic or logical verification result"
+    },
+    "collected_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

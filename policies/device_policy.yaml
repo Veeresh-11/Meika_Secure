@@ -1,0 +1,119 @@
+version: "v1"
+
+# -------------------------------------------------
+# Metadata (Informational, non-executable)
+# -------------------------------------------------
+device_metadata:
+  required_signals:
+    - crypto_proof
+    - integrity_check
+
+  deny_conditions:
+    - device_state: revoked
+
+  restrict_conditions:
+    - signal_equals:
+        name: debug_mode
+        value: true
+    - signal_equals:
+        name: emulator_detected
+        value: true
+
+# -------------------------------------------------
+# Executable policy rules (USED BY ENGINE)
+# -------------------------------------------------
+rules:
+
+  # =========================================================
+  # HARD DENY — DEVICE & HARDWARE IDENTITY (NON-NEGOTIABLE)
+  # =========================================================
+
+  - name: deny_unregistered_device
+    when:
+      device.registered: false
+    effect: deny
+    reason: "Device not registered"
+
+  - name: deny_revoked_device
+    when:
+      device.state: revoked
+    effect: deny
+    reason: "Device revoked or lost"
+
+  - name: deny_non_hardware_backed_key
+    when:
+      device.identity.hardware_backed: false
+    effect: deny
+    reason: "Device key is not hardware-backed"
+
+  - name: deny_unverified_hardware_attestation
+    when:
+      device.identity.attestation_verified: false
+    effect: deny
+    reason: "Hardware attestation verification failed"
+
+  - name: deny_device_identity_mismatch
+    when:
+      device.identity.binding_valid: false
+    effect: deny
+    reason: "Device identity binding mismatch"
+
+  # =========================================================
+  # CLONE & REPLAY DEFENSE (CRYPTOGRAPHIC)
+  # =========================================================
+
+  - name: deny_confirmed_device_clone
+    when:
+      device.identity.clone_confirmed: true
+    effect: deny
+    reason: "Confirmed device cloning detected"
+
+  - name: deny_replayed_device_key
+    when:
+      device.identity.replay_detected: true
+    effect: deny
+    reason: "Device key replay detected"
+
+  # =========================================================
+  # DEVICE POSTURE (BASIC — KEEP SMALL FOR NOW)
+  # =========================================================
+
+  - name: deny_insecure_boot
+    when:
+      device.posture.secure_boot: false
+    effect: deny
+    reason: "Secure boot disabled"
+
+  - name: deny_compromised_device
+    when:
+      device.posture.compromised: true
+    effect: deny
+    reason: "Device integrity compromised"
+
+  # =========================================================
+  # TRUST DECAY (SOFT FAILURE)
+  # =========================================================
+
+  - name: restrict_stale_hardware_attestation
+    when:
+      device.identity.last_attested_at: "> max_attestation_age"
+    effect: restrict
+    reason: "Hardware attestation is stale"
+
+  # =========================================================
+  # EXPLICIT ALLOW — ONLY ONE
+  # =========================================================
+
+  - name: allow_fully_trusted_hardware_device
+    when:
+      device.registered: true
+      device.state: active
+      device.identity.hardware_backed: true
+      device.identity.attestation_verified: true
+      device.identity.binding_valid: true
+      device.identity.clone_confirmed: false
+      device.posture.secure_boot: true
+      device.posture.compromised: false
+    effect: allow
+    reason: "Fully trusted, hardware-attested device"
+

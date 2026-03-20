@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "JITElevationGrant",
+  "type": "object",
+  "required": [
+    "grant_id",
+    "user_id",
+    "device_id",
+    "intent",
+    "issued_at",
+    "expires_at",
+    "policy_ref",
+    "evidence_ref"
+  ],
+  "properties": {
+    "grant_id": { "type": "string" },
+    "user_id": { "type": "string" },
+    "device_id": { "type": "string" },
+    "intent": { "type": "string" },
+    "issued_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "policy_ref": { "type": "string" },
+    "evidence_ref": { "type": "string" }
+  },
+  "additionalProperties": false
+}

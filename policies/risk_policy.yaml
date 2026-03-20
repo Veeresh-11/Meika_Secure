@@ -1,0 +1,17 @@
+policy_id: risk-policy-v1
+version: 1.0.0
+
+risk_levels:
+  low: 0-30
+  medium: 31-60
+  high: 61-100
+
+actions:
+  medium:
+    require_step_up: true
+  high:
+    deny_access: true
+
+constraints:
+  risk_never_grants_access: true
+  risk_must_decay: true

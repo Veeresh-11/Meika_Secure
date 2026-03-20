@@ -1,0 +1,2 @@
+class SchemaUpgradeViolation(Exception):
+    pass

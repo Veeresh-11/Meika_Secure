@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "required": ["error_code", "error_class", "message"],
+  "properties": {
+    "error_code": { "type": "string" },
+    "error_class": { "type": "string" },
+    "message": { "type": "string" }
+  }
+}

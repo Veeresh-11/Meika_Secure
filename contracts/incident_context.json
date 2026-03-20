@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "IncidentContext",
+  "type": "object",
+  "required": [
+    "incident_id",
+    "severity",
+    "declared_at",
+    "scope",
+    "approvers"
+  ],
+  "properties": {
+    "incident_id": { "type": "string" },
+    "severity": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical"]
+    },
+    "declared_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scope": {
+      "type": "string",
+      "description": "Explicit investigative scope"
+    },
+    "approvers": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DeviceIdentity",
+  "type": "object",
+  "required": [
+    "device_id",
+    "public_key",
+    "key_type",
+    "status",
+    "issued_at",
+    "evidence_ref"
+  ],
+  "properties": {
+    "device_id": {
+      "type": "string",
+      "description": "Stable, non-guessable identifier derived from device public key"
+    },
+    "public_key": {
+      "type": "string",
+      "description": "Device public key (base64 or PEM encoded)"
+    },
+    "key_type": {
+      "type": "string",
+      "enum": ["ed25519", "p256", "rsa", "pq-ready"],
+      "description": "Cryptographic key type"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["new", "observed", "known", "degraded", "revoked"],
+      "description": "Current lifecycle state of the device"
+    },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When device identity was issued"
+    },
+    "revoked_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "When device identity was revoked (if applicable)"
+    },
+    "evidence_ref": {
+      "type": "string",
+      "description": "Reference to immutable audit evidence proving device issuance"
+    }
+  },
+  "additionalProperties": false
+}

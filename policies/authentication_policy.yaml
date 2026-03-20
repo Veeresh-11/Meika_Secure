@@ -1,0 +1,12 @@
+version: "v1"
+
+rules:
+  - name: allow_authenticated
+    description: "Allow authenticated principal"
+    when:
+      authenticated: true
+    effect: allow
+    reason: "Authenticated principal"
+
+failure_behavior:
+  default: deny

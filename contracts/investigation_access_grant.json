@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "InvestigationAccessGrant",
+  "type": "object",
+  "required": [
+    "grant_id",
+    "user_id",
+    "device_id",
+    "incident_id",
+    "intent",
+    "issued_at",
+    "expires_at",
+    "evidence_ref"
+  ],
+  "properties": {
+    "grant_id": { "type": "string" },
+    "user_id": { "type": "string" },
+    "device_id": { "type": "string" },
+    "incident_id": { "type": "string" },
+    "intent": { "type": "string" },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "evidence_ref": { "type": "string" }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WebAuthnAssertion",
+  "type": "object",
+  "required": [
+    "credential_id",
+    "challenge",
+    "origin",
+    "counter",
+    "asserted_at",
+    "verification_status"
+  ],
+  "properties": {
+    "credential_id": { "type": "string" },
+    "challenge": { "type": "string" },
+    "origin": { "type": "string" },
+    "counter": { "type": "integer" },
+    "asserted_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "verification_status": {
+      "type": "string",
+      "enum": ["verified", "failed"]
+    }
+  },
+  "additionalProperties": false
+}

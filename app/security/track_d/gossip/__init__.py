@@ -1,0 +1,1 @@
+# Sovereign Gossip Consistency Layer

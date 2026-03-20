@@ -1,0 +1,52 @@
+{
+  "proof_id": "uuid",
+  "challenge_id": "uuid",
+  "issued_at": "RFC3339 timestamp",
+
+  "identity_assertion": {
+    "identity_id": "uuid",
+    "identity_type": "human | service | agent | vendor | emergency",
+    "authentication_method": "passkey | platform_biometric | secure_otp_transcription"
+  },
+
+  "device_proof": {
+    "device_id": "uuid",
+    "device_type": "mobile | desktop | hardware_key",
+    "platform": "android | ios | windows | macos | linux",
+    "device_attestation": "base64",
+    "secure_hardware_backed": true
+  },
+
+  "biometric_proof": {
+    "biometric_used": true,
+    "biometric_type": "fingerprint | face | iris",
+    "biometric_verification": "local_only",
+    "biometric_confidence": "high"
+  },
+
+  "otp_transcription_proof": {
+    "otp_used": false,
+    "otp_transformation_steps": 7,
+    "otp_validated_locally": true
+  },
+
+  "cryptographic_proof": {
+    "signed_nonce": "base64",
+    "signature_algorithm": "ECDSA-P256 | Ed25519 | ML-DSA",
+    "signature": "base64",
+    "public_key_reference": "key-id"
+  },
+
+  "context_snapshot": {
+    "ip_hash": "sha256",
+    "geo_hint": "country_code",
+    "behavioral_score": 12
+  },
+
+  "policy_acknowledgement": {
+    "policy_id": "authentication-policy-v1",
+    "policy_version": "1.0.0",
+    "constraints_accepted": true
+  }
+}
+

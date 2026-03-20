@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "InvestigationAccessRequest",
+  "type": "object",
+  "required": [
+    "user_id",
+    "device_id",
+    "incident_context",
+    "intent",
+    "justification",
+    "requested_at"
+  ],
+  "properties": {
+    "user_id": { "type": "string" },
+    "device_id": { "type": "string" },
+    "incident_context": {
+      "$ref": "incident_context.json"
+    },
+    "intent": { "type": "string" },
+    "justification": { "type": "string" },
+    "requested_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

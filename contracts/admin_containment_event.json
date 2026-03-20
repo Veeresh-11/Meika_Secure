@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AdminContainmentEvent",
+  "type": "object",
+  "required": [
+    "event_id",
+    "user_id",
+    "device_id",
+    "trigger_reason",
+    "triggered_at",
+    "actions_taken",
+    "evidence_ref"
+  ],
+  "properties": {
+    "event_id": { "type": "string" },
+    "user_id": { "type": "string" },
+    "device_id": { "type": "string" },
+    "trigger_reason": {
+      "type": "string",
+      "description": "Policy-explainable reason for containment"
+    },
+    "triggered_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "actions_taken": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "evidence_ref": { "type": "string" }
+  },
+  "additionalProperties": false
+}

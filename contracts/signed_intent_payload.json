@@ -1,0 +1,47 @@
+{
+  "intent_id": "uuid",
+  "challenge_id": "uuid",
+  "proof_id": "uuid",
+
+  "intent_metadata": {
+    "intent_type": "login | privilege_elevation | resource_access | configuration_change",
+    "intent_description": "Human-readable description of the action",
+    "sensitivity_level": "low | medium | high | critical"
+  },
+
+  "target_resource": {
+    "resource_type": "application | api | document | admin_panel | system_route",
+    "resource_id": "string",
+    "operation": "read | write | execute | admin | debug"
+  },
+
+  "constraints": {
+    "time_bound_seconds": 30,
+    "single_use": true,
+    "non_delegable": true,
+    "non_automatable": true
+  },
+
+  "human_confirmation": {
+    "explicit_user_action": "biometric_confirm | secure_tap | hardware_touch",
+    "confirmation_ui_hash": "sha256",
+    "user_attention_verified": true
+  },
+
+  "cryptographic_binding": {
+    "signed_nonce": "base64",
+    "signature_algorithm": "ECDSA-P256 | Ed25519 | ML-DSA",
+    "signature": "base64",
+    "public_key_reference": "key-id"
+  },
+
+  "policy_context": {
+    "policy_id": "authentication-policy-v1",
+    "policy_version": "1.0.0",
+    "risk_policy_version": "risk-policy-v1"
+  },
+
+  "issued_at": "RFC3339 timestamp",
+  "expires_at": "RFC3339 timestamp"
+}
+

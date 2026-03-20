@@ -1,0 +1,12 @@
+investigation:
+  always_require:
+    - human_approval
+    - incident_context
+    - fresh_device_posture
+
+  deny_conditions:
+    - device_state: revoked
+    - risk_level: high
+
+  restrict_conditions:
+    - incident_severity: critical

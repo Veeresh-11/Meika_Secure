@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+sqlalchemy>=2.0
+psycopg[binary]
+pydantic-settings
+argon2-cffi
+python-jose[cryptography]
+structlog
+opentelemetry-api
+opentelemetry-sdk
+PyJWT>=2.8.0

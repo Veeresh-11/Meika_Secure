@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SimulationResult",
+  "type": "object",
+  "required": [
+    "simulated_outcome",
+    "simulated_reason",
+    "authoritative",
+    "warnings"
+  ],
+  "properties": {
+    "simulated_outcome": {
+      "type": "string",
+      "enum": ["ALLOW", "WARN"]
+    },
+    "simulated_reason": {
+      "type": "string"
+    },
+    "authoritative": {
+      "type": "boolean",
+      "enum": [false]
+    },
+    "warnings": {
+      "type": "object",
+      "description": "Non-authoritative metadata",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

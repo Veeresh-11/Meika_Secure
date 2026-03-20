@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ExternalIdentityAssertion",
+  "type": "object",
+  "required": [
+    "issuer",
+    "subject",
+    "auth_time",
+    "auth_method",
+    "assertion_id",
+    "issued_at",
+    "expires_at"
+  ],
+  "properties": {
+    "issuer": { "type": "string" },
+    "subject": { "type": "string" },
+    "auth_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "auth_method": {
+      "type": "string",
+      "description": "e.g. phishing-resistant, mfa, passwordless"
+    },
+    "assertion_id": { "type": "string" },
+    "issued_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

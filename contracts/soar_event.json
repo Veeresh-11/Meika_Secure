@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SOAREvent",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "timestamp",
+    "severity",
+    "user_id",
+    "device_id",
+    "evidence_ref",
+    "summary"
+  ],
+  "properties": {
+    "event_id": { "type": "string" },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "containment_triggered",
+        "privileged_abuse_detected",
+        "evidence_tampering_detected",
+        "device_compromise_detected",
+        "investigation_violation"
+      ]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["medium", "high", "critical"]
+    },
+    "user_id": { "type": "string" },
+    "device_id": { "type": "string" },
+    "evidence_ref": { "type": "string" },
+    "summary": {
+      "type": "string",
+      "description": "Human-readable summary of why automation was triggered"
+    }
+  },
+  "additionalProperties": false
+}

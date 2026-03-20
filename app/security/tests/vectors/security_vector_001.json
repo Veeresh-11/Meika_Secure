@@ -1,0 +1,12 @@
+{
+  "request_id": "vector-001",
+  "principal_id": "user-1",
+  "intent": "user.login",
+  "authenticated": true,
+  "device_id": null,
+  "device": null,
+  "risk_signals": {},
+  "request_time": "2024-01-01T00:00:00",
+  "metadata": {},
+  "grant": null
+}

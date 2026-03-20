@@ -1,0 +1,87 @@
+# Containment Policy
+# ------------------
+# Purpose:
+# Automatically contain malicious or unsafe privileged behavior.
+# This policy is RESTRICTIVE-ONLY.
+# It MUST NOT grant access under any circumstance.
+
+containment:
+  description: >
+    Automatic restriction and revocation triggered by policy-evaluated
+    malicious or unsafe administrative behavior.
+
+  invariants:
+    - no_grant
+    - no_bypass
+    - no_human_override
+    - evidence_required
+
+  triggers:
+
+    repeated_denied_elevation:
+      description: >
+        Multiple denied JIT elevation requests within a bounded time window.
+      threshold:
+        count: 3
+        window_seconds: 600
+      action: contain
+
+    investigation_scope_violation:
+      description: >
+        Attempt to access data outside declared incident scope.
+      action: contain
+
+    evidence_tampering_attempt:
+      description: >
+        Any attempt to delete, modify, suppress, or bypass evidence capture.
+      action: contain
+
+    posture_degradation_during_elevation:
+      description: >
+        Device posture degrades while a privileged grant is active.
+      action: contain
+
+    abnormal_privileged_frequency:
+      description: >
+        Privileged intents requested at a frequency exceeding policy norms.
+      threshold:
+        count: 5
+        window_seconds: 900
+      action: contain
+
+  containment_actions:
+
+    revoke_all_jit:
+      description: >
+        Immediately revoke all active JIT elevation and investigation grants
+        for the affected user and device.
+
+    degrade_device:
+      description: >
+        Transition device state to 'degraded' to restrict future access.
+
+    deny_new_elevation:
+      description: >
+        Deny all new JIT elevation requests until recovery is completed.
+
+    force_reauthentication:
+      description: >
+        Require fresh authentication for all future intents.
+
+    escalate_to_investigation:
+      description: >
+        Automatically create or link to an investigation context.
+
+  execution_order:
+    - revoke_all_jit
+    - degrade_device
+    - deny_new_elevation
+    - force_reauthentication
+    - escalate_to_investigation
+
+  guarantees:
+    - containment_is_immediate
+    - containment_is_global
+    - containment_is_auditable
+    - containment_is_irreversible_without_recovery
+

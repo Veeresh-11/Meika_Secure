@@ -1,0 +1,51 @@
+{
+  "challenge_id": "uuid",
+  "issued_at": "RFC3339 timestamp",
+  "expires_at": "RFC3339 timestamp",
+
+  "issuer": {
+    "system": "meika-secure-id",
+    "environment": "production"
+  },
+
+  "identity_context": {
+    "identity_id": "uuid",
+    "identity_type": "human | service | agent | vendor | emergency",
+    "authentication_strength_required": "low | medium | high | hardware-backed"
+  },
+
+  "requested_action": {
+    "action_type": "login | privilege_elevation | sensitive_operation",
+    "resource": "string",
+    "risk_tolerance": "low | medium | high"
+  },
+
+  "allowed_auth_methods": [
+    "passkey",
+    "platform_biometric",
+    "secure_otp_transcription"
+  ],
+
+  "cryptographic_requirements": {
+    "challenge_nonce": "base64",
+    "signature_algorithm": "ECDSA-P256 | Ed25519 | ML-DSA",
+    "hash_algorithm": "SHA-256"
+  },
+
+  "device_requirements": {
+    "device_binding_required": true,
+    "trusted_device_only": false,
+    "device_posture_check": true
+  },
+
+  "risk_constraints": {
+    "max_risk_score": 60,
+    "step_up_required_above": 40
+  },
+
+  "policy_reference": {
+    "policy_id": "authentication-policy-v1",
+    "policy_version": "1.0.0"
+  }
+}
+

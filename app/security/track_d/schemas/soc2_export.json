@@ -1,0 +1,8 @@
+{
+  "type": "object",
+  "required": ["bundle", "bundle_hash"],
+  "properties": {
+    "bundle": { "type": "string" },
+    "bundle_hash": { "type": "string" }
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "decision_id": "uuid",
+  "challenge_id": "uuid",
+  "proof_id": "uuid",
+  "intent_id": "uuid",
+
+  "decision": {
+    "outcome": "allow | deny | step_up | restrict",
+    "confidence": "high | medium | low"
+  },
+
+  "policy_evaluation": {
+    "authentication_policy_id": "authentication-policy-v1",
+    "authentication_policy_version": "1.0.0",
+    "risk_policy_id": "risk-policy-v1",
+    "risk_policy_version": "1.0.0",
+    "privilege_policy_id": "privilege-policy-v1",
+    "conditions_evaluated": [
+      "identity_type_allowed",
+      "authentication_strength_sufficient",
+      "device_trust_valid",
+      "intent_matches_request",
+      "risk_within_threshold"
+    ],
+    "policy_result": "pass | fail"
+  },
+
+  "risk_assessment": {
+    "identity_risk_score": 12,
+    "session_risk_score": 8,
+    "environment_risk_score": 5,
+    "overall_risk_score": 15,
+    "risk_level": "low | medium | high"
+  },
+
+  "decision_effects": {
+    "session_ttl_seconds": 900,
+    "privilege_ttl_seconds": 300,
+    "access_scope": "full | reduced | read_only | isolated",
+    "revalidation_required": true
+  },
+
+  "step_up_requirements": {
+    "required": false,
+    "allowed_methods": [
+      "platform_biometric",
+      "hardware_backed_key",
+      "secure_otp_transcription"
+    ]
+  },
+
+  "evidence": {
+    "proof_verified": true,
+    "signature_verified": true,
+    "device_attestation_verified": true,
+    "biometric_confirmed": true,
+    "intent_verified": true
+  },
+
+  "audit_metadata": {
+    "actor_identity_id": "uuid",
+    "actor_identity_type": "human | service | agent | vendor | emergency",
+    "resource": "application | api | admin_panel | system_route",
+    "action": "login | read | write | admin | debug",
+    "decision_reason": "human-readable explanation",
+    "policy_trace_hash": "sha256"
+  },
+
+  "issued_at": "RFC3339 timestamp",
+  "expires_at": "RFC3339 timestamp"
+}
+

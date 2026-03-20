@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "required": ["valid", "reason"],
+  "properties": {
+    "valid": { "type": "boolean" },
+    "reason": { "type": "string" },
+    "failure_index": { "type": ["integer", "null"] }
+  }
+}

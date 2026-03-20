@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "JITElevationRequest",
+  "type": "object",
+  "required": [
+    "user_id",
+    "device_id",
+    "intent",
+    "justification",
+    "requested_duration",
+    "requested_at"
+  ],
+  "properties": {
+    "user_id": { "type": "string" },
+    "device_id": { "type": "string" },
+    "intent": {
+      "type": "string",
+      "description": "Specific privileged action requested"
+    },
+    "justification": {
+      "type": "string",
+      "description": "Human-readable reason"
+    },
+    "requested_duration": {
+      "type": "integer",
+      "description": "Seconds (upper-bounded by policy)"
+    },
+    "requested_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": false
+}

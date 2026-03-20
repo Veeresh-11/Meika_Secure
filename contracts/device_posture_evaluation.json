@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DevicePostureEvaluation",
+  "type": "object",
+  "required": [
+    "device_id",
+    "intent",
+    "signals",
+    "policy_result",
+    "explanation",
+    "evidence_ref"
+  ],
+  "properties": {
+    "device_id": {
+      "type": "string"
+    },
+    "intent": {
+      "type": "string",
+      "description": "Action being requested (auth, admin_elevation, investigation)"
+    },
+    "signals": {
+      "type": "array",
+      "items": {
+        "$ref": "device_posture_signal.json"
+      }
+    },
+    "policy_result": {
+      "type": "string",
+      "enum": ["allow", "restrict", "deny"]
+    },
+    "explanation": {
+      "type": "string",
+      "description": "Human-readable explanation of decision"
+    },
+    "evidence_ref": {
+      "type": "string",
+      "description": "Reference to immutable audit record"
+    }
+  },
+  "additionalProperties": false
+}

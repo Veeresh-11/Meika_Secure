@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SIEMEvent",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "timestamp",
+    "user_id",
+    "device_id",
+    "intent",
+    "decision",
+    "evidence_ref"
+  ],
+  "properties": {
+    "event_id": { "type": "string" },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "auth_decision",
+        "policy_decision",
+        "grant_issued",
+        "grant_revoked",
+        "containment_triggered",
+        "investigation_query",
+        "evidence_failure"
+      ]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "user_id": { "type": "string" },
+    "device_id": { "type": "string" },
+    "intent": { "type": "string" },
+    "decision": {
+      "type": "string",
+      "enum": ["allow", "restrict", "deny", "revoke"]
+    },
+    "evidence_ref": { "type": "string" },
+    "explanation": { "type": "string" }
+  },
+  "additionalProperties": false
+}

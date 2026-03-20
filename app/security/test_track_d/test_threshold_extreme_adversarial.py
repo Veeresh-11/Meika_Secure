@@ -1,0 +1,63 @@
+import pytest
+import hashlib
+import json
+
+from app.security.track_d.signing.threshold_verifier import ThresholdVerifier
+from app.security.track_d.signing.trust_store import TrustStore
+from app.security.track_d.signing.ed25519_local import Ed25519LocalSigner
+
+
+def _utc():
+    return "2026-02-01T00:00:00Z"
+
+
+def _payload():
+    return {"action": "approve", "amount": 100}
+
+
+def _canonical(payload):
+    return json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+
+
+def test_massive_duplicate_signer_attack():
+
+    trust = TrustStore()
+    signer = Ed25519LocalSigner()
+    key_id = signer.key_id()
+
+    trust.register_key(
+        key_id=key_id,
+        public_key=bytes.fromhex(signer.public_key_hex()),
+        algorithm="Ed25519",
+        weight=10,
+        roles=["admin"],
+        created_at=_utc(),
+    )
+
+    payload = _payload()
+    payload_hash = hashlib.sha256(_canonical(payload)).hexdigest()
+
+    sig_hex = signer.sign(payload_hash.encode())[0]
+
+    signatures = [
+        {"key_id": key_id, "signature": sig_hex}
+        for _ in range(20)
+    ]
+
+    signature_object = {
+        "hash_algorithm": "SHA-256",
+        "payload_hash": payload_hash,
+        "policy_family": None,
+        "policy_version": None,
+        "signed_at": _utc(),
+        "signatures": signatures,
+    }
+
+    verifier = ThresholdVerifier(trust_store=trust)
+
+    with pytest.raises(ValueError):
+        verifier.verify(
+            payload=payload,
+            signature_object=signature_object,
+            now_utc=_utc(),
+        )

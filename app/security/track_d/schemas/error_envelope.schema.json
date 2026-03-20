@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ErrorEnvelope",
+  "type": "object",
+  "required": [
+    "error_code",
+    "error_class",
+    "human_message",
+    "fingerprint",
+    "authoritative"
+  ],
+  "properties": {
+    "error_code": {
+      "type": "string",
+      "pattern": "^MEIKA_[A-Z_]+$"
+    },
+    "error_class": {
+      "type": "string",
+      "enum": [
+        "CONTEXT",
+        "AUTH",
+        "DEVICE",
+        "GRANT",
+        "POLICY",
+        "EVIDENCE",
+        "REPLAY",
+        "INFRA"
+      ]
+    },
+    "human_message": {
+      "type": "string"
+    },
+    "fingerprint": {
+      "type": "string",
+      "minLength": 64,
+      "maxLength": 64
+    },
+    "authoritative": {
+      "type": "boolean"
+    },
+    "evidence_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "record_hash": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64
+        },
+        "sequence": {
+          "type": "integer"
+        }
+      }
+    }
+  },
+  "additionalProperties": false
+}
