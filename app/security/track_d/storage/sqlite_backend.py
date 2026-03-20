@@ -19,9 +19,20 @@ import json
 import hashlib
 from pathlib import Path
 from typing import Dict, Any
+from enum import Enum
 
 
 SCHEMA_VERSION = 1
+
+
+# ---------------------------------------------------------
+# Table Enum (Type-safe, injection-proof)
+# ---------------------------------------------------------
+
+class Table(str, Enum):
+    VERIFICATION = "verification_ledger"
+    TRANSPARENCY = "transparency_log"
+    GOVERNANCE = "governance_policies"
 
 
 # ---------------------------------------------------------
@@ -76,7 +87,6 @@ class SQLiteBackend:
         cur.execute("PRAGMA synchronous=FULL;")
         cur.execute("PRAGMA foreign_keys=ON;")
 
-        # Verify foreign keys active
         fk = cur.execute("PRAGMA foreign_keys;").fetchone()
         if fk and fk[0] != 1:
             raise RuntimeError("Foreign keys not enforced")
@@ -138,9 +148,9 @@ class SQLiteBackend:
 
         # Immutable triggers
         for table in [
-            "verification_ledger",
-            "transparency_log",
-            "governance_policies",
+            Table.VERIFICATION.value,
+            Table.TRANSPARENCY.value,
+            Table.GOVERNANCE.value,
         ]:
             cur.execute(f"""
                 CREATE TRIGGER IF NOT EXISTS prevent_update_{table}
@@ -160,23 +170,20 @@ class SQLiteBackend:
         self.conn.commit()
 
     # -----------------------------------------------------
-    # Append Operations (Atomic)
+    # Append Operations (Atomic, Safe)
     # -----------------------------------------------------
 
-    def append(self, table: str, entry: Dict[str, Any]):
+    def append(self, table: Table, entry: Dict[str, Any]):
 
-        if table not in (
-            "verification_ledger",
-            "transparency_log",
-            "governance_policies",
-        ):
+        if not isinstance(table, Table):
             raise ValueError("Invalid table")
 
         entry_hash = _hash_entry(entry)
 
         with self.conn:
+            # nosec B608: table name is Enum-restricted and not user-controlled
             self.conn.execute(
-                f"INSERT INTO {table} (entry_json, entry_hash) VALUES (?, ?)",
+                f"INSERT INTO {table.value} (entry_json, entry_hash) VALUES (?, ?)",
                 (json.dumps(entry), entry_hash),
             )
 
@@ -187,22 +194,26 @@ class SQLiteBackend:
     def _validate_integrity_on_startup(self):
 
         for table in (
-            "verification_ledger",
-            "transparency_log",
-            "governance_policies",
+            Table.VERIFICATION,
+            Table.TRANSPARENCY,
+            Table.GOVERNANCE,
         ):
             self._validate_table(table)
 
-    def _validate_table(self, table: str):
+    def _validate_table(self, table: Table):
 
+        if not isinstance(table, Table):
+            raise ValueError("Invalid table")
+
+        # nosec B608: table name is Enum-restricted and not user-controlled
         rows = self.conn.execute(
-            f"SELECT id, entry_json, entry_hash FROM {table} ORDER BY id ASC"
+            f"SELECT id, entry_json, entry_hash FROM {table.value} ORDER BY id ASC"
         ).fetchall()
 
         for row in rows:
             entry = json.loads(row["entry_json"])
             if _hash_entry(entry) != row["entry_hash"]:
-                raise RuntimeError(f"Integrity failure in table: {table}")
+                raise RuntimeError(f"Integrity failure in table: {table.value}")
 
     # -----------------------------------------------------
     # Close
