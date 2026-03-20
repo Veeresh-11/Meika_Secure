@@ -209,3 +209,6 @@ __marimo__/
 __pycache__/
 venv/
 venv/
+ledger.anchor
+metrics.chain
+*.db
