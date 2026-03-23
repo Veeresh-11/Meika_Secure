@@ -70,7 +70,7 @@ jobs:
       # 6. SBOM
       # ----------------------------------------
       - name: SBOM Generation
-        run: cyclonedx-py app -o bom.json
+        run: cyclonedx-py requirements -o bom.json
 
       # ----------------------------------------
       # 7. Logic Stress Test (Pynguin)
