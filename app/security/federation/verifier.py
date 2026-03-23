@@ -24,7 +24,7 @@ class TokenReplayVerifier:
         self.pq = PostQuantumSigner()
 
     def verify(self, token: str, audience: str) -> dict:
-
+        jwt = _get_jwt()
         unverified_header = jwt.get_unverified_header(token)
         kid = unverified_header.get("kid")
 
@@ -32,7 +32,7 @@ class TokenReplayVerifier:
             raise TokenVerificationError("Missing kid")
 
         key = self.keys.get(kid)
-        jwt = _get_jwt()
+       
         claims = jwt.decode(
             token,
             key.public_key,
