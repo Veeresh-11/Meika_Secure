@@ -1,13 +1,16 @@
 # app/security/federation/verifier.py
-
-import jwt
 import hashlib
 import base64
 
 from app.security.version import KERNEL_VERSION, KERNEL_BUILD_HASH
 from app.security.runtime_state import KernelState
 from app.security.federation.pq_signer import PostQuantumSigner
-
+def _get_jwt():
+    try:
+        import jwt
+        return jwt
+    except ImportError:
+        raise RuntimeError("jwt is required for federation verification")
 
 class TokenVerificationError(Exception):
     pass
@@ -29,7 +32,7 @@ class TokenReplayVerifier:
             raise TokenVerificationError("Missing kid")
 
         key = self.keys.get(kid)
-
+        jwt = _get_jwt()
         claims = jwt.decode(
             token,
             key.public_key,

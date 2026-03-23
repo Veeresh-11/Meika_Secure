@@ -29,7 +29,6 @@ except ImportError:
     SigningKey = None
     VerifyKey = None
     HexEncoder = None
-from nacl.encoding import HexEncoder
 import os
 ANCHOR_FILE = os.getenv("ANCHOR_FILE", "ledger.anchor")
 
