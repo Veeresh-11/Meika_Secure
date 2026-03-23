@@ -17,7 +17,6 @@ TRACK C:
 """
 import os
 import pytest
-import psycopg2
 from app.security.pipeline import SecureIDKernel
 from app.security.context import SecurityContext
 from app.security.evidence.store import InMemoryEvidenceStore
@@ -142,7 +141,8 @@ POSTGRES_DSN = os.getenv("POSTGRES_DSN")
 def postgres_kernel():
     if not POSTGRES_DSN:
         pytest.skip("Postgres DSN not configured")
-
+    # ✅ Import ONLY when needed    
+    import psycopg2
     store = PostgresEvidenceStore(POSTGRES_DSN)
 
     return SecureIDKernel(evidence_store=store)
