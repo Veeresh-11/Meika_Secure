@@ -1,10 +1,6 @@
 import os
 from typing import Optional, List
 
-import psycopg2
-import psycopg2.extras
-from psycopg2 import sql
-
 from app.security.evidence.models import EvidenceRecord
 from app.security.errors import SecurityInvariantViolation
 from app.security.schema_guard import validate_schema
@@ -31,6 +27,15 @@ class PostgresEvidenceStore:
     def __init__(self, dsn: str):
         self._dsn = dsn
 
+        # ✅ Lazy import (CI-safe)
+        try:
+            import psycopg2
+        except ImportError:
+            raise RuntimeError("psycopg2 is required for PostgresEvidenceStore")
+
+        self._psycopg2 = psycopg2
+
+        # ✅ Single connection
         self._conn = psycopg2.connect(dsn)
         self._conn.autocommit = False
 
@@ -55,14 +60,10 @@ class PostgresEvidenceStore:
         try:
             with self._conn.cursor() as cur:
 
-                # -------------------------------------------------
-                # 🔒 Acquire advisory lock (cluster-wide)
-                # -------------------------------------------------
+                # 🔒 Acquire advisory lock
                 cur.execute("SELECT pg_advisory_lock(%s);", (LOCK_ID,))
 
-                # -------------------------------------------------
-                # 🔍 Verify current chain head (fork detection)
-                # -------------------------------------------------
+                # 🔍 Verify chain head
                 cur.execute(
                     """
                     SELECT record_hash
@@ -79,9 +80,7 @@ class PostgresEvidenceStore:
                 if current_head != expected_previous:
                     raise SecurityInvariantViolation("FORK_DETECTED")
 
-                # -------------------------------------------------
-                # 🔢 Verify sequence continuity
-                # -------------------------------------------------
+                # 🔢 Verify sequence
                 cur.execute(
                     """
                     SELECT COALESCE(MAX(sequence_number), -1) + 1
@@ -93,9 +92,7 @@ class PostgresEvidenceStore:
                 if next_seq != record.sequence_number:
                     raise SecurityInvariantViolation("SEQUENCE_COLLISION")
 
-                # -------------------------------------------------
                 # 🧱 Insert record
-                # -------------------------------------------------
                 cur.execute(
                     """
                     INSERT INTO evidence_ledger
@@ -118,7 +115,7 @@ class PostgresEvidenceStore:
             raise SecurityInvariantViolation(str(e))
 
         finally:
-            # Always release advisory lock
+            # 🔓 Always release lock
             try:
                 with self._conn.cursor() as cur:
                     cur.execute("SELECT pg_advisory_unlock(%s);", (LOCK_ID,))
@@ -157,7 +154,7 @@ class PostgresEvidenceStore:
 
     def get_all(self) -> List[EvidenceRecord]:
         with self._conn.cursor(
-            cursor_factory=psycopg2.extras.DictCursor
+            cursor_factory=self._psycopg2.extras.DictCursor  # ✅ FIXED
         ) as cur:
             cur.execute(
                 """
