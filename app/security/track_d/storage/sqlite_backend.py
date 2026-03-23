@@ -21,6 +21,9 @@ from enum import Enum
 from datetime import datetime
 
 import requests
+import pytest
+
+pytest.importorskip("nacl")
 
 try:
     from nacl.signing import SigningKey, VerifyKey
