@@ -24,11 +24,11 @@ import requests
 
 try:
     from nacl.signing import SigningKey, VerifyKey
+    from nacl.encoding import HexEncoder
 except ImportError:
     SigningKey = None
     VerifyKey = None
-    if SigningKey is None:
-      raise RuntimeError("nacl is required for sqlite backend")
+    HexEncoder = None
 from nacl.encoding import HexEncoder
 import os
 ANCHOR_FILE = os.getenv("ANCHOR_FILE", "ledger.anchor")
@@ -36,6 +36,8 @@ ANCHOR_FILE = os.getenv("ANCHOR_FILE", "ledger.anchor")
 
 class Signer:
     def __init__(self, private_key_hex: str):
+        if SigningKey is None:
+            raise RuntimeError("nacl is required for sqlite backend")
         self.sk = SigningKey(private_key_hex, encoder=HexEncoder)
         self.vk = self.sk.verify_key
 
@@ -80,6 +82,8 @@ def _chain_hash(entry_hash: str, prev_hash: str | None) -> str:
 
 
 def _verify_signature(public_key: str, signature: str, message: str):
+    if SigningKey is None:
+            raise RuntimeError("nacl is required for sqlite backend")
     vk = VerifyKey(public_key, encoder=HexEncoder)
     vk.verify(message.encode(), bytes.fromhex(signature))
 
@@ -100,6 +104,8 @@ class SignerInterface(Protocol):
 class LocalSigner:
 
     def __init__(self, private_key_hex: str):
+        if SigningKey is None:
+            raise RuntimeError("nacl is required for sqlite backend")
         self.signing_key = SigningKey(private_key_hex, encoder=HexEncoder)
         self.verify_key = self.signing_key.verify_key
 

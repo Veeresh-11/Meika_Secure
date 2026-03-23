@@ -1,6 +1,12 @@
 # app/security/federation/service.py
 
-import jwt
+def _get_jwt():
+    try:
+        import jwt
+        return jwt
+    except ImportError:
+        raise RuntimeError("jwt is required for federation")
+    
 import hashlib
 import time
 import base64
@@ -97,6 +103,7 @@ class FederationService:
         # -------------------------------------------------
         # 3️⃣ Final Ed25519 signature
         # -------------------------------------------------
+        jwt = _get_jwt()
         token = jwt.encode(
             payload,
             key.private_key,
