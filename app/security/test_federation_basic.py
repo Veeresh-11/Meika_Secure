@@ -1,5 +1,6 @@
-import jwt
+import pytest
 
+jwt = pytest.importorskip("jwt")
 from app.security.pipeline import SecureIDKernel
 from app.security.federation.keys import SigningKeyRegistry
 from app.security.federation.service import FederationService

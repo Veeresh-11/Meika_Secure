@@ -1,5 +1,6 @@
 import pytest
 
+jwt = pytest.importorskip("jwt")
 pytestmark = [
     pytest.mark.track_b,
     pytest.mark.kernel,

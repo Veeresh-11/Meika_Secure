@@ -22,7 +22,13 @@ from datetime import datetime
 
 import requests
 
-from nacl.signing import SigningKey, VerifyKey
+try:
+    from nacl.signing import SigningKey, VerifyKey
+except ImportError:
+    SigningKey = None
+    VerifyKey = None
+    if SigningKey is None:
+      raise RuntimeError("nacl is required for sqlite backend")
 from nacl.encoding import HexEncoder
 import os
 ANCHOR_FILE = os.getenv("ANCHOR_FILE", "ledger.anchor")

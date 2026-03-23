@@ -2,7 +2,9 @@ from app.security.pipeline import SecureIDKernel
 from app.security.federation.keys import SigningKeyRegistry
 from app.security.federation.service import FederationService
 from app.security.federation.verifier import TokenReplayVerifier
+import pytest
 
+jwt = pytest.importorskip("jwt")
 
 def test_token_replay_verification_success():
 

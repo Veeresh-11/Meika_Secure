@@ -1,7 +1,9 @@
 import os
 import pytest
 from datetime import datetime
-import psycopg2
+
+
+psycopg2 = pytest.importorskip("psycopg2")
 
 from app.security.evidence.postgres_store import PostgresEvidenceStore
 from app.security.evidence.engine import build_evidence_record
