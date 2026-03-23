@@ -16,10 +16,6 @@ import sqlite3
 import json
 import hashlib
 from pathlib import Path
-<<<<<<< HEAD
-from typing import Dict, Any
-from enum import Enum
-=======
 from typing import Dict, Any, List, Protocol
 from enum import Enum
 from datetime import datetime
@@ -30,7 +26,6 @@ from nacl.signing import SigningKey, VerifyKey
 from nacl.encoding import HexEncoder
 import os
 ANCHOR_FILE = os.getenv("ANCHOR_FILE", "ledger.anchor")
->>>>>>> 871e562c (feat(security): finalize hardened sqlite ledger with quorum signing, anchor verification, and secure metrics exporter; add integration test)
 
 
 class Signer:
@@ -49,16 +44,11 @@ class Signer:
 # ---------------------------------------------------------
 
 SCHEMA_VERSION = 3
-os.environ["ANCHOR_FILE"]
 REQUIRED_SIGNATURES = 2
 
 
 # ---------------------------------------------------------
-<<<<<<< HEAD
-# Table Enum (Type-safe, injection-proof)
-=======
 # TABLE ENUM
->>>>>>> 871e562c (feat(security): finalize hardened sqlite ledger with quorum signing, anchor verification, and secure metrics exporter; add integration test)
 # ---------------------------------------------------------
 
 class Table(str, Enum):
@@ -68,11 +58,7 @@ class Table(str, Enum):
 
 
 # ---------------------------------------------------------
-<<<<<<< HEAD
-# Helpers
-=======
 # CRYPTO HELPERS
->>>>>>> 871e562c (feat(security): finalize hardened sqlite ledger with quorum signing, anchor verification, and secure metrics exporter; add integration test)
 # ---------------------------------------------------------
 
 def _canonical(data: Dict[str, Any]) -> bytes:
@@ -191,32 +177,6 @@ class SQLiteBackend:
     def _init_schema(self):
         cur = self.conn.cursor()
 
-<<<<<<< HEAD
-        cur.execute("PRAGMA journal_mode=WAL;")
-        mode = cur.fetchone()
-        if mode and mode[0].lower() != "wal":
-            raise RuntimeError("WAL mode not enforced")
-
-        cur.execute("PRAGMA synchronous=FULL;")
-        cur.execute("PRAGMA foreign_keys=ON;")
-
-        fk = cur.execute("PRAGMA foreign_keys;").fetchone()
-        if fk and fk[0] != 1:
-            raise RuntimeError("Foreign keys not enforced")
-
-        self.conn.commit()
-
-    # -----------------------------------------------------
-    # Schema Initialization
-    # -----------------------------------------------------
-
-    def _initialize_schema(self):
-
-        cur = self.conn.cursor()
-
-        # Schema version
-=======
->>>>>>> 871e562c (feat(security): finalize hardened sqlite ledger with quorum signing, anchor verification, and secure metrics exporter; add integration test)
         cur.execute("""
             CREATE TABLE IF NOT EXISTS signer_registry (
                 public_key TEXT PRIMARY KEY,
@@ -225,54 +185,7 @@ class SQLiteBackend:
             );
         """)
 
-<<<<<<< HEAD
-        version = cur.execute("SELECT version FROM schema_version").fetchone()
-
-        if version is None:
-            cur.execute(
-                "INSERT INTO schema_version (version) VALUES (?)",
-                (SCHEMA_VERSION,),
-            )
-        elif version["version"] != SCHEMA_VERSION:
-            raise RuntimeError("Schema version mismatch — migration required")
-
-        # Ledger
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS verification_ledger (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                entry_json TEXT NOT NULL,
-                entry_hash TEXT NOT NULL UNIQUE
-            );
-        """)
-
-        # Transparency
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS transparency_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                entry_json TEXT NOT NULL,
-                entry_hash TEXT NOT NULL UNIQUE
-            );
-        """)
-
-        # Governance
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS governance_policies (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                family TEXT NOT NULL,
-                entry_json TEXT NOT NULL,
-                entry_hash TEXT NOT NULL UNIQUE
-            );
-        """)
-
-        # Immutable triggers
-        for table in [
-            Table.VERIFICATION.value,
-            Table.TRANSPARENCY.value,
-            Table.GOVERNANCE.value,
-        ]:
-=======
         for table in Table:
->>>>>>> 871e562c (feat(security): finalize hardened sqlite ledger with quorum signing, anchor verification, and secure metrics exporter; add integration test)
             cur.execute(f"""
                 CREATE TABLE IF NOT EXISTS {table.value} (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -287,33 +200,14 @@ class SQLiteBackend:
         self.conn.commit()
 
     # -----------------------------------------------------
-<<<<<<< HEAD
-    # Append Operations (Atomic, Safe)
-    # -----------------------------------------------------
-
-    def append(self, table: Table, entry: Dict[str, Any]):
-
-        if not isinstance(table, Table):
-            raise ValueError("Invalid table")
-
-        entry_hash = _hash_entry(entry)
-
-=======
     # KEY MANAGEMENT
     # -----------------------------------------------------
 
     def register_signer(self, public_key: str):
->>>>>>> 871e562c (feat(security): finalize hardened sqlite ledger with quorum signing, anchor verification, and secure metrics exporter; add integration test)
         with self.conn:
-            # nosec B608: table name is Enum-restricted and not user-controlled
             self.conn.execute(
-<<<<<<< HEAD
-                f"INSERT INTO {table.value} (entry_json, entry_hash) VALUES (?, ?)",
-                (json.dumps(entry), entry_hash),
-=======
                 "INSERT OR REPLACE INTO signer_registry VALUES (?, 'active', ?)",
                 (public_key, datetime.utcnow().isoformat()),
->>>>>>> 871e562c (feat(security): finalize hardened sqlite ledger with quorum signing, anchor verification, and secure metrics exporter; add integration test)
             )
 
     def revoke_signer(self, public_key: str):
@@ -323,38 +217,12 @@ class SQLiteBackend:
                 (public_key,),
             )
 
-<<<<<<< HEAD
-    def _validate_integrity_on_startup(self):
-
-        for table in (
-            Table.VERIFICATION,
-            Table.TRANSPARENCY,
-            Table.GOVERNANCE,
-        ):
-            self._validate_table(table)
-
-    def _validate_table(self, table: Table):
-
-        if not isinstance(table, Table):
-            raise ValueError("Invalid table")
-
-        # nosec B608: table name is Enum-restricted and not user-controlled
-        rows = self.conn.execute(
-            f"SELECT id, entry_json, entry_hash FROM {table.value} ORDER BY id ASC"
-        ).fetchall()
-
-        for row in rows:
-            entry = json.loads(row["entry_json"])
-            if _hash_entry(entry) != row["entry_hash"]:
-                raise RuntimeError(f"Integrity failure in table: {table.value}")
-=======
     def _is_active(self, public_key: str) -> bool:
         row = self.conn.execute(
             "SELECT status FROM signer_registry WHERE public_key=?",
             (public_key,),
         ).fetchone()
         return row and row["status"] == "active"
->>>>>>> 871e562c (feat(security): finalize hardened sqlite ledger with quorum signing, anchor verification, and secure metrics exporter; add integration test)
 
     # -----------------------------------------------------
     # CHAIN
@@ -426,7 +294,7 @@ class SQLiteBackend:
 
     def _anchor(self, chain_hash: str, signatures: List[dict]):
 
-        Path(ANCHOR_FILE).write_text(json.dumps({
+        Path(os.getenv("ANCHOR_FILE", "ledger.anchor")).write_text(json.dumps({
             "chain_hash": chain_hash,
             "signatures": signatures,
         }))
@@ -444,10 +312,10 @@ class SQLiteBackend:
         if count == 0:
             return
 
-        if not Path(ANCHOR_FILE).exists():
+        if not Path(os.getenv("ANCHOR_FILE", "ledger.anchor")).exists():
             raise RuntimeError("Missing anchor")
 
-        anchor = json.loads(Path(ANCHOR_FILE).read_text())
+        anchor = json.loads(Path(os.getenv("ANCHOR_FILE", "ledger.anchor")).read_text())
         latest = self._last_hash(table)
 
         if latest != anchor["chain_hash"]:

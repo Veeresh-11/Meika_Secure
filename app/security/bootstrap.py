@@ -1,6 +1,6 @@
 from app.security.policy.loader import load_policy
 from app.security.policy.engine import PolicyEngine
-from app.security.pipeline import SecureIDKernel
+from app.security.pipeline import SecurityPipeline
 
 from app.security.graph.relationship_graph import RelationshipGraph
 from app.security.graph.storage.memory_store import MemoryTupleStore
@@ -35,7 +35,7 @@ def build_pipeline():
     # Kernel
     # -------------------------------------------------
 
-    kernel = SecureIDKernel()
+    kernel = SecurityPipeline()
 
     kernel.policy_evaluator = policy_engine.evaluate
     kernel.graph = graph

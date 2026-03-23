@@ -31,18 +31,12 @@ class FailureClass(str, Enum):
 
 
 class SecurityPipelineError(Exception):
-    """
-    Deterministic, expected security failure.
-
-    Used internally to short-circuit evaluation and MUST be converted
-    into a DENY SecurityDecision by the pipeline.
-    """
-
     def __init__(self, reason: DenyReason, failure_class: FailureClass):
         self.reason = reason
         self.failure_class = failure_class
-        super().__init__(f"{failure_class.value}: {reason.value}")
 
+        # ✅ FIX: only expose canonical reason
+        super().__init__(reason.value)
 
 class SecurityError(Exception):
     """

@@ -17,6 +17,7 @@ TRACK C:
 """
 import os
 import pytest
+import psycopg2
 from app.security.pipeline import SecureIDKernel
 from app.security.context import SecurityContext
 from app.security.evidence.store import InMemoryEvidenceStore

@@ -1,16 +1,5 @@
 """
 TRACK_A_CORE — Immutable Device Snapshot
-
-This module defines DeviceSnapshot, the frozen representation of a device's
-security posture at request evaluation time.
-
-Design principles:
-- No live device access
-- No mutation after creation
-- Deterministic, serializable state
-- Safe against TOCTOU and replay attacks
-
-If a device attribute is not captured here, it does not exist for enforcement.
 """
 
 from dataclasses import dataclass
@@ -19,14 +8,6 @@ from typing import Optional
 
 @dataclass(frozen=True)
 class DeviceSnapshot:
-    """
-    Immutable device security snapshot.
-
-    Sprint A2 invariants:
-    - Device state is frozen at request time
-    - Snapshot is immutable and audit-safe
-    - Snapshot is the ONLY device input to the kernel
-    """
 
     device_id: str
     registered: bool = False
@@ -43,18 +24,28 @@ class DeviceSnapshot:
     compromised: bool = False
     clone_confirmed: bool = False
 
+    # -----------------------------------------------------
+    # FIX: context conversion (dict + object support)
+    # -----------------------------------------------------
     @staticmethod
     def from_context(ctx) -> "DeviceSnapshot":
-        """
-        Construct a snapshot from a trusted, pre-validated context.
 
-        NOTE:
-        - This is a convenience helper.
-        - Kernel enforcement MUST rely only on the resulting snapshot,
-          never on the original context.
-        """
+        if isinstance(ctx, dict):
+            return DeviceSnapshot(
+                device_id=ctx.get("device_id"),
+                registered=ctx.get("registered", False),
+                state=ctx.get("state"),
+                hardware_backed=ctx.get("hardware_backed", False),
+                attestation_verified=ctx.get("attestation_verified", False),
+                binding_valid=ctx.get("binding_valid", False),
+                secure_boot=ctx.get("secure_boot", False),
+                replay_detected=ctx.get("replay_detected", False),
+                compromised=ctx.get("compromised", False),
+                clone_confirmed=ctx.get("clone_confirmed", False),
+            )
+
         return DeviceSnapshot(
-            device_id=ctx.device_id,
+            device_id=getattr(ctx, "device_id"),
             registered=getattr(ctx, "registered", False),
             state=getattr(ctx, "state", None),
             hardware_backed=getattr(ctx, "hardware_backed", False),
@@ -66,15 +57,10 @@ class DeviceSnapshot:
             clone_confirmed=getattr(ctx, "clone_confirmed", False),
         )
 
+    # -----------------------------------------------------
+    # FIX: required for evidence engine
+    # -----------------------------------------------------
     def to_dict(self) -> dict:
-        """
-        Deterministic, audit-safe serialization.
-
-        Used for:
-        - Evidence hashing
-        - Policy sanity checks
-        - Determinism verification
-        """
         return {
             "device_id": self.device_id,
             "registered": self.registered,
