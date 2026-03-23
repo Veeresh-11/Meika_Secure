@@ -1,7 +1,6 @@
 # app/security/schema_guard.py
 
 import hashlib
-import psycopg2
 from app.security.version import SCHEMA_VERSION
 
 
@@ -12,6 +11,12 @@ def compute_schema_checksum(path: str) -> str:
 
 
 def validate_schema(dsn: str, schema_path: str) -> None:
+    # ✅ Lazy import (CI-safe)
+    try:
+        import psycopg2
+    except ImportError:
+        raise RuntimeError("psycopg2 is required for schema validation")
+
     expected_checksum = compute_schema_checksum(schema_path)
 
     conn = psycopg2.connect(dsn)
