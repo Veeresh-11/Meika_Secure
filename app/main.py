@@ -3,7 +3,8 @@ from app.api.auth import router as auth_router
 from app.security.bootstrap import build_pipeline
 from fastapi import FastAPI, Request
 from app.security.middleware import security_middleware
-
+from dotenv import load_dotenv
+load_dotenv()
 
 app = FastAPI(title="Meika Secure ID")
 pipeline = build_pipeline()
