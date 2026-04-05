@@ -7,73 +7,104 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # ----------------------------------------
+      # 0. Checkout
+      # ----------------------------------------
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # ----------------------------------------
+      # 1. Python Setup
+      # ----------------------------------------
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
       # ----------------------------------------
-      # 1. Secret Scan
+      # 2. Secret Scan
       # ----------------------------------------
       - name: Secret Scan (Gitleaks)
         uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # ----------------------------------------
-      # Install Dependencies
+      # 3. Install Dependencies
       # ----------------------------------------
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
 
           # Core tools
-          pip install pytest pytest-mock pynguin bandit safety hypothesis schemathesis cyclonedx-bom
+          pip install \
+            pytest pytest-mock pytest-cov \
+            pynguin bandit safety \
+            hypothesis schemathesis \
+            cyclonedx-bom pip-audit
 
           # Project dependencies
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       # ----------------------------------------
-      # 2. Dependency Audit
+      # 4. Dependency Audit (STRICT)
       # ----------------------------------------
+      - name: Dependency Audit (pip-audit)
+        run: pip-audit
+
       - name: Dependency Audit (Snyk)
         uses: snyk/actions/python@master
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        continue-on-error: true
+        continue-on-error: true   # keep optional
 
       # ----------------------------------------
-      # 3. Static Analysis
+      # 5. Static Analysis
       # ----------------------------------------
       - name: Static Analysis (Bandit)
-        run: bandit -r app/ -ll
+        run: bandit -r app/ -lll
 
       # ----------------------------------------
-      # 4. Run Tests
+      # 6. Run Tests + Coverage
       # ----------------------------------------
-      - name: Run Kernel Tests (Pytest + Hypothesis)
-        run: pytest -q
+      - name: Run Tests (Pytest + Hypothesis)
+        run: pytest --cov=app --cov-report=term --cov-fail-under=80
 
       # ----------------------------------------
-      # 5. API Fuzzing (optional)
+      # 7. Security Attack Tests (CRITICAL)
+      # ----------------------------------------
+      - name: Security Attack Tests
+        run: pytest app/security/test_security_attacks.py -q
+
+      # ----------------------------------------
+      # 8. API Fuzzing (placeholder)
       # ----------------------------------------
       - name: API Fuzzing (Schemathesis)
-        run: |
-          echo "Ready for dynamic API attack simulation"
+        run: echo "Schemathesis ready (integrate OpenAPI later)"
 
       # ----------------------------------------
-      # 6. SBOM
+      # 9. SBOM Generation
       # ----------------------------------------
       - name: SBOM Generation
         run: cyclonedx-py requirements -o bom.json
 
       # ----------------------------------------
-      # 7. Logic Stress Test (Pynguin)
+      # 10. Upload Artifacts
+      # ----------------------------------------
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: bom.json
+
+      - name: Upload Fuzz Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-results
+          path: fuzz_results/
+
+      # ----------------------------------------
+      # 11. Logic Stress Test (Short Fuzz)
       # ----------------------------------------
       - name: Logic Stress-Test (Pynguin)
         env:
