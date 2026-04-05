@@ -1,0 +1,12 @@
+# Dev tools only
+black==25.12.0   # compatible with pynguin
+pytest
+pytest-mock
+pytest-cov
+pynguin
+bandit
+safety
+hypothesis
+schemathesis
+cyclonedx-bom
+pip-audit
