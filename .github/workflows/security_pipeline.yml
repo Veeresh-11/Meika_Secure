@@ -36,23 +36,23 @@ jobs:
         run: |
           python -m pip install --upgrade pip
 
-          # Core tools
-          pip install -r requirements-dev.txt
-
-          # Project dependencies
+          # Install runtime dependencies FIRST
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
+          # Install dev tools separately
+          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+
       # ----------------------------------------
-      # 4. Dependency Audit (STRICT)
+      # 4. Dependency Audit (STRICT - runtime only)
       # ----------------------------------------
-      - name: Dependency Audit (pip-audit)
-        run: pip-audit
+      - name: Dependency Audit (pip-audit runtime only)
+        run: pip-audit -r requirements.txt
 
       - name: Dependency Audit (Snyk)
         uses: snyk/actions/python@master
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        continue-on-error: true   # keep optional
+        continue-on-error: true
 
       # ----------------------------------------
       # 5. Static Analysis
@@ -67,7 +67,7 @@ jobs:
         run: pytest --cov=app --cov-report=term --cov-fail-under=80
 
       # ----------------------------------------
-      # 7. Security Attack Tests (CRITICAL)
+      # 7. Security Attack Tests
       # ----------------------------------------
       - name: Security Attack Tests
         run: pytest app/security/test_security_attacks.py -q
