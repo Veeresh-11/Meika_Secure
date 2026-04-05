@@ -37,11 +37,7 @@ jobs:
           python -m pip install --upgrade pip
 
           # Core tools
-          pip install \
-            pytest pytest-mock pytest-cov \
-            pynguin bandit safety \
-            hypothesis schemathesis \
-            cyclonedx-bom pip-audit
+          pip install -r requirements-dev.txt
 
           # Project dependencies
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
