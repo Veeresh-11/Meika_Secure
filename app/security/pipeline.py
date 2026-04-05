@@ -28,6 +28,7 @@ from app.security.tamper_event import TamperEvent
 
 from app.security.observability.metrics import metrics
 from app.security.observability.events import event_stream
+from dataclasses import replace
 
 import app.security.evidence.engine as evidence_engine
 

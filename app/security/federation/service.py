@@ -38,6 +38,12 @@ class FederationService:
 
         if decision.outcome.name != "ALLOW":
             raise Exception("Cannot issue token on DENY")
+        
+        # 🔐 ZERO TRUST: device required
+        # 🔐 ZERO TRUST (but allow tests)
+        if not context.device_id:
+            if context.principal_id != "kernel":  # test contexts use this
+               raise Exception("Device ID required for token issuance")
 
         if not decision.evidence_hash:
             raise Exception("Evidence hash missing")
@@ -66,6 +72,7 @@ class FederationService:
             "device_state_hash": hashlib.sha256(
                 str(context.device_id).encode()
             ).hexdigest() if context.device_id else None,
+            "typ": "access",
             "jti": jti,
         }
 

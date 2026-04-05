@@ -2,6 +2,7 @@ from app.security.pipeline import SecureIDKernel
 from app.security.federation.keys import SigningKeyRegistry
 from app.security.federation.service import FederationService
 from app.security.federation.verifier import TokenReplayVerifier
+from dataclasses import replace
 import pytest
 
 jwt = pytest.importorskip("jwt")
@@ -16,10 +17,11 @@ def test_token_replay_verification_success():
     verifier = TokenReplayVerifier(kernel, registry)
 
     ctx = kernel._default_context()
+    ctx = replace(ctx, device_id="test-device")
 
     token = service.issue_token(ctx, audience="client-1")
 
-    claims = verifier.verify(token, audience="client-1")
+    claims = verifier.verify(token, audience="client-1", context=ctx)
 
     assert claims["evidence_hash"] is not None
 
