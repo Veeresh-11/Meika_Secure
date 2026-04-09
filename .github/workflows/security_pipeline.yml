@@ -2,10 +2,6 @@ name: Meika Secure ID
 
 on: [push, pull_request]
 
-# Forces all Node 20 actions to run on Node 24 to silence deprecation warnings
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   security-and-logic:
     runs-on: ubuntu-latest
@@ -90,7 +86,6 @@ jobs:
 
       # ----------------------------------------
       # 10. Logic Stress Test (Short Fuzz)
-      # *MOVED* to run BEFORE the artifact upload
       # ----------------------------------------
       - name: Logic Stress-Test (Pynguin)
         env:
