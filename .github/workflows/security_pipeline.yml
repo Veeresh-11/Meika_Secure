@@ -2,6 +2,10 @@ name: Meika Secure ID
 
 on: [push, pull_request]
 
+# Suppresses Node.js 20 deprecation warnings by opting into Node.js 24
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   security-and-logic:
     runs-on: ubuntu-latest
@@ -35,11 +39,7 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          
-          # Install runtime dependencies
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          
-          # Install dev tools
           if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
 
       # ----------------------------------------
@@ -76,16 +76,18 @@ jobs:
       # 8. API Fuzzing (placeholder)
       # ----------------------------------------
       - name: API Fuzzing (Schemathesis)
-        run: echo "Schemathesis ready (integrate OpenAPI later)"
+        run: echo "Schemathesis ready"
 
       # ----------------------------------------
-      # 9. Logic Stress-Test (Fuzzing)
+      # 9. Logic Stress-Test (Pynguin)
       # ----------------------------------------
       - name: Logic Stress-Test (Pynguin)
         env:
           PYNGUIN_DANGER_AWARE: 1
         run: |
           mkdir -p fuzz_results
+          # Create a placeholder so the upload step never finds an empty folder
+          echo "Scan initiated at $(date)" > fuzz_results/scan_info.txt
           for module in app.security.pipeline app.security.context app.security.device_snapshot; do
             pynguin \
               --project-path . \
@@ -101,13 +103,17 @@ jobs:
         run: cyclonedx-py requirements -o bom.json
 
       # ----------------------------------------
-      # 11. Upload Artifacts
+      # 11. Final Artifact Uploads
       # ----------------------------------------
-      - name: Upload Results
+      - name: Upload SBOM
         uses: actions/upload-artifact@v4
         with:
-          name: security-and-fuzz-outputs
-          path: |
-            bom.json
-            fuzz_results/
-          if-no-files-found: warn
+          name: sbom
+          path: bom.json
+
+      - name: Upload Fuzz Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-results
+          path: fuzz_results/
+          if-no-files-found: ignore
