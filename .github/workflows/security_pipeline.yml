@@ -1,4 +1,4 @@
-name: Meika Secure ID - Ultimate Invasive Attack
+name: Meika Secure ID - Ultimate Free Invasive Scan
 
 on: [push, pull_request]
 
@@ -25,8 +25,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      # 1. DEEP SEMANTIC INITIALIZATION (CodeQL)
-      # Must happen first to map the unique code structure
+      # 1. DEEP SEMANTIC INITIALIZATION (CodeQL - Free for Public Repos)
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
@@ -43,18 +42,15 @@ jobs:
           pip install schemathesis pytest pytest-cov bandit hypothesis cyclonedx-bom pynguin pip-audit uvicorn
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      # 2. DEPENDENCY ATTACKS
-      - name: Dependency Audit (pip-audit)
-        run: pip-audit --strict --vulnerability-service osv
-
-      - name: Dependency Audit (Snyk - Hard Gate)
-        uses: snyk/actions/python@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      # 2. FREE DEPENDENCY & STATIC ATTACKS (Trivy + Semgrep)
+      - name: Run Trivy Vulnerability Scanner (Free Snyk Alternative)
+        uses: aquasecurity/trivy-action@master
         with:
-          args: --severity-threshold=high 
+          scan-type: 'fs'
+          format: 'table'
+          exit-code: '1' # Blocks merge on High/Critical
+          severity: 'CRITICAL,HIGH'
 
-      # 3. STATIC ANALYSIS
       - name: Static Analysis (Bandit)
         run: bandit -r app/ -lll
 
@@ -64,38 +60,37 @@ jobs:
           config: p/owasp-top-ten p/security-audit p/secrets
           generateSarif: true
 
-      # 3. START APP FOR LIVE AI ATTACKS
+      # 3. START APP FOR LIVE ATTACKS
       - name: Start App in Background
         run: |
           # Replace 'app.main:app' with your actual entry point
           uvicorn app.main:app --host 0.0.0.0 --port 8000 & 
-          sleep 10 # Extra time for AI tools to find the port
+          sleep 10 
 
-      # 4. AI PENTESTING (Shannon & Zen AI)
-      # These actively "attack" your build to prove vulnerabilities
-      - name: Run Shannon AI Pentester
-        uses: KeygraphHQ/shannon-action@main
+      # 4. ACTIVE PENETRATION TESTING (OWASP ZAP & Nuclei - Free)
+      # Replaces Shannon & Zen AI with professional brute-force tools
+      - name: OWASP ZAP Full Attack Scan
+        uses: zaproxy/action-full-scan@v0.10.0
         with:
-          api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          target-url: "http://localhost:8000"
+          target: 'http://localhost:8000'
+          token: ${{ secrets.GITHUB_TOKEN }}
+          cmd_options: '-a' # Attack mode: actively tries to break the app
 
+      - name: Nuclei Vulnerability Scan
+        uses: projectdiscovery/nuclei-action@v0.3.1
+        with:
+          target: 'http://localhost:8000'
+          flags: "-severity low,medium,high,critical -daa" 
+
+      # 5. LOGIC & API ATTACKS
       - name: Run Tests (Pytest + Hypothesis)
         run: pytest --cov=app --cov-report=term --cov-fail-under=80
 
       - name: Security Attack Tests
         run: pytest app/security/test_security_attacks.py -v
 
-      - name: Zen AI Autonomous Pentest
-        uses: actions/zen-ai-pentest@v3
-        with:
-          scan-type: "aggressive"
-          api-key: ${{ secrets.OPENAI_API_KEY }}
-          target-url: "http://localhost:8000"
-
-      # 5. INVASIVE FUZZING & LOGIC TESTS
       - name: API Fuzzing (Schemathesis)
-        run: |
-          schemathesis run --checks all --skip-deprecated-check http://localhost:8000/openapi.json
+        run: schemathesis run --checks all --skip-deprecated-check http://localhost:8000/openapi.json
 
       - name: Logic Stress-Test (Pynguin)
         env:
@@ -106,7 +101,7 @@ jobs:
             pynguin --project-path . --output-path ./fuzz_results/$module --module-name $module --maximum-search-time 60 || true
           done
 
-      # 6. FINALIZE DEEP SCAN & REPORTING
+      # 6. FINALIZE & REPORTING
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
 
@@ -116,7 +111,7 @@ jobs:
       - name: Upload Security Bundle
         uses: actions/upload-artifact@v4
         with:
-          name: meika-ultimate-results
+          name: meika-freedom-results
           path: |
             bom.json
             fuzz_results/
