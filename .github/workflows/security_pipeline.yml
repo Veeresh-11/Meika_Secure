@@ -6,7 +6,6 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  # SELECT THIS NAME: 'security-and-logic' in Branch Protection to block merges
   security-and-logic:
     runs-on: ubuntu-latest
     permissions:
@@ -25,7 +24,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      # 1. DEEP SEMANTIC INITIALIZATION (CodeQL - Free for Public Repos)
+      # 1. DEEP SEMANTIC INITIALIZATION
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
@@ -42,20 +41,20 @@ jobs:
           pip install schemathesis pytest pytest-cov bandit hypothesis cyclonedx-bom pynguin pip-audit uvicorn
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-      # 2. FREE DEPENDENCY & STATIC ATTACKS (Trivy + Semgrep)
-      - name: Run Trivy Vulnerability Scanner (Free Snyk Alternative)
+      # 2. FREE DEPENDENCY & STATIC ATTACKS
+      - name: Run Trivy Vulnerability Scanner
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
           format: 'table'
-          exit-code: '1' # Blocks merge on High/Critical
+          exit-code: '1'
           severity: 'CRITICAL,HIGH'
 
       - name: Static Analysis (Bandit)
         run: bandit -r app/ -lll
 
       - name: Run Semgrep
-        uses: returntocorp/semgrep-action@v1
+        uses: semgrep/semgrep-action@v1 # Fixed Organization Name
         with:
           config: p/owasp-top-ten p/security-audit p/secrets
           generateSarif: true
@@ -63,21 +62,19 @@ jobs:
       # 3. START APP FOR LIVE ATTACKS
       - name: Start App in Background
         run: |
-          # Replace 'app.main:app' with your actual entry point
           uvicorn app.main:app --host 0.0.0.0 --port 8000 & 
           sleep 10 
 
-      # 4. ACTIVE PENETRATION TESTING (OWASP ZAP & Nuclei - Free)
-      # Replaces Shannon & Zen AI with professional brute-force tools
+      # 4. ACTIVE PENETRATION TESTING
       - name: OWASP ZAP Full Attack Scan
         uses: zaproxy/action-full-scan@v0.10.0
         with:
           target: 'http://localhost:8000'
           token: ${{ secrets.GITHUB_TOKEN }}
-          cmd_options: '-a' # Attack mode: actively tries to break the app
+          cmd_options: '-a'
 
       - name: Nuclei Vulnerability Scan
-        uses: projectdiscovery/nuclei-action@v0.3.1
+        uses: projectdiscovery/nuclei-action@main # Fixed Version Tag
         with:
           target: 'http://localhost:8000'
           flags: "-severity low,medium,high,critical -daa" 
@@ -113,7 +110,6 @@ jobs:
         with:
           name: meika-freedom-results
           path: |
-            bom.json
             fuzz_results/
             semgrep.sarif
           if-no-files-found: ignore
