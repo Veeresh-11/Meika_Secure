@@ -1,8 +1,10 @@
 import jwt
 import hashlib
+import os  # Added for env vars
 from datetime import datetime, timedelta
 
-SECRET = "dev-secret-change-later"
+# Fetch from environment variable with a fallback for local dev only
+SECRET = os.getenv("JWT_SECRET_KEY", "dev-secret-change-later")
 ALGO = "HS256"
 
 

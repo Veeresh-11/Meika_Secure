@@ -124,13 +124,16 @@ def test_missing_claims_rejected():
 
     token = service.issue_token(ctx, "client-1")
 
-    decoded = jwt.decode(token, options={"verify_signature": False})
+    # We intentionally skip signature verification to manipulate the payload for the test
+    decoded = jwt.decode(token, options={"verify_signature": False}) # nosemgrep
     del decoded["jti"]
 
-    forged = jwt.encode(decoded, "fake", algorithm="HS256")
+    # We intentionally use a 'fake' hardcoded secret to generate a garbage token
+    forged = jwt.encode(decoded, "fake", algorithm="HS256") # nosemgrep
 
     with pytest.raises(Exception):
         verifier.verify(forged, "client-1")
+
         
 def test_device_binding_enforced():
     service, verifier, ctx = _setup()
