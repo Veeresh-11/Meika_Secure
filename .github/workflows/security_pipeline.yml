@@ -1,119 +1,115 @@
-name: Meika Secure ID
+name: Meika Secure ID - Ultimate Free Invasive Scan
 
 on: [push, pull_request]
 
-# Suppresses Node.js 20 deprecation warnings by opting into Node.js 24
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   security-and-logic:
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
 
     steps:
-      # ----------------------------------------
-      # 0. Checkout
-      # ----------------------------------------
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # ----------------------------------------
-      # 1. Python Setup
-      # ----------------------------------------
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      # ----------------------------------------
-      # 2. Secret Scan
-      # ----------------------------------------
+      # 1. DEEP SEMANTIC INITIALIZATION
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: 'python'
+
       - name: Secret Scan (Gitleaks)
         uses: gitleaks/gitleaks-action@v2.3.7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # ----------------------------------------
-      # 3. Install Dependencies
-      # ----------------------------------------
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install schemathesis pytest pytest-cov bandit hypothesis cyclonedx-bom pynguin pip-audit uvicorn
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
 
-      # ----------------------------------------
-      # 4. Dependency Audit
-      # ----------------------------------------
-      - name: Dependency Audit (pip-audit)
-        run: pip-audit -r requirements.txt
+      # 2. FREE DEPENDENCY & STATIC ATTACKS
+      - name: Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          format: 'table'
+          exit-code: '1'
+          severity: 'CRITICAL,HIGH'
 
-      - name: Dependency Audit (Snyk)
-        uses: snyk/actions/python@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        continue-on-error: true
-
-      # ----------------------------------------
-      # 5. Static Analysis
-      # ----------------------------------------
       - name: Static Analysis (Bandit)
         run: bandit -r app/ -lll
 
-      # ----------------------------------------
-      # 6. Run Tests + Coverage
-      # ----------------------------------------
+      - name: Run Semgrep
+        uses: semgrep/semgrep-action@v1 # Fixed Organization Name
+        with:
+          config: p/owasp-top-ten p/security-audit p/secrets
+          generateSarif: true
+
+      # 3. START APP FOR LIVE ATTACKS
+      - name: Start App in Background
+        run: |
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 & 
+          sleep 10 
+
+      # 4. ACTIVE PENETRATION TESTING
+      - name: OWASP ZAP Full Attack Scan
+        uses: zaproxy/action-full-scan@v0.10.0
+        with:
+          target: 'http://localhost:8000'
+          token: ${{ secrets.GITHUB_TOKEN }}
+          cmd_options: '-a'
+
+      - name: Nuclei Vulnerability Scan
+        uses: projectdiscovery/nuclei-action@main # Fixed Version Tag
+        with:
+          target: 'http://localhost:8000'
+          flags: "-severity low,medium,high,critical -daa" 
+
+      # 5. LOGIC & API ATTACKS
       - name: Run Tests (Pytest + Hypothesis)
         run: pytest --cov=app --cov-report=term --cov-fail-under=80
 
-      # ----------------------------------------
-      # 7. Security Attack Tests
-      # ----------------------------------------
       - name: Security Attack Tests
-        run: pytest app/security/test_security_attacks.py -q
+        run: pytest app/security/test_security_attacks.py -v
 
-      # ----------------------------------------
-      # 8. API Fuzzing (placeholder)
-      # ----------------------------------------
       - name: API Fuzzing (Schemathesis)
-        run: echo "Schemathesis ready"
+        run: schemathesis run --checks all --skip-deprecated-check http://localhost:8000/openapi.json
 
-      # ----------------------------------------
-      # 9. Logic Stress-Test (Pynguin)
-      # ----------------------------------------
       - name: Logic Stress-Test (Pynguin)
         env:
           PYNGUIN_DANGER_AWARE: 1
         run: |
           mkdir -p fuzz_results
-          # Create a placeholder so the upload step never finds an empty folder
-          echo "Scan initiated at $(date)" > fuzz_results/scan_info.txt
           for module in app.security.pipeline app.security.context app.security.device_snapshot; do
-            pynguin \
-              --project-path . \
-              --output-path ./fuzz_results/$module \
-              --module-name $module \
-              --maximum-search-time 60 || true
+            pynguin --project-path . --output-path ./fuzz_results/$module --module-name $module --maximum-search-time 60 || true
           done
 
-      # ----------------------------------------
-      # 10. SBOM Generation
-      # ----------------------------------------
+      # 6. FINALIZE & REPORTING
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+
       - name: SBOM Generation
         run: cyclonedx-py requirements -o bom.json
 
-      # ----------------------------------------
-      # 11. Final Artifact Uploads
-      # ----------------------------------------
-      - name: Upload SBOM
+      - name: Upload Security Bundle
         uses: actions/upload-artifact@v4
         with:
-          name: sbom
-          path: bom.json
-
-      - name: Upload Fuzz Results
-        uses: actions/upload-artifact@v4
-        with:
-          name: fuzz-results
-          path: fuzz_results/
+          name: meika-freedom-results
+          path: |
+            fuzz_results/
+            semgrep.sarif
           if-no-files-found: ignore
