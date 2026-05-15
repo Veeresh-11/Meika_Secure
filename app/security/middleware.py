@@ -13,9 +13,7 @@ async def security_middleware(
     get_device_context,
 ):
     """
-    This middleware is the FINAL authority.
-    If this allows → request proceeds.
-    Otherwise → request is terminated.
+    Final security enforcement layer.
     """
 
     # 1️⃣ Extract token
@@ -25,7 +23,7 @@ async def security_middleware(
 
     token = auth.split(" ", 1)[1]
 
-    # 2️⃣ Resolve device context (from DB / cache)
+    # 2️⃣ Resolve device context
     device_ctx = get_device_context(request)
 
     # 3️⃣ Enforce token ↔ device binding
@@ -38,7 +36,7 @@ async def security_middleware(
     ctx = SecurityContext(
         request_id=str(uuid.uuid4()),
         principal_id=device_ctx.principal_id,
-        intent=request.method + " " + request.url.path,
+        intent=f"{request.method} {request.url.path}",
         authenticated=True,
         device_id=device_ctx.device_id,
         device=device_ctx,
@@ -50,13 +48,12 @@ async def security_middleware(
         },
     )
 
-    # 5️⃣ Policy evaluation (non-negotiable)
+    # 5️⃣ Policy evaluation
     decision = pipeline.evaluate(ctx)
     if decision.outcome.name != "ALLOW":
         raise SecurityError(decision.reason)
 
-    return ctx  # attach to request.state if desired
+    # ✅ attach to request state (IMPORTANT)
+    request.state.security_context = ctx
 
-# at the end of security_middleware
-request.state.security_context = ctx
-return ctx
+    return ctx
