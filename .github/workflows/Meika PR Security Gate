@@ -1,0 +1,50 @@
+name: Meika PR Security Gate
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+concurrency:
+  group: pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pr-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: python
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov bandit pip-audit
+          pip install -r requirements.txt
+
+      - name: Dependency Audit
+        run: pip-audit
+
+      - name: Bandit
+        run: bandit -r app/ -lll
+
+      - name: Tests
+        run: pytest --cov=app --cov-report=term --cov-fail-under=80
+
+      - name: Red Team Tests
+        run: pytest app/security/tests/test_red_team_attacks.py -v
+
+      - uses: github/codeql-action/analyze@v3
