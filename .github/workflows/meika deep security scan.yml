@@ -36,6 +36,9 @@ jobs:
           export DB_USER=test_user
           export DB_PASSWORD=test_pass
 
+          # ✅ ADD THIS (FIX)
+          export SIGNING_PRIVATE_KEY=dummy_test_key_123
+
           uvicorn app.main:app --host 0.0.0.0 --port 8000 &
 
           timeout 60s bash -c '
