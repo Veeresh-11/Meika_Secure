@@ -1,29 +1,28 @@
-# app/config/settings.py
-
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
 
 
 class Settings(BaseSettings):
     # --------------------
     # Application
     # --------------------
-    APP_NAME: str = "Meika Secure ID"
-    ENV: str = "local"
+    app_name: str = "Meika Secure ID"
+    env: str = "local"
 
     # --------------------
     # Database (PostgreSQL)
     # --------------------
-    DB_HOST: str
-    DB_PORT: int = 5432
-    DB_NAME: str
-    DB_USER: str
-    DB_PASSWORD: str
+    db_host: str = Field(..., alias="DB_HOST")
+    db_port: int = Field(5432, alias="DB_PORT")
+    db_name: str = Field(..., alias="DB_NAME")
+    db_user: str = Field(..., alias="DB_USER")
+    db_password: str = Field(..., alias="DB_PASSWORD")
 
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,
+        populate_by_name=True,
     )
 
 
 settings = Settings()
-
