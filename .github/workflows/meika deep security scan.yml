@@ -58,7 +58,7 @@ jobs:
         continue-on-error: true
 
       - name: Nuclei Scan
-        uses: projectdiscovery/nuclei-action@main
+        uses: projectdiscovery/nuclei-action@v3
         with:
           target: "http://127.0.0.1:8000"
         continue-on-error: true
