@@ -58,47 +58,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # --------------------
-# Security Headers Middleware
-# --------------------
-
-@app.middleware("http")
-async def add_security_headers(request: Request, call_next):
-    response = await call_next(request)
-
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-
-    response.headers["Strict-Transport-Security"] = (
-        "max-age=63072000; includeSubDomains; preload"
-    )
-
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; "
-        "script-src 'self'; "
-        "style-src 'self'; "
-        "img-src 'self' data:; "
-        "frame-ancestors 'none'; "
-        "base-uri 'self'; "
-        "form-action 'self'"
-    )
-
-    response.headers["Referrer-Policy"] = "no-referrer"
-
-    response.headers["Permissions-Policy"] = (
-        "geolocation=(), microphone=(), camera=()"
-    )
-
-    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
-    response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
-    response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
-    response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
-    response.headers["Clear-Site-Data"] = '"cache","cookies","storage"'
-
-    return response
-
-
-# --------------------
-# Security Middleware
+# Security Middleware (FIRST)
 # --------------------
 
 @app.middleware("http")
@@ -139,3 +99,43 @@ async def enforce_security(request: Request, call_next):
         )
 
     return await call_next(request)
+
+
+# --------------------
+# Security Headers Middleware (LAST)
+# --------------------
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+
+    response.headers["Strict-Transport-Security"] = (
+        "max-age=63072000; includeSubDomains; preload"
+    )
+
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self'; "
+        "style-src 'self'; "
+        "img-src 'self' data:; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'; "
+        "form-action 'self'"
+    )
+
+    response.headers["Referrer-Policy"] = "no-referrer"
+
+    response.headers["Permissions-Policy"] = (
+        "geolocation=(), microphone=(), camera=()"
+    )
+
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+    response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
+    response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
+    response.headers["Clear-Site-Data"] = '"cache","cookies","storage"'
+
+    return response
