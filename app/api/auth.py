@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Body
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 
@@ -33,7 +33,7 @@ def get_db():
 
 
 # -------------------------------------------------
-# Request Models (FIX: validation)
+# Request Models (STRICT VALIDATION)
 # -------------------------------------------------
 
 class RegisterRequest(BaseModel):
@@ -50,47 +50,69 @@ class LoginRequest(BaseModel):
 
 
 # -------------------------------------------------
-# Registration
+# Registration (SAFE)
 # -------------------------------------------------
 
 @router.post("/register", responses={422: {"description": "Validation Error"}})
-def register(payload: RegisterRequest, db: Session = Depends(get_db)):
-    user = AuthService.register_user(
-        db=db,
-        email=payload.email,
-        password=payload.password,
-        display_name=payload.display_name,
-    )
+def register(payload: RegisterRequest = Body(...), db: Session = Depends(get_db)):
+
+    try:
+        user = AuthService.register_user(
+            db=db,
+            email=payload.email,
+            password=payload.password,
+            display_name=payload.display_name,
+        )
+    except Exception:
+        # 🔒 Never expose internal errors
+        raise HTTPException(status_code=400, detail="Invalid registration data")
+
     return {"user_id": str(user.id)}
 
 
 # -------------------------------------------------
-# Login
+# Login (SAFE + ZERO TRUST)
 # -------------------------------------------------
 
 @router.post("/login", responses={422: {"description": "Validation Error"}})
-def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
+def login(
+    payload: LoginRequest = Body(...),
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
 
-    # ---- Step 1: Verify credentials ----
-    session = AuthService.login_user(
-        db=db,
-        email=payload.email,
-        password=payload.password,
-    )
+    # ---- Step 1: Validate required fields ----
+    if not payload.email or not payload.password:
+        raise HTTPException(status_code=400, detail="Missing credentials")
+
+    # ---- Step 2: Verify credentials ----
+    try:
+        session = AuthService.login_user(
+            db=db,
+            email=payload.email,
+            password=payload.password,
+        )
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid login request")
 
     if not session:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     principal_id = str(session.user_id)
 
-    # ---- Step 2: Device context ----
-    device_ctx = DeviceContext(
-        device_id=payload.device_id,
-        registered=device_registry.is_registered(payload.device_id, principal_id),
-        posture=posture_evaluator.evaluate(payload.device_signals),
-    )
+    # ---- Step 3: Device Context ----
+    try:
+        device_ctx = DeviceContext(
+            device_id=payload.device_id,
+            registered=device_registry.is_registered(
+                payload.device_id, principal_id
+            ),
+            posture=posture_evaluator.evaluate(payload.device_signals),
+        )
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid device context")
 
-    # ---- Step 3: Security context ----
+    # ---- Step 4: Security Context ----
     security_ctx = SecurityContext(
         principal_id=principal_id,
         authenticated=True,
@@ -98,13 +120,15 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
         device=device_ctx,
     )
 
-    # ---- Step 4: Zero Trust enforcement ----
+    # ---- Step 5: Zero Trust Enforcement ----
     try:
         decision = pipeline.evaluate(security_ctx)
     except SecurityPipelineError:
         raise HTTPException(status_code=403, detail="Access denied")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Security validation failed")
 
-    # ---- Step 5: Response ----
+    # ---- Step 6: Response ----
     return {
         "session_id": str(session.id),
         "expires_at": session.expires_at,

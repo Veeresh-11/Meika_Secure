@@ -82,9 +82,11 @@ async def enforce_security(request: Request, call_next):
 
     try:
         ctx = resolve_device_context(request)
-
         if ctx["device_id"] == "unknown":
-            raise Exception("Untrusted device")
+          return JSONResponse(
+          status_code=401,
+          content={"error": "Missing device identity"},
+        )
 
         await security_middleware(
             request=request,
