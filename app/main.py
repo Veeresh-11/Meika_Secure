@@ -52,8 +52,8 @@ def resolve_device_context(request: Request):
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
-        status_code=500,
-        content={"error": "Internal server error"},
+        status_code=400,
+        content={"error": "Request failed"},
     )
 
 
