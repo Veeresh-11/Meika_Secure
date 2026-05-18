@@ -16,20 +16,26 @@ jobs:
     timeout-minutes: 45
 
     steps:
+      # --------------------
+      # Checkout
+      # --------------------
       - uses: actions/checkout@v4
 
+      # --------------------
+      # Python Setup
+      # --------------------
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
       # --------------------
-      # Install
+      # Install Dependencies
       # --------------------
       - name: Install
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install schemathesis hypothesis pynguin cyclonedx-bom uvicorn
+          pip install schemathesis hypothesis pynguin cyclonedx-bom uvicorn jq
 
       # --------------------
       # Start Server (CI SAFE)
@@ -45,14 +51,14 @@ jobs:
 
           uvicorn app.main:app --host 0.0.0.0 --port 8000 &
 
-          timeout 60s bash -c '
-          until curl -s http://localhost:8000/openapi.json > /dev/null; do
+          timeout 90s bash -c '
+          until curl -sf http://127.0.0.1:8000/openapi.json > /dev/null; do
             sleep 1
           done
           '
 
       # --------------------
-      # ZAP (FULL OUTPUT)
+      # OWASP ZAP Scan
       # --------------------
       - name: ZAP Scan
         uses: zaproxy/action-full-scan@v0.10.0
@@ -64,17 +70,16 @@ jobs:
         continue-on-error: true
 
       # --------------------
-      # NUCLEI (UPDATED)
+      # NUCLEI SCAN (FIXED)
       # --------------------
       - name: Nuclei Scan
         uses: projectdiscovery/nuclei-action@v3
         with:
-          target: "http://127.0.0.1:8000"
-          flags: "-json -o nuclei.json"
+          args: -u http://127.0.0.1:8000 -json -o nuclei.json
         continue-on-error: true
 
       # --------------------
-      # SHOW FINDINGS (🔥 CRITICAL)
+      # SHOW FINDINGS
       # --------------------
       - name: Show Nuclei Findings
         run: |
@@ -83,17 +88,17 @@ jobs:
 
       - name: Show ZAP Findings
         run: |
-          echo "---- ZAP REPORT ----"
-          grep -i "risk" zap-report.html || echo "No ZAP issues"
+          echo "---- ZAP JSON SUMMARY ----"
+          cat zap-report.json | jq '.site[].alerts[] | {name: .alert, risk: .riskdesc}' || echo "No ZAP issues"
 
       # --------------------
-      # API FUZZ (VISIBLE)
+      # API FUZZING
       # --------------------
       - name: API Fuzz
         run: schemathesis run http://localhost:8000/openapi.json
 
       # --------------------
-      # LOGIC FUZZ
+      # LOGIC FUZZING
       # --------------------
       - name: Pynguin
         env:
@@ -107,13 +112,13 @@ jobs:
                   --maximum-search-time 60 || true
 
       # --------------------
-      # RED TEAM
+      # RED TEAM TESTS
       # --------------------
       - name: Red Team Suite
         run: pytest app/security/tests/test_red_team_attacks.py -v || true
 
       # --------------------
-      # SBOM
+      # SBOM GENERATION
       # --------------------
       - name: SBOM
         run: cyclonedx-py requirements -o bom.json
@@ -125,7 +130,7 @@ jobs:
         run: python scripts/security_summary.py
 
       # --------------------
-      # ARTIFACTS (FULL)
+      # UPLOAD ARTIFACTS
       # --------------------
       - name: Upload Security Results
         uses: actions/upload-artifact@v4
