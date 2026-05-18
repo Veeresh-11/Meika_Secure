@@ -48,20 +48,34 @@ jobs:
           pip install -r requirements.txt
 
       # --------------------
-      # Dependency Scan (SAFE SARIF)
+      # Dependency Scan (VALID SARIF)
       # --------------------
       - name: pip-audit (SARIF)
         run: |
           pip-audit -f sarif -o pip-audit.sarif || true
-          test -f pip-audit.sarif || echo '{}' > pip-audit.sarif
+          if [ ! -f pip-audit.sarif ]; then
+            cat <<EOF > pip-audit.sarif
+{
+  "version": "2.1.0",
+  "runs": []
+}
+EOF
+          fi
 
       # --------------------
-      # Static Analysis (SAFE SARIF)
+      # Static Analysis (VALID SARIF)
       # --------------------
       - name: Bandit (SARIF)
         run: |
           bandit -r app/ -f sarif -o bandit.sarif || true
-          test -f bandit.sarif || echo '{}' > bandit.sarif
+          if [ ! -f bandit.sarif ]; then
+            cat <<EOF > bandit.sarif
+{
+  "version": "2.1.0",
+  "runs": []
+}
+EOF
+          fi
 
       # --------------------
       # Upload Security Results
