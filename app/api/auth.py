@@ -11,14 +11,13 @@ from app.security.device.context import DeviceContext
 from app.security.device.registry import DeviceRegistry
 from app.security.device.posture import DevicePostureEvaluator
 from app.security.errors import SecurityPipelineError
-
+from pydantic import EmailStr
 
 router = APIRouter(prefix="/auth")
 
 pipeline = build_pipeline()
 device_registry = DeviceRegistry()
 posture_evaluator = DevicePostureEvaluator()
-
 
 def get_db():
     db = SessionLocal()
@@ -33,13 +32,13 @@ def get_db():
 # --------------------
 
 class RegisterRequest(BaseModel):
-    email: str = Field(..., min_length=5)
+    email: EmailStr
     password: str = Field(..., min_length=6)
     display_name: str | None = None
 
 
 class LoginRequest(BaseModel):
-    email: str = Field(..., min_length=5)
+    email: EmailStr
     password: str = Field(..., min_length=6)
     device_id: str = Field(..., min_length=3)
     device_signals: dict = Field(default_factory=dict)
@@ -49,7 +48,7 @@ class LoginRequest(BaseModel):
 # Register
 # --------------------
 
-@router.post("/register", responses={422: {"description": "Validation Error"}})
+@router.post("/register", responses={400: {"description": "Bad Request"}, 401: {"description": "Invalid Credentials"}, 422: {"description": "Validation Error"}})
 def register(payload: RegisterRequest = Body(...), db: Session = Depends(get_db)):
 
     if not payload.email or not payload.password:
@@ -72,7 +71,7 @@ def register(payload: RegisterRequest = Body(...), db: Session = Depends(get_db)
 # Login
 # --------------------
 
-@router.post("/login", responses={422: {"description": "Validation Error"}})
+@router.post("/login", responses={400: {"description": "Bad Request"},401: {"description": "Invalid Credentials"}, 422: {"description": "Validation Error"}})
 def login(payload: LoginRequest = Body(...), request: Request = None, db: Session = Depends(get_db)):
 
     if not payload.email or not payload.password:
