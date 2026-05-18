@@ -1,10 +1,14 @@
 name: Meika Deep Security Scan
 
 on:
-  push:
-    branches: [main]
+  workflow_run:
+    workflows: ["Meika PR Security Gate"]
+    types:
+      - completed
+
   schedule:
     - cron: "0 2 * * *"
+
   workflow_dispatch:
 
 env:
@@ -12,6 +16,9 @@ env:
 
 jobs:
   deep-scan:
+    # Run only if PR Gate passed
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -29,7 +36,7 @@ jobs:
           python-version: "3.10"
 
       # --------------------
-      # Install Dependencies
+      # Install
       # --------------------
       - name: Install
         run: |
@@ -38,7 +45,7 @@ jobs:
           pip install schemathesis hypothesis pynguin cyclonedx-bom uvicorn jq
 
       # --------------------
-      # Start Server (CI SAFE)
+      # Start Server (CI Safe)
       # --------------------
       - name: Start Server
         run: |
@@ -79,7 +86,7 @@ jobs:
         continue-on-error: true
 
       # --------------------
-      # SHOW FINDINGS
+      # Show Findings
       # --------------------
       - name: Show Nuclei Findings
         run: |
@@ -88,17 +95,17 @@ jobs:
 
       - name: Show ZAP Findings
         run: |
-          echo "---- ZAP JSON SUMMARY ----"
+          echo "---- ZAP SUMMARY ----"
           cat zap-report.json | jq '.site[].alerts[] | {name: .alert, risk: .riskdesc}' || echo "No ZAP issues"
 
       # --------------------
-      # API FUZZING
+      # API Fuzzing
       # --------------------
       - name: API Fuzz
         run: schemathesis run http://localhost:8000/openapi.json
 
       # --------------------
-      # LOGIC FUZZING
+      # Logic Fuzzing
       # --------------------
       - name: Pynguin
         env:
@@ -112,25 +119,25 @@ jobs:
                   --maximum-search-time 60 || true
 
       # --------------------
-      # RED TEAM TESTS
+      # Red Team Tests
       # --------------------
       - name: Red Team Suite
         run: pytest app/security/tests/test_red_team_attacks.py -v || true
 
       # --------------------
-      # SBOM GENERATION
+      # SBOM
       # --------------------
       - name: SBOM
         run: cyclonedx-py requirements -o bom.json
 
       # --------------------
-      # SECURITY SUMMARY
+      # Security Summary
       # --------------------
       - name: Security Summary
         run: python scripts/security_summary.py
 
       # --------------------
-      # UPLOAD ARTIFACTS
+      # Upload Artifacts
       # --------------------
       - name: Upload Security Results
         uses: actions/upload-artifact@v4
