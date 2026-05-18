@@ -53,6 +53,7 @@ class LoginRequest(BaseModel):
     "/register",
     responses={
         200: {"description": "Success"},
+        400: {"description": "Malformed request body"},   # 🔥 ADD THIS
         409: {"description": "User already exists"},
         422: {"description": "Validation Error"},
     },
@@ -81,6 +82,7 @@ def register(payload: RegisterRequest = Body(...), db: Session = Depends(get_db)
     "/login",
     responses={
         200: {"description": "Success"},
+        400: {"description": "Malformed request body"},   # 🔥 ADD THIS
         401: {"description": "Invalid credentials"},
         403: {"description": "Access denied"},
         422: {"description": "Validation Error"},
