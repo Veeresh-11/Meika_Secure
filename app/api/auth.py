@@ -33,13 +33,13 @@ def get_db():
 
 class RegisterRequest(BaseModel):
     email: EmailStr
-    password: str = Field(..., min_length=6)
+    password: str = Field(..., min_length=10)
     display_name: str | None = None
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str = Field(..., min_length=6)
+    password: str = Field(..., min_length=10)
     device_id: str = Field(..., min_length=3)
     device_signals: dict = Field(default_factory=dict)
 
