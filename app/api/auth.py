@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Body
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 
 from app.db.session import SessionLocal
 from app.services.auth_service import AuthService
@@ -11,13 +11,14 @@ from app.security.device.context import DeviceContext
 from app.security.device.registry import DeviceRegistry
 from app.security.device.posture import DevicePostureEvaluator
 from app.security.errors import SecurityPipelineError
-from pydantic import EmailStr
+
 
 router = APIRouter(prefix="/auth")
 
 pipeline = build_pipeline()
 device_registry = DeviceRegistry()
 posture_evaluator = DevicePostureEvaluator()
+
 
 def get_db():
     db = SessionLocal()
@@ -28,13 +29,13 @@ def get_db():
 
 
 # --------------------
-# Models
+# Models (STRICT & CORRECT)
 # --------------------
 
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=10)
-    display_name: str | None = None
+    display_name: str | None = Field(default=None, min_length=1)
 
 
 class LoginRequest(BaseModel):
@@ -48,11 +49,16 @@ class LoginRequest(BaseModel):
 # Register
 # --------------------
 
-@router.post("/register", responses={400: {"description": "Bad Request"}, 401: {"description": "Invalid Credentials"}, 422: {"description": "Validation Error"}})
+@router.post(
+    "/register",
+    responses={
+        200: {"description": "Success"},
+        409: {"description": "User already exists"},
+        500: {"description": "Internal error"},
+        422: {"description": "Validation Error"},
+    },
+)
 def register(payload: RegisterRequest = Body(...), db: Session = Depends(get_db)):
-
-    if not payload.email or not payload.password:
-        raise HTTPException(status_code=400, detail="Invalid input")
 
     try:
         user = AuthService.register_user(
@@ -62,7 +68,8 @@ def register(payload: RegisterRequest = Body(...), db: Session = Depends(get_db)
             display_name=payload.display_name,
         )
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid registration data")
+        # 🔥 FIX: DO NOT return 400
+        raise HTTPException(status_code=500, detail="Registration failed")
 
     return {"user_id": str(user.id)}
 
@@ -71,12 +78,23 @@ def register(payload: RegisterRequest = Body(...), db: Session = Depends(get_db)
 # Login
 # --------------------
 
-@router.post("/login", responses={400: {"description": "Bad Request"},401: {"description": "Invalid Credentials"}, 422: {"description": "Validation Error"}})
-def login(payload: LoginRequest = Body(...), request: Request = None, db: Session = Depends(get_db)):
+@router.post(
+    "/login",
+    responses={
+        200: {"description": "Success"},
+        401: {"description": "Invalid credentials"},
+        403: {"description": "Access denied"},
+        500: {"description": "Internal error"},
+        422: {"description": "Validation Error"},
+    },
+)
+def login(
+    payload: LoginRequest = Body(...),
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
 
-    if not payload.email or not payload.password:
-        raise HTTPException(status_code=400, detail="Missing credentials")
-
+    # ---- Step 1: Authenticate ----
     try:
         session = AuthService.login_user(
             db=db,
@@ -84,13 +102,15 @@ def login(payload: LoginRequest = Body(...), request: Request = None, db: Sessio
             password=payload.password,
         )
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid login request")
+        # 🔥 FIX: DO NOT return 400
+        raise HTTPException(status_code=500, detail="Login processing failed")
 
     if not session:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     principal_id = str(session.user_id)
 
+    # ---- Step 2: Device Context ----
     try:
         device_ctx = DeviceContext(
             device_id=payload.device_id,
@@ -100,6 +120,7 @@ def login(payload: LoginRequest = Body(...), request: Request = None, db: Sessio
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid device context")
 
+    # ---- Step 3: Security Context ----
     security_ctx = SecurityContext(
         principal_id=principal_id,
         authenticated=True,
@@ -107,12 +128,13 @@ def login(payload: LoginRequest = Body(...), request: Request = None, db: Sessio
         device=device_ctx,
     )
 
+    # ---- Step 4: Zero Trust ----
     try:
         decision = pipeline.evaluate(security_ctx)
     except SecurityPipelineError:
         raise HTTPException(status_code=403, detail="Access denied")
     except Exception:
-        raise HTTPException(status_code=400, detail="Security validation failed")
+        raise HTTPException(status_code=500, detail="Security pipeline failure")
 
     return {
         "session_id": str(session.id),
