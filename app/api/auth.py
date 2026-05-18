@@ -29,13 +29,13 @@ def get_db():
 
 
 # --------------------
-# Models (STRICT & CORRECT)
+# Models
 # --------------------
 
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=10)
-    display_name: str | None = Field(default=None, min_length=1)
+    display_name: str | None = None
 
 
 class LoginRequest(BaseModel):
@@ -54,7 +54,6 @@ class LoginRequest(BaseModel):
     responses={
         200: {"description": "Success"},
         409: {"description": "User already exists"},
-        500: {"description": "Internal error"},
         422: {"description": "Validation Error"},
     },
 )
@@ -68,8 +67,8 @@ def register(payload: RegisterRequest = Body(...), db: Session = Depends(get_db)
             display_name=payload.display_name,
         )
     except Exception:
-        # 🔥 FIX: DO NOT return 400
-        raise HTTPException(status_code=500, detail="Registration failed")
+        # ✅ FIX: treat as business failure, not server crash
+        raise HTTPException(status_code=409, detail="User already exists")
 
     return {"user_id": str(user.id)}
 
@@ -84,7 +83,6 @@ def register(payload: RegisterRequest = Body(...), db: Session = Depends(get_db)
         200: {"description": "Success"},
         401: {"description": "Invalid credentials"},
         403: {"description": "Access denied"},
-        500: {"description": "Internal error"},
         422: {"description": "Validation Error"},
     },
 )
@@ -102,8 +100,8 @@ def login(
             password=payload.password,
         )
     except Exception:
-        # 🔥 FIX: DO NOT return 400
-        raise HTTPException(status_code=500, detail="Login processing failed")
+        # ✅ FIX: treat as authentication failure
+        raise HTTPException(status_code=401, detail="Invalid credentials")
 
     if not session:
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -134,7 +132,7 @@ def login(
     except SecurityPipelineError:
         raise HTTPException(status_code=403, detail="Access denied")
     except Exception:
-        raise HTTPException(status_code=500, detail="Security pipeline failure")
+        raise HTTPException(status_code=403, detail="Security evaluation failed")
 
     return {
         "session_id": str(session.id),
