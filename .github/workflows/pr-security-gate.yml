@@ -36,44 +36,67 @@ jobs:
           pip install -r requirements.txt
 
       # --------------------
-      # Dependency Scan (VALID SARIF)
+      # pip-audit
       # --------------------
       - name: pip-audit (SARIF)
         run: |
           pip-audit -f sarif -o pip-audit.sarif || true
           if [ ! -f pip-audit.sarif ]; then
             cat <<EOF > pip-audit.sarif
-            {
-              "version": "2.1.0",
-              "runs": []
-            }
-          EOF
+{
+  "version": "2.1.0",
+  "runs": []
+}
+EOF
           fi
 
       # --------------------
-      # Static Analysis (VALID SARIF)
+      # Bandit
       # --------------------
       - name: Bandit (SARIF)
         run: |
           bandit -r app/ -f sarif -o bandit.sarif || true
           if [ ! -f bandit.sarif ]; then
             cat <<EOF > bandit.sarif
-          {
-           "version": "2.1.0",
-           "runs": []
-          }
-          EOF
+{
+  "version": "2.1.0",
+  "runs": []
+}
+EOF
           fi
 
       # --------------------
-      # Upload Security Results
+      # CHECK EMPTY SARIF
+      # --------------------
+      - name: Check Bandit SARIF
+        id: bandit_check
+        run: |
+          if grep -q '"runs": \[\]' bandit.sarif; then
+            echo "empty=true" >> $GITHUB_OUTPUT
+          else
+            echo "empty=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check pip-audit SARIF
+        id: audit_check
+        run: |
+          if grep -q '"runs": \[\]' pip-audit.sarif; then
+            echo "empty=true" >> $GITHUB_OUTPUT
+          else
+            echo "empty=false" >> $GITHUB_OUTPUT
+          fi
+
+      # --------------------
+      # Upload ONLY if NOT empty
       # --------------------
       - name: Upload Bandit SARIF
+        if: steps.bandit_check.outputs.empty == 'false'
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: bandit.sarif
 
       - name: Upload pip-audit SARIF
+        if: steps.audit_check.outputs.empty == 'false'
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: pip-audit.sarif
