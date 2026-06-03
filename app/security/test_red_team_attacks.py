@@ -32,4 +32,9 @@ def test_header_injection():
 
 
 def test_invalid_payload():
-    assert client.post("/api/v1/auth/login", data="bad").status_code in [400, 422]
+    response = client.post(
+        "/api/v1/auth/login",
+        content='{"username":',
+        headers={"Content-Type": "application/json"},
+    )
+    assert response.status_code in [400, 422]

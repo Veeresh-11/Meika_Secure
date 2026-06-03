@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Body
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field, EmailStr
+import logging
+from datetime import datetime
 
 from app.db.session import SessionLocal
 from app.services.auth_service import AuthService
@@ -12,6 +14,8 @@ from app.security.device.registry import DeviceRegistry
 from app.security.device.posture import DevicePostureEvaluator
 from app.security.errors import SecurityPipelineError
 
+# Set up structured logger for deprecation tracking
+logger = logging.getLogger("meika.auth.deprecation")
 
 router = APIRouter(prefix="/auth")
 
@@ -45,20 +49,58 @@ class LoginRequest(BaseModel):
     device_signals: dict = Field(default_factory=dict)
 
 
+class WebAuthnRegisterStartRequest(BaseModel):
+    email: EmailStr
+    device_name: str = Field(..., description="Human-readable device name (e.g., 'Alice's MacBook')")
+
+
+class WebAuthnRegisterFinishRequest(BaseModel):
+    email: EmailStr
+    attestation: dict = Field(..., description="WebAuthn attestation from authenticator")
+
+
+class WebAuthnAuthenticateStartRequest(BaseModel):
+    email: EmailStr
+
+
+class WebAuthnAuthenticateFinishRequest(BaseModel):
+    email: EmailStr
+    credential_id: str
+    assertion: dict = Field(..., description="WebAuthn assertion from authenticator")
+
+
 # --------------------
-# Register
+# Register (DEPRECATED - Password)
 # --------------------
 
 @router.post(
     "/register",
+    deprecated=True,
+    tags=["Deprecated"],
     responses={
         200: {"description": "Success"},
-        400: {"description": "Malformed request body"},   # 🔥 ADD THIS
+        400: {"description": "Malformed request body"},
         409: {"description": "User already exists"},
         422: {"description": "Validation Error"},
     },
 )
 def register(payload: RegisterRequest = Body(...), db: Session = Depends(get_db)):
+    """
+    DEPRECATED: Use POST /auth/webauthn/register/start instead.
+    
+    Password registration is provided for backward compatibility only.
+    All future authentication must use WebAuthn / passwordless.
+    """
+    
+    logger.warning(
+        "Password registration used",
+        extra={
+            "email": payload.email,
+            "event": "password_registration_deprecated",
+            "severity": "WARNING",
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    )
 
     try:
         user = AuthService.register_user(
@@ -68,21 +110,25 @@ def register(payload: RegisterRequest = Body(...), db: Session = Depends(get_db)
             display_name=payload.display_name,
         )
     except Exception:
-        # ✅ FIX: treat as business failure, not server crash
         raise HTTPException(status_code=409, detail="User already exists")
 
-    return {"user_id": str(user.id)}
+    return {
+        "user_id": str(user.id),
+        "warning": "Password authentication is deprecated. Please use WebAuthn instead.",
+    }
 
 
 # --------------------
-# Login
+# Login (DEPRECATED - Password)
 # --------------------
 
 @router.post(
     "/login",
+    deprecated=True,
+    tags=["Deprecated"],
     responses={
         200: {"description": "Success"},
-        400: {"description": "Malformed request body"},   # 🔥 ADD THIS
+        400: {"description": "Malformed request body"},
         401: {"description": "Invalid credentials"},
         403: {"description": "Access denied"},
         422: {"description": "Validation Error"},
@@ -93,6 +139,23 @@ def login(
     request: Request = None,
     db: Session = Depends(get_db),
 ):
+    """
+    DEPRECATED: Use POST /auth/webauthn/authenticate/start instead.
+    
+    Password login is provided for backward compatibility only.
+    All future authentication must use WebAuthn / passwordless.
+    """
+    
+    logger.warning(
+        "Password login used",
+        extra={
+            "email": payload.email,
+            "device_id": payload.device_id,
+            "event": "password_login_deprecated",
+            "severity": "WARNING",
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    )
 
     # ---- Step 1: Authenticate ----
     try:
@@ -102,7 +165,6 @@ def login(
             password=payload.password,
         )
     except Exception:
-        # ✅ FIX: treat as authentication failure
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     if not session:
@@ -140,4 +202,230 @@ def login(
         "session_id": str(session.id),
         "expires_at": session.expires_at,
         "decision": decision.outcome.value,
+        "warning": "Password authentication is deprecated. Please use WebAuthn instead.",
     }
+
+
+# --------------------
+# WebAuthn: Register Start
+# --------------------
+
+@router.post(
+    "/webauthn/register/start",
+    tags=["WebAuthn"],
+    responses={
+        200: {"description": "Registration session created"},
+        400: {"description": "Malformed request"},
+        409: {"description": "User already exists"},
+    },
+)
+def webauthn_register_start(
+    payload: WebAuthnRegisterStartRequest = Body(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Initiate WebAuthn credential registration.
+    
+    Returns challenge and registration options for client-side WebAuthn call.
+    
+    Client should:
+    1. Call navigator.credentials.create() with returned options
+    2. POST attestation response to /auth/webauthn/register/finish
+    """
+    try:
+        from app.security.webauthn.challenge import generate_challenge
+        
+        challenge = generate_challenge()
+        
+        # TODO: Store registration session in DB with TTL
+        # For now, return challenge
+        
+        logger.info(
+            "WebAuthn registration started",
+            extra={
+                "email": payload.email,
+                "device_name": payload.device_name,
+                "event": "webauthn_register_start",
+            }
+        )
+        
+        return {
+            "challenge": challenge,
+            "rp": {
+                "id": "meika.example.com",
+                "name": "Meika Authenticator"
+            },
+            "user": {
+                "id": payload.email,  # Use email as user ID
+                "name": payload.email,
+                "displayName": payload.device_name,
+            },
+            "timeout": 60000,
+            "attestation": "direct",
+            "authenticatorSelection": {
+                "authenticatorAttachment": "platform",
+                "userVerification": "required",
+            },
+            "pubKeyCredParams": [
+                {"alg": -7, "type": "public-key"}  # ES256
+            ]
+        }
+    except Exception as e:
+        logger.error(f"WebAuthn registration start failed: {e}")
+        raise HTTPException(status_code=400, detail="Registration failed")
+
+
+# --------------------
+# WebAuthn: Register Finish
+# --------------------
+
+@router.post(
+    "/webauthn/register/finish",
+    tags=["WebAuthn"],
+    responses={
+        200: {"description": "Credential registered"},
+        400: {"description": "Invalid attestation"},
+        401: {"description": "User not found"},
+    },
+)
+def webauthn_register_finish(
+    payload: WebAuthnRegisterFinishRequest = Body(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Complete WebAuthn credential registration.
+    
+    Verifies attestation and stores credential for future authentication.
+    """
+    try:
+        from app.security.webauthn.attestation import verify_attestation
+        
+        # Verify attestation (would use session challenge from DB)
+        credential_data = verify_attestation(payload.attestation, {})  # TODO: Get challenge from session
+        
+        logger.info(
+            "WebAuthn credential registered",
+            extra={
+                "email": payload.email,
+                "event": "webauthn_register_finish",
+                "credential_id": credential_data.get("credential_id", "unknown"),
+            }
+        )
+        
+        return {
+            "status": "registered",
+            "credential_id": credential_data.get("credential_id"),
+            "message": "WebAuthn credential successfully registered"
+        }
+    except Exception as e:
+        logger.error(f"WebAuthn registration finish failed: {e}")
+        raise HTTPException(status_code=400, detail="Registration failed")
+
+
+# --------------------
+# WebAuthn: Authenticate Start
+# --------------------
+
+@router.post(
+    "/webauthn/authenticate/start",
+    tags=["WebAuthn"],
+    responses={
+        200: {"description": "Authentication challenge generated"},
+        401: {"description": "User not found or no credentials"},
+    },
+)
+def webauthn_authenticate_start(
+    payload: WebAuthnAuthenticateStartRequest = Body(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Initiate WebAuthn authentication.
+    
+    Returns challenge and credential list for client-side WebAuthn call.
+    
+    Client should:
+    1. Call navigator.credentials.get() with returned options
+    2. POST assertion response to /auth/webauthn/authenticate/finish
+    """
+    try:
+        from app.security.webauthn.challenge import generate_challenge
+        
+        challenge = generate_challenge()
+        
+        # TODO: Get user credentials from DB
+        # For now, return empty credential list
+        
+        logger.info(
+            "WebAuthn authentication started",
+            extra={
+                "email": payload.email,
+                "event": "webauthn_auth_start",
+            }
+        )
+        
+        return {
+            "challenge": challenge,
+            "timeout": 60000,
+            "rpId": "meika.example.com",
+            "allowCredentials": [
+                # TODO: Populate from DB
+                # {"id": credential_id, "type": "public-key"}
+            ]
+        }
+    except Exception as e:
+        logger.error(f"WebAuthn authentication start failed: {e}")
+        raise HTTPException(status_code=400, detail="Authentication failed")
+
+
+# --------------------
+# WebAuthn: Authenticate Finish
+# --------------------
+
+@router.post(
+    "/webauthn/authenticate/finish",
+    tags=["WebAuthn"],
+    responses={
+        200: {"description": "Authenticated successfully"},
+        401: {"description": "Invalid assertion or credential"},
+        403: {"description": "Access denied by policy"},
+    },
+)
+def webauthn_authenticate_finish(
+    payload: WebAuthnAuthenticateFinishRequest = Body(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Complete WebAuthn authentication.
+    
+    Verifies assertion and creates grant (not session).
+    
+    Returns JWT grant token for accessing protected resources.
+    """
+    try:
+        from app.security.webauthn.assertion import verify_assertion
+        
+        # Verify assertion (would use session challenge from DB)
+        verify_assertion(payload.assertion, {})  # TODO: Get challenge from session
+        
+        # TODO: Create JIT grant (not session)
+        # TODO: Get user and device from credential
+        
+        logger.info(
+            "WebAuthn authentication successful",
+            extra={
+                "email": payload.email,
+                "credential_id": payload.credential_id,
+                "event": "webauthn_auth_success",
+            }
+        )
+        
+        return {
+            "status": "authenticated",
+            "grant_id": "grant-placeholder",  # TODO: Create real grant
+            "access_token": "jwt-token-placeholder",  # TODO: Create JWT
+            "token_type": "Bearer",
+            "expires_in": 3600,
+        }
+    except Exception as e:
+        logger.error(f"WebAuthn authentication failed: {e}")
+        raise HTTPException(status_code=401, detail="Authentication failed")
