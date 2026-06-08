@@ -12,13 +12,12 @@ concurrency:
 jobs:
   pr-gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     permissions:
       contents: read
       security-events: write
 
-    # ✅ GLOBAL ENV FIX (CRITICAL)
     env:
       PYTHONPATH: .
       DB_HOST: localhost
@@ -34,7 +33,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # --------------------
-      # Python Setup
+      # Python
       # --------------------
       - uses: actions/setup-python@v5
         with:
@@ -50,87 +49,110 @@ jobs:
       # --------------------
       # Install
       # --------------------
-      - name: Install
+      - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-cov bandit pip-audit bandit[sarif]
+
           pip install -r requirements.txt
 
+          pip install \
+            pytest==8.4.2 \
+            pytest-cov==6.2.1 \
+            pip-audit==2.9.0 \
+            "bandit[sarif]==1.8.6"
+
       # --------------------
-      # pip-audit (SAFE SARIF)
+      # pip-audit SARIF
       # --------------------
-      - name: pip-audit (SARIF)
+      - name: pip-audit SARIF
         run: |
           pip-audit -f sarif -o pip-audit.sarif || true
+
           if [ ! -f pip-audit.sarif ]; then
-            printf '%s\n' \
-            '{' \
-            '  "version": "2.1.0",' \
-            '  "runs": []' \
-            '}' > pip-audit.sarif
+            cat > pip-audit.sarif <<'EOF'
+          {
+            "version": "2.1.0",
+            "runs": []
+          }
+          EOF
           fi
 
       # --------------------
-      # Bandit (SAFE SARIF)
+      # Bandit SARIF
       # --------------------
-      - name: Bandit (SARIF)
+      - name: Bandit SARIF
         run: |
           bandit -r app/ -f sarif -o bandit.sarif || true
+
           if [ ! -f bandit.sarif ]; then
-            printf '%s\n' \
-            '{' \
-            '  "version": "2.1.0",' \
-            '  "runs": []' \
-            '}' > bandit.sarif
+            cat > bandit.sarif <<'EOF'
+          {
+            "version": "2.1.0",
+            "runs": []
+          }
+          EOF
           fi
 
       # --------------------
-      # Check if SARIF is empty
+      # Check SARIF Content
       # --------------------
       - name: Check Bandit SARIF
         id: bandit_check
         run: |
-          if grep -q '"runs": \[\]' bandit.sarif; then
-            echo "empty=true" >> $GITHUB_OUTPUT
-          else
-            echo "empty=false" >> $GITHUB_OUTPUT
-          fi
+          python - <<'PY'
+          import json
+          try:
+              with open("bandit.sarif") as f:
+                  data = json.load(f)
+              print(f"empty={'true' if len(data.get('runs', [])) == 0 else 'false'}")
+          except Exception:
+              print("empty=true")
+          PY
 
       - name: Check pip-audit SARIF
         id: audit_check
         run: |
-          if grep -q '"runs": \[\]' pip-audit.sarif; then
-            echo "empty=true" >> $GITHUB_OUTPUT
-          else
-            echo "empty=false" >> $GITHUB_OUTPUT
-          fi
+          python - <<'PY'
+          import json
+          try:
+              with open("pip-audit.sarif") as f:
+                  data = json.load(f)
+              print(f"empty={'true' if len(data.get('runs', [])) == 0 else 'false'}")
+          except Exception:
+              print("empty=true")
+          PY
 
       # --------------------
-      # Upload ONLY if NOT empty
+      # Upload SARIF
       # --------------------
       - name: Upload Bandit SARIF
-        if: steps.bandit_check.outputs.empty == 'false'
+        if: steps.bandit_check.outputs.empty != 'true'
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: bandit.sarif
 
       - name: Upload pip-audit SARIF
-        if: steps.audit_check.outputs.empty == 'false'
+        if: steps.audit_check.outputs.empty != 'true'
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: pip-audit.sarif
 
       # --------------------
-      # Tests (FIXED)
+      # Tests + Coverage
       # --------------------
       - name: Tests
-        run: pytest --cov=app --cov-report=term --cov-fail-under=70
+        run: |
+          pytest \
+            --cov=app \
+            --cov-report=term \
+            --cov-fail-under=80
 
       # --------------------
-      # Red Team Tests (non-blocking)
+      # Red Team Smoke
       # --------------------
       - name: Red Team Tests
-        run: pytest app/security/tests/test_red_team_attacks.py -v || true
+        run: |
+          pytest app/security/tests/test_red_team_attacks.py -v || true
 
       # --------------------
       # CodeQL Analyze
