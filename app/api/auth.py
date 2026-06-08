@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Body
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import ( BaseModel, Field, EmailStr, ConfigDict, )
 import logging
 from datetime import datetime
 
@@ -35,7 +35,6 @@ def get_db():
 # --------------------
 # Models
 # --------------------
-
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=10)
@@ -51,28 +50,85 @@ class LoginRequest(BaseModel):
 
 class WebAuthnRegisterStartRequest(BaseModel):
     email: EmailStr
-    device_name: str = Field(..., description="Human-readable device name (e.g., 'Alice's MacBook')")
+    device_name: str = Field(
+        ...,
+        min_length=1,
+        description="Human-readable device name"
+    )
+
+    model_config = ConfigDict(extra="forbid")
+
+
+# ---------------------------------------------------------
+# WebAuthn Attestation Models
+# ---------------------------------------------------------
+
+class AttestationResponse(BaseModel):
+    response: dict = Field(
+        ...,
+        description="Authenticator attestation response"
+    )
+
+    model_config = ConfigDict(extra="allow")
+
+
+class AttestationPayload(BaseModel):
+    id: str = Field(..., min_length=1)
+    rawId: str = Field(..., min_length=1)
+    type: str = Field(..., min_length=1)
+
+    response: AttestationResponse
+
+    model_config = ConfigDict(extra="allow")
 
 
 class WebAuthnRegisterFinishRequest(BaseModel):
     email: EmailStr
-    attestation: dict = Field(
-        ..., 
-        description="WebAuthn attestation from authenticator",
-        min_length=1,  # Ensure attestation object is not empty
-    )
+    attestation: AttestationPayload
 
+    model_config = ConfigDict(extra="forbid")
+
+
+# ---------------------------------------------------------
+# WebAuthn Authentication Models
+# ---------------------------------------------------------
 
 class WebAuthnAuthenticateStartRequest(BaseModel):
     email: EmailStr
 
+    model_config = ConfigDict(extra="forbid")
+
+
+class AssertionResponse(BaseModel):
+    response: dict = Field(
+        ...,
+        description="Authenticator assertion response"
+    )
+
+    model_config = ConfigDict(extra="allow")
+
+
+class AssertionPayload(BaseModel):
+    id: str = Field(..., min_length=1)
+    rawId: str = Field(..., min_length=1)
+    type: str = Field(..., min_length=1)
+
+    response: AssertionResponse
+
+    model_config = ConfigDict(extra="allow")
+
 
 class WebAuthnAuthenticateFinishRequest(BaseModel):
     email: EmailStr
-    credential_id: str
-    assertion: dict = Field(..., description="WebAuthn assertion from authenticator")
 
+    credential_id: str = Field(
+        ...,
+        min_length=1,
+    )
 
+    assertion: AssertionPayload
+
+    model_config = ConfigDict(extra="forbid")
 # --------------------
 # Register (DEPRECATED - Password)
 # --------------------
