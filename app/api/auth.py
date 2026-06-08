@@ -56,7 +56,11 @@ class WebAuthnRegisterStartRequest(BaseModel):
 
 class WebAuthnRegisterFinishRequest(BaseModel):
     email: EmailStr
-    attestation: dict = Field(..., description="WebAuthn attestation from authenticator")
+    attestation: dict = Field(
+        ..., 
+        description="WebAuthn attestation from authenticator",
+        min_length=1,  # Ensure attestation object is not empty
+    )
 
 
 class WebAuthnAuthenticateStartRequest(BaseModel):
@@ -284,8 +288,9 @@ def webauthn_register_start(
     tags=["WebAuthn"],
     responses={
         200: {"description": "Credential registered"},
-        400: {"description": "Invalid attestation"},
+        400: {"description": "Invalid attestation or malformed request body"},
         401: {"description": "User not found"},
+        422: {"description": "Validation error"},
     },
 )
 def webauthn_register_finish(
@@ -331,7 +336,9 @@ def webauthn_register_finish(
     tags=["WebAuthn"],
     responses={
         200: {"description": "Authentication challenge generated"},
+        400: {"description": "Malformed request body"},
         401: {"description": "User not found or no credentials"},
+        422: {"description": "Validation error"},
     },
 )
 def webauthn_authenticate_start(
@@ -386,8 +393,10 @@ def webauthn_authenticate_start(
     tags=["WebAuthn"],
     responses={
         200: {"description": "Authenticated successfully"},
+        400: {"description": "Malformed request body"},
         401: {"description": "Invalid assertion or credential"},
         403: {"description": "Access denied by policy"},
+        422: {"description": "Validation error"},
     },
 )
 def webauthn_authenticate_finish(
