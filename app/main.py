@@ -64,31 +64,56 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.middleware("http")
 async def enforce_security(request: Request, call_next):
     path = request.url.path
+    method = request.method.upper()
 
+    # ----------------------------------
     # CI bypass
+    # ----------------------------------
     if os.getenv("CI_SECURITY_BYPASS") == "1":
         return await call_next(request)
 
-    # public endpoints
-    if path in [
+    # ----------------------------------
+    # Let FastAPI handle unsupported methods
+    # so TRACE returns 405 instead of 401
+    # ----------------------------------
+    # WebAuthn endpoints are POST-only.
+# Let FastAPI return 405 for unsupported methods.
+    if path.startswith("/api/v1/auth/webauthn/"):
+      if method != "POST":
+        return await call_next(request)
+
+# For all other routes let FastAPI handle unsupported methods
+    if method not in {"GET", "POST"}:
+      return await call_next(request)
+    # ----------------------------------
+    # Public endpoints
+    # ----------------------------------
+    PUBLIC_PATHS = {
         "/",
         "/health",
+        "/api/v1/",
         "/api/v1/health",
         "/api/v1/auth/register",
         "/api/v1/auth/login",
+        "/api/v1/auth/webauthn/register/start",
+        "/api/v1/auth/webauthn/register/finish",
+        "/api/v1/auth/webauthn/authenticate/start",
         "/openapi.json",
         "/docs",
         "/redoc",
-    ]:
+    }
+
+    if path in PUBLIC_PATHS:
         return await call_next(request)
 
     try:
         ctx = resolve_device_context(request)
+
         if ctx["device_id"] == "unknown":
-          return JSONResponse(
-          status_code=401,
-          content={"error": "Missing device identity"},
-        )
+            return JSONResponse(
+                status_code=401,
+                content={"error": "Missing device identity"},
+            )
 
         await security_middleware(
             request=request,
@@ -103,6 +128,7 @@ async def enforce_security(request: Request, call_next):
         )
 
     return await call_next(request)
+
 
 
 # --------------------

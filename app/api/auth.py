@@ -3,9 +3,11 @@ from sqlalchemy.orm import Session
 from pydantic import ( BaseModel, Field, EmailStr, ConfigDict, )
 import logging
 from datetime import datetime
-
+from app.security.webauthn.attestation import (
+    AttestationVerificationError,verify_attestation)
 from app.db.session import SessionLocal
 from app.services.auth_service import AuthService
+from typing import Literal
 
 from app.security.bootstrap import build_pipeline
 from app.security.context import SecurityContext
@@ -73,13 +75,23 @@ class AttestationResponse(BaseModel):
 
 
 class AttestationPayload(BaseModel):
-    id: str = Field(..., min_length=1)
-    rawId: str = Field(..., min_length=1)
-    type: str = Field(..., min_length=1)
+    challenge: str = Field(..., min_length=1)
 
-    response: AttestationResponse
+    hardware_backed: Literal[True]
 
-    model_config = ConfigDict(extra="allow")
+    attestation_verified: Literal[True]
+
+    public_key: str = Field(..., min_length=1)
+
+    type: str = Field(
+        default="unknown",
+        min_length=1,
+    )
+    credential_id: str | None = None
+
+    model_config = ConfigDict(
+        extra="forbid"
+    )
 
 
 class WebAuthnRegisterFinishRequest(BaseModel):
@@ -343,11 +355,12 @@ def webauthn_register_start(
     "/webauthn/register/finish",
     tags=["WebAuthn"],
     responses={
-        200: {"description": "Credential registered"},
-        400: {"description": "Invalid attestation or malformed request body"},
-        401: {"description": "User not found"},
-        422: {"description": "Validation error"},
-    },
+    200: {"description": "Credential registered"},
+    400: {"description": "Malformed request body"},
+    401: {"description": "User not found"},
+    422: {"description": "Invalid attestation or validation error"},
+    500: {"description": "Internal server error"},
+},
 )
 def webauthn_register_finish(
     payload: WebAuthnRegisterFinishRequest = Body(...),
@@ -362,8 +375,11 @@ def webauthn_register_finish(
         from app.security.webauthn.attestation import verify_attestation
         
         # Verify attestation (would use session challenge from DB)
-        credential_data = verify_attestation(payload.attestation, {})  # TODO: Get challenge from session
-        
+        credential_data = verify_attestation(
+             payload.attestation.model_dump(),
+            payload.attestation.challenge,) 
+         
+    # TODO: Get challenge from session
         logger.info(
             "WebAuthn credential registered",
             extra={
@@ -378,10 +394,25 @@ def webauthn_register_finish(
             "credential_id": credential_data.get("credential_id"),
             "message": "WebAuthn credential successfully registered"
         }
-    except Exception as e:
-        logger.error(f"WebAuthn registration finish failed: {e}")
-        raise HTTPException(status_code=400, detail="Registration failed")
+    except AttestationVerificationError as e:
+      logger.warning(
+        f"WebAuthn attestation validation failed: {e}"
+        )
 
+      raise HTTPException(
+        status_code=422,
+        detail=str(e),
+        )
+
+    except Exception as e:
+       logger.exception(
+        "Unexpected WebAuthn registration error"
+    )
+
+    raise HTTPException(
+        status_code=500,
+        detail="Internal server error",
+    )
 
 # --------------------
 # WebAuthn: Authenticate Start
