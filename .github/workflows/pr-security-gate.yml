@@ -129,7 +129,7 @@ jobs:
       # Trivy Filesystem Scan
       # --------------------
       - name: Trivy Scan
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@master
         continue-on-error: true
         with:
           scan-type: fs
