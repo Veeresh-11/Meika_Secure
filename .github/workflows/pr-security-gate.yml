@@ -12,7 +12,7 @@ concurrency:
 jobs:
   pr-gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     permissions:
       contents: read
@@ -38,6 +38,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.10"
+          cache: pip
 
       # --------------------
       # CodeQL Init
@@ -47,7 +48,7 @@ jobs:
           languages: python
 
       # --------------------
-      # Install
+      # Install Dependencies
       # --------------------
       - name: Install Dependencies
         run: |
@@ -62,25 +63,16 @@ jobs:
             "bandit[sarif]==1.8.6"
 
       # --------------------
-      # pip-audit SARIF
+      # Dependency Audit
       # --------------------
-      - name: pip-audit SARIF
+      - name: Dependency Audit
         run: |
-          pip-audit -f sarif -o pip-audit.sarif || true
-
-          if [ ! -f pip-audit.sarif ]; then
-            cat > pip-audit.sarif <<'EOF'
-          {
-            "version": "2.1.0",
-            "runs": []
-          }
-          EOF
-          fi
+          pip-audit
 
       # --------------------
       # Bandit SARIF
       # --------------------
-      - name: Bandit SARIF
+      - name: Bandit Scan
         run: |
           bandit -r app/ -f sarif -o bandit.sarif || true
 
@@ -94,53 +86,39 @@ jobs:
           fi
 
       # --------------------
-      # Check SARIF Content
+      # Check Bandit Results
       # --------------------
       - name: Check Bandit SARIF
         id: bandit_check
         run: |
-          python - <<'PY'
-          import json
-          try:
-              with open("bandit.sarif") as f:
-                  data = json.load(f)
-              print(f"empty={'true' if len(data.get('runs', [])) == 0 else 'false'}")
-          except Exception:
-              print("empty=true")
-          PY
-
-      - name: Check pip-audit SARIF
-        id: audit_check
-        run: |
-          python - <<'PY'
-          import json
-          try:
-              with open("pip-audit.sarif") as f:
-                  data = json.load(f)
-              print(f"empty={'true' if len(data.get('runs', [])) == 0 else 'false'}")
-          except Exception:
-              print("empty=true")
-          PY
+          if grep -q '"runs": \[\]' bandit.sarif; then
+            echo "empty=true" >> $GITHUB_OUTPUT
+          else
+            echo "empty=false" >> $GITHUB_OUTPUT
+          fi
 
       # --------------------
-      # Upload SARIF
+      # Upload Bandit SARIF
       # --------------------
       - name: Upload Bandit SARIF
-        if: steps.bandit_check.outputs.empty != 'true'
+        if: steps.bandit_check.outputs.empty == 'false'
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: bandit.sarif
 
-      - name: Upload pip-audit SARIF
-        if: steps.audit_check.outputs.empty != 'true'
-        uses: github/codeql-action/upload-sarif@v3
+      # --------------------
+      # Semgrep
+      # --------------------
+      - name: Semgrep
+        uses: returntocorp/semgrep-action@v1
+        continue-on-error: true
         with:
-          sarif_file: pip-audit.sarif
+          config: auto
 
       # --------------------
-      # Tests + Coverage
+      # Unit Tests + Coverage
       # --------------------
-      - name: Tests
+      - name: Tests + Coverage
         run: |
           pytest \
             --cov=app \
@@ -148,7 +126,30 @@ jobs:
             --cov-fail-under=80
 
       # --------------------
-      # Red Team Smoke
+      # Trivy Filesystem Scan
+      # --------------------
+      - name: Trivy Scan
+        uses: aquasecurity/trivy-action@0.28.0
+        continue-on-error: true
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          format: sarif
+          output: trivy.sarif
+
+      # --------------------
+      # Upload Trivy Report
+      # --------------------
+      - name: Upload Trivy Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: trivy.sarif
+          if-no-files-found: ignore
+
+      # --------------------
+      # Red Team Smoke Tests
       # --------------------
       - name: Red Team Tests
         run: |
