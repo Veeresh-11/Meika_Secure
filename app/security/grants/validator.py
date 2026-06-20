@@ -1,9 +1,17 @@
 # app/security/grants/validator.py
 
 from datetime import datetime
-from app.security.errors import SecurityPipelineError
+
 from app.security.context import SecurityContext
-from app.security.grants.store import GrantStore
+from app.security.errors import (
+    SecurityPipelineError,
+    FailureClass,
+)
+from app.security.results import DenyReason
+from app.security.grants.store import (
+    GrantStore,
+    GrantNotFoundError,
+)
 
 
 class GrantValidator:
@@ -20,27 +28,47 @@ class GrantValidator:
     def __init__(self, store: GrantStore):
         self._store = store
 
-    def validate(self, grant_id: str, context: SecurityContext) -> None:
+    def validate(
+        self,
+        grant_id: str,
+        context: SecurityContext,
+    ) -> None:
+
+        # Grant ID required
         if not grant_id:
-            raise SecurityPipelineError("Missing grant_id")
+            raise SecurityPipelineError(
+                DenyReason.DEFAULT_DENY,
+                FailureClass.GRANT,
+            )
 
-        grant = self._store.get(grant_id)
-
-        if not grant:
-            raise SecurityPipelineError("Grant not found")
+        # Grant must exist
+        try:
+            grant = self._store.get(grant_id)
+        except GrantNotFoundError:
+            raise SecurityPipelineError(
+                DenyReason.DEFAULT_DENY,
+                FailureClass.GRANT,
+            )
 
         # Principal binding
         if grant.principal_id != context.principal_id:
-            raise SecurityPipelineError("Grant does not belong to principal")
+            raise SecurityPipelineError(
+                DenyReason.GRANT_SCOPE_MISMATCH,
+                FailureClass.GRANT,
+            )
 
         # Expiry enforcement
         if grant.expires_at <= datetime.utcnow():
-            raise SecurityPipelineError("Grant has expired")
+            raise SecurityPipelineError(
+                DenyReason.EXPIRED_GRANT,
+                FailureClass.GRANT,
+            )
 
-        # Intent / scope enforcement (basic form)
-        if context.intent not in [s.intent for s in grant.scopes]:
-            raise SecurityPipelineError("Grant scope does not allow this intent")
+        # Intent enforcement
+        if context.intent != grant.intent:
+            raise SecurityPipelineError(
+                DenyReason.GRANT_SCOPE_MISMATCH,
+                FailureClass.GRANT,
+            )
 
-        # If all checks pass → grant is valid
         return None
-

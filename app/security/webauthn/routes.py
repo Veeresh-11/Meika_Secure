@@ -6,6 +6,7 @@ from .models import WebAuthnCredential
 from datetime import datetime
 from app.security.webauthn.mapper import build_device_identity_from_webauthn
 from app.security.device.context import DeviceContext, DevicePostureContext
+from app.security.webauthn.models import device_id
 
 router = APIRouter(prefix="/webauthn")
 

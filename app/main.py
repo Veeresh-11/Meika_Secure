@@ -89,20 +89,24 @@ async def enforce_security(request: Request, call_next):
     # Public endpoints
     # ----------------------------------
     PUBLIC_PATHS = {
-        "/",
-        "/health",
-        "/api/v1/",
-        "/api/v1/health",
-        "/api/v1/auth/register",
-        "/api/v1/auth/login",
-        "/api/v1/auth/webauthn/register/start",
-        "/api/v1/auth/webauthn/register/finish",
-        "/api/v1/auth/webauthn/authenticate/start",
-        "/openapi.json",
-        "/docs",
-        "/redoc",
-    }
+    "/",
+    "/health",
+    "/api/v1/",
+    "/api/v1/health",
 
+    "/api/v1/auth/register",
+    "/api/v1/auth/login",
+
+    "/api/v1/auth/webauthn/register/start",
+    "/api/v1/auth/webauthn/register/finish",
+
+    "/api/v1/auth/webauthn/authenticate/start",
+    "/api/v1/auth/webauthn/authenticate/finish",
+
+    "/openapi.json",
+    "/docs",
+    "/redoc",
+}
     if path in PUBLIC_PATHS:
         return await call_next(request)
 

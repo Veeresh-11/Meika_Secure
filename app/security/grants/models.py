@@ -17,8 +17,9 @@ class Grant:
     intent: str
     justification: str
 
-    def is_expired(self) -> bool:
-        return datetime.utcnow() > self.expires_at
+    def is_expired(self, now=None) -> bool:
+      now = now or datetime.utcnow()
+      return now > self.expires_at
 
     def to_dict(self) -> dict:
         return {

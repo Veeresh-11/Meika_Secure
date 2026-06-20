@@ -22,7 +22,7 @@ class TestWebAuthnRegisterStart:
     def test_register_start_returns_challenge(self):
         """Test: POST /webauthn/register/start returns challenge."""
         response = client.post(
-            "/api/auth/webauthn/register/start",
+            "/api/v1/auth/webauthn/register/start",
             json={"username": "newuser@example.com"}
         )
         
@@ -37,7 +37,7 @@ class TestWebAuthnRegisterStart:
     def test_register_start_returns_rp_entity(self):
         """Test: Challenge response includes RP entity information."""
         response = client.post(
-            "/api/auth/webauthn/register/start",
+            "/api/v1/auth/webauthn/register/start",
             json={"username": "newuser@example.com"}
         )
         
@@ -52,7 +52,7 @@ class TestWebAuthnRegisterStart:
     def test_register_start_returns_user_entity(self):
         """Test: Challenge response includes user entity."""
         response = client.post(
-            "/api/auth/webauthn/register/start",
+            "/api/v1/auth/webauthn/register/start",
             json={"username": "testuser@example.com"}
         )
         
@@ -69,7 +69,7 @@ class TestWebAuthnRegisterStart:
     def test_register_start_returns_pubkey_creation_options(self):
         """Test: Challenge includes publicKeyCredentialCreationOptions."""
         response = client.post(
-            "/api/auth/webauthn/register/start",
+            "/api/v1/auth/webauthn/register/start",
             json={"username": "user123@example.com"}
         )
         
@@ -87,7 +87,7 @@ class TestWebAuthnRegisterFinish:
     def test_register_finish_accepts_attestation(self):
         """Test: POST /webauthn/register/finish accepts attestation response."""
         response = client.post(
-            "/api/auth/webauthn/register/finish",
+            "/api/v1/auth/webauthn/register/finish",
             json={
                 "username": "newuser@example.com",
                 "attestationResponse": {
@@ -108,7 +108,7 @@ class TestWebAuthnRegisterFinish:
     def test_register_finish_returns_confirmation(self):
         """Test: register/finish returns confirmation message."""
         response = client.post(
-            "/api/auth/webauthn/register/finish",
+            "/api/v1/auth/webauthn/register/finish",
             json={
                 "username": "user@example.com",
                 "attestationResponse": {
@@ -136,7 +136,7 @@ class TestWebAuthnAuthenticateStart:
     def test_authenticate_start_returns_challenge(self):
         """Test: POST /webauthn/authenticate/start returns challenge."""
         response = client.post(
-            "/api/auth/webauthn/authenticate/start",
+            "/api/v1/auth/webauthn/authenticate/start",
             json={"username": "user@example.com"}
         )
         
@@ -150,7 +150,7 @@ class TestWebAuthnAuthenticateStart:
     def test_authenticate_start_includes_allowed_credentials(self):
         """Test: Authentication challenge includes allowedCredentials."""
         response = client.post(
-            "/api/auth/webauthn/authenticate/start",
+            "/api/v1/auth/webauthn/authenticate/start",
             json={"username": "user@example.com"}
         )
         
@@ -165,7 +165,7 @@ class TestWebAuthnAuthenticateStart:
     def test_authenticate_start_timeout_specified(self):
         """Test: Authentication challenge includes timeout."""
         response = client.post(
-            "/api/auth/webauthn/authenticate/start",
+            "/api/v1/auth/webauthn/authenticate/start",
             json={"username": "user@example.com"}
         )
         
@@ -183,7 +183,7 @@ class TestWebAuthnAuthenticateFinish:
     def test_authenticate_finish_accepts_assertion(self):
         """Test: POST /webauthn/authenticate/finish accepts assertion response."""
         response = client.post(
-            "/api/auth/webauthn/authenticate/finish",
+            "/api/v1/auth/webauthn/authenticate/finish",
             json={
                 "username": "user@example.com",
                 "assertionResponse": {
@@ -205,7 +205,7 @@ class TestWebAuthnAuthenticateFinish:
     def test_authenticate_finish_returns_grant_token(self):
         """Test: Successful authentication returns grant token."""
         response = client.post(
-            "/api/auth/webauthn/authenticate/finish",
+            "/api/v1/auth/webauthn/authenticate/finish",
             json={
                 "username": "user@example.com",
                 "assertionResponse": {
@@ -264,7 +264,7 @@ class TestWebAuthnEndpointValidation:
     def test_register_start_requires_username(self):
         """Test: register/start requires username in request."""
         response = client.post(
-            "/api/auth/webauthn/register/start",
+            "/api/v1/auth/webauthn/register/start",
             json={}
         )
         
@@ -274,7 +274,7 @@ class TestWebAuthnEndpointValidation:
     def test_authenticate_start_requires_username(self):
         """Test: authenticate/start requires username in request."""
         response = client.post(
-            "/api/auth/webauthn/authenticate/start",
+            "/api/v1/auth/webauthn/authenticate/start",
             json={}
         )
         
@@ -284,7 +284,7 @@ class TestWebAuthnEndpointValidation:
     def test_register_finish_requires_attestation(self):
         """Test: register/finish requires attestation response."""
         response = client.post(
-            "/api/auth/webauthn/register/finish",
+            "/api/v1/auth/webauthn/register/finish",
             json={"username": "user@example.com"}
         )
         
@@ -294,7 +294,7 @@ class TestWebAuthnEndpointValidation:
     def test_authenticate_finish_requires_assertion(self):
         """Test: authenticate/finish requires assertion response."""
         response = client.post(
-            "/api/auth/webauthn/authenticate/finish",
+            "/api/v1/auth/webauthn/authenticate/finish",
             json={"username": "user@example.com"}
         )
         
@@ -308,7 +308,7 @@ class TestWebAuthnResponseStructure:
     def test_register_start_response_is_json(self):
         """Test: Challenge response is valid JSON."""
         response = client.post(
-            "/api/auth/webauthn/register/start",
+            "/api/v1/auth/webauthn/register/start",
             json={"username": "user@example.com"}
         )
         
@@ -320,7 +320,7 @@ class TestWebAuthnResponseStructure:
     def test_challenge_values_are_strings(self):
         """Test: Challenge and credential IDs are base64url strings."""
         response = client.post(
-            "/api/auth/webauthn/register/start",
+            "/api/v1/auth/webauthn/register/start",
             json={"username": "user@example.com"}
         )
         
@@ -341,12 +341,12 @@ class TestWebAuthnUserIdentifier:
         username = "consistentuser@example.com"
         
         response1 = client.post(
-            "/api/auth/webauthn/register/start",
+            "/api/v1/auth/webauthn/register/start",
             json={"username": username}
         )
         
         response2 = client.post(
-            "/api/auth/webauthn/register/start",
+            "/api/v1/auth/webauthn/register/start",
             json={"username": username}
         )
         
@@ -359,12 +359,12 @@ class TestWebAuthnUserIdentifier:
     def test_different_users_get_different_ids(self):
         """Test: Different users get different user IDs."""
         response1 = client.post(
-            "/api/auth/webauthn/register/start",
+            "/api/v1/auth/webauthn/register/start",
             json={"username": "user1@example.com"}
         )
         
         response2 = client.post(
-            "/api/auth/webauthn/register/start",
+            "/api/v1/auth/webauthn/register/start",
             json={"username": "user2@example.com"}
         )
         
@@ -381,12 +381,12 @@ class TestWebAuthnChallengeProperties:
     def test_challenges_are_unique(self):
         """Test: Different challenge requests produce different challenges."""
         response1 = client.post(
-            "/api/auth/webauthn/authenticate/start",
+            "/api/v1/auth/webauthn/authenticate/start",
             json={"username": "user@example.com"}
         )
         
         response2 = client.post(
-            "/api/auth/webauthn/authenticate/start",
+            "/api/v1/auth/webauthn/authenticate/start",
             json={"username": "user@example.com"}
         )
         
@@ -399,7 +399,7 @@ class TestWebAuthnChallengeProperties:
     def test_challenge_length_is_reasonable(self):
         """Test: Challenge length is cryptographically sufficient."""
         response = client.post(
-            "/api/auth/webauthn/authenticate/start",
+            "/api/v1/auth/webauthn/authenticate/start",
             json={"username": "user@example.com"}
         )
         

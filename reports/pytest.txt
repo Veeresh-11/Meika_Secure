@@ -1,0 +1,11 @@
+........................................................................ [ 18%]
+....................s...........................................ss...... [ 36%]
+........................................................................ [ 54%]
+........................................................................ [ 72%]
+........................................................................ [ 91%]
+...................................                                      [100%]
+=========================== short test summary info ============================
+SKIPPED [1] app/security/test_jwt_builder_pq.py:151: Mock JWT builder signature test - complex mock interactions
+SKIPPED [1] app/security/test_postgres_integration.py:18: Postgres DSN not configured
+SKIPPED [1] app/security/test_postgres_serializable.py:5: Postgres DSN not configured
+392 passed, 3 skipped in 7.55s

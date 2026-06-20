@@ -1,7 +1,6 @@
-# app/security/grants/store.py
-
 from typing import Dict, List
 from datetime import datetime
+
 from app.security.grants.models import Grant
 
 
@@ -27,12 +26,14 @@ class GrantStore:
     def get(self, grant_id: str) -> Grant:
         if grant_id not in self._grants:
             raise GrantNotFoundError(grant_id)
+
         return self._grants[grant_id]
 
     def list_active(self) -> List[Grant]:
         now = datetime.utcnow()
+
         for gid in list(self._grants.keys()):
             if self._grants[gid].is_expired(now):
                 del self._grants[gid]
-        return list(self._grants.values())
 
+        return list(self._grants.values())

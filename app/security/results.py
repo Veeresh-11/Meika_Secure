@@ -33,8 +33,6 @@ class DenyReason(str, Enum):
 
     # ---- Snapshot / Time ----
     SNAPSHOT_EXPIRED = "Snapshot expired"
-
-    # ---- Grant enforcement ----
     EXPIRED_GRANT = "Grant expired"
     GRANT_SCOPE_MISMATCH = "Grant scope mismatch"
 

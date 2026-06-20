@@ -15,7 +15,7 @@ from app.security.device.context import DeviceContext
 from app.security.device.registry import DeviceRegistry
 from app.security.device.posture import DevicePostureEvaluator
 from app.security.errors import SecurityPipelineError
-
+from app.security.webauthn.models import WebAuthnCredential
 # Set up structured logger for deprecation tracking
 logger = logging.getLogger("meika.auth.deprecation")
 
@@ -405,14 +405,14 @@ def webauthn_register_finish(
         )
 
     except Exception as e:
-       logger.exception(
+        logger.exception(
         "Unexpected WebAuthn registration error"
-    )
+       )
 
-    raise HTTPException(
+        raise HTTPException(
         status_code=500,
         detail="Internal server error",
-    )
+       )
 
 # --------------------
 # WebAuthn: Authenticate Start
@@ -492,36 +492,65 @@ def webauthn_authenticate_finish(
 ):
     """
     Complete WebAuthn authentication.
-    
+
     Verifies assertion and creates grant (not session).
-    
+
     Returns JWT grant token for accessing protected resources.
     """
     try:
+        from datetime import datetime
         from app.security.webauthn.assertion import verify_assertion
-        
-        # Verify assertion (would use session challenge from DB)
-        verify_assertion(payload.assertion, {})  # TODO: Get challenge from session
-        
-        # TODO: Create JIT grant (not session)
-        # TODO: Get user and device from credential
-        
+        from app.security.webauthn.models import WebAuthnCredential
+
+        #
+        # TEMPORARY IMPLEMENTATION
+        #
+        # TODO:
+        # Lookup credential by payload.credential_id from database.
+        #
+
+        credential = WebAuthnCredential(
+            credential_id=payload.credential_id.encode(),
+            public_key=b"temporary-public-key",
+            sign_count=0,
+            hardware_backed=True,
+            attestation_verified=True,
+            attestation_type="basic",
+            created_at=datetime.utcnow(),
+            last_used_at=datetime.utcnow(),
+            revoked=False,
+        )
+
+        assertion_data = payload.assertion.model_dump()
+
+        verify_assertion(
+        assertion_data,
+        credential,
+         )
+
         logger.info(
             "WebAuthn authentication successful",
             extra={
                 "email": payload.email,
                 "credential_id": payload.credential_id,
                 "event": "webauthn_auth_success",
-            }
+            },
         )
-        
+
         return {
             "status": "authenticated",
-            "grant_id": "grant-placeholder",  # TODO: Create real grant
-            "access_token": "jwt-token-placeholder",  # TODO: Create JWT
+            "grant_id": "grant-placeholder",
+            "access_token": "jwt-token-placeholder",
             "token_type": "Bearer",
             "expires_in": 3600,
         }
+
     except Exception as e:
-        logger.error(f"WebAuthn authentication failed: {e}")
-        raise HTTPException(status_code=401, detail="Authentication failed")
+        logger.error(
+            f"WebAuthn authentication failed: {e}"
+        )
+
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication failed",
+        )
