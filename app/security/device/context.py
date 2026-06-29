@@ -12,6 +12,7 @@ class DeviceIdentityContext:
     clone_confirmed: bool
     replay_detected: bool
     last_attested_at: Optional[datetime]
+    
 
 
 # --- Runtime posture ---

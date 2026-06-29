@@ -1,30 +1,10 @@
-from dataclasses import dataclass
+from datetime import datetime
 
-
-@dataclass
-class DeviceContext:
-    """
-    Test-only domain device object.
-
-    Sprint A4.1:
-    - Shape-only expansion
-    - NO enforcement logic here
-    """
-
-    device_id: str
-    registered: bool
-    state: str
-
-    # Existing posture fields
-    clone_confirmed: bool = False
-    secure_boot: bool = True
-    compromised: bool = False
-
-    # New trust / posture fields (Sprint A4+)
-    hardware_backed: bool = True
-    attestation_verified: bool = True
-    binding_valid: bool = True
-    replay_detected: bool = False
+from app.security.device.context import (
+    DeviceContext,
+    DeviceIdentityContext,
+    DevicePostureContext,
+)
 
 
 def build_device(
@@ -41,24 +21,27 @@ def build_device(
     replay_detected: bool = False,
 ) -> DeviceContext:
     """
-    Test helper to build a domain device object.
-
-    Sprint A4.1:
-    - Accepts all posture attributes used by tests
-    - No validation
-    - No policy
-    - No security logic
+    Test helper to build a DeviceContext matching the production model.
     """
+
+    identity = DeviceIdentityContext(
+        hardware_backed=hardware_backed,
+        attestation_verified=attestation_verified,
+        binding_valid=binding_valid,
+        clone_confirmed=clone_confirmed,
+        replay_detected=replay_detected,
+        last_attested_at=datetime.utcnow(),
+    )
+
+    posture = DevicePostureContext(
+        secure_boot=secure_boot,
+        compromised=compromised,
+    )
 
     return DeviceContext(
         device_id=device_id,
         registered=registered,
         state=state,
-        clone_confirmed=clone_confirmed,
-        secure_boot=secure_boot,
-        compromised=compromised,
-        hardware_backed=hardware_backed,
-        attestation_verified=attestation_verified,
-        binding_valid=binding_valid,
-        replay_detected=replay_detected,
+        identity=identity,
+        posture=posture,
     )

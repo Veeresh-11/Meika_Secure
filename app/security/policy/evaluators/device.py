@@ -20,31 +20,28 @@ def match_device(rule: PolicyRule, ctx: SecurityContext) -> bool:
 
     for key, expected in rule.when.items():
 
-        # device.registered
-        if key == "device.registered":
-            if device.registered != expected:
-                return False
+     if not key.startswith("device."):
+        continue
 
-        # device.state
-        elif key == "device.state":
-            if device.state != expected:
-                return False
-
-        # device.identity.*
-        elif key.startswith("device.identity."):
-            attr = key.split(".", 2)[2]
-            if getattr(device.identity, attr) != expected:
-                return False
-
-        # device.posture.*
-        elif key.startswith("device.posture."):
-            attr = key.split(".", 2)[2]
-            if getattr(device.posture, attr) != expected:
-                return False
-
-        # Unknown device condition → fail closed
-        elif key.startswith("device."):
+     if key == "device.registered":
+        if device.registered != expected:
             return False
 
-    return True
+     elif key == "device.state":
+        if device.state != expected:
+            return False
 
+     elif key.startswith("device.identity."):
+        attr = key.split(".", 2)[2]
+        if getattr(device.identity, attr) != expected:
+            return False
+
+     elif key.startswith("device.posture."):
+        attr = key.split(".", 2)[2]
+        if getattr(device.posture, attr) != expected:
+            return False
+
+     else:
+        return False
+
+    return True

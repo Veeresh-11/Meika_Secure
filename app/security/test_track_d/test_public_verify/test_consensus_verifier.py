@@ -70,3 +70,57 @@ def test_consensus_verification_failure():
 
     assert response["verified"] is False
     assert response["proof"] is None
+
+from app.security.track_d.public_verify.consensus_verifier import (
+    ConsensusVerifier,
+)
+
+
+class FakeResult:
+    success = True
+    total_weight = 10
+    participants = ["node1"]
+
+
+class FakeEngine:
+    def evaluate(self, **kwargs):
+        return FakeResult()
+
+
+class FakeProposal:
+    proposal_hash = "abc"
+
+
+def test_success_fallback_path():
+    verifier = ConsensusVerifier(FakeEngine())
+
+    result = verifier.verify(
+        proposal=FakeProposal(),
+        votes=[],
+        minimum_weight=1,
+    )
+
+    assert result.verified is True
+    
+class FakeFailResult:
+    quorum_met = None
+    quorum = None
+    success = False
+
+
+class FakeFailEngine:
+    def evaluate(self, **kwargs):
+        return FakeFailResult()
+
+
+def test_success_attribute_false_path():
+    verifier = ConsensusVerifier(FakeFailEngine())
+
+    result = verifier.verify(
+        proposal=FakeProposal(),
+        votes=[],
+        minimum_weight=1,
+    )
+
+    assert result.verified is False
+    

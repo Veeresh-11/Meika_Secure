@@ -89,7 +89,7 @@ def simulate_decision(
     # Step 2: Force WARN-only semantics
     # -------------------------------------------------------------
     if decision.outcome == DecisionOutcome.DENY:
-        simulated_outcome = DecisionOutcome.WARN
+        simulated_outcome = DecisionOutcome.RESTRICT
     else:
         simulated_outcome = decision.outcome
 

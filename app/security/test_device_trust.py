@@ -35,6 +35,7 @@ def build_context(device_ctx):
         risk_signals={},
         request_time=datetime.utcnow(),
         metadata={},
+        
     )
 
 def run_test(name, fn):
@@ -89,7 +90,6 @@ def test_registered_good_posture():
         device_id=DEVICE_ID,
         registered=True,
         state="active",
-        hardware_backed=True,
         attestation_verified=True,
         binding_valid=True,
         clone_confirmed=False,
@@ -123,24 +123,24 @@ def test_device_revoked():
 # -------------------------------------------------
 
 def test_non_hardware_backed_key():
-    device_ctx = build_device(
-        device_id=DEVICE_ID,
-        registered=True,
-        state="active",
-        hardware_backed=False,          # ❌ critical
-        attestation_verified=True,
-        binding_valid=True,
-        clone_confirmed=False,
-        replay_detected=False,
-        secure_boot=True,
-        compromised=False,
-    )
+ device_ctx = build_device(
+    device_id=DEVICE_ID,
+    registered=True,
+    state="active",
+    hardware_backed=False,
+    attestation_verified=True,
+    binding_valid=True,
+    clone_confirmed=False,
+    replay_detected=False,
+    secure_boot=True,
+    compromised=False,
+)
 
-    ctx = build_context(device_ctx)
-    try:
+ ctx = build_context(device_ctx)
+ try:
         pipeline.evaluate(ctx)
         assert False, "Expected denial for non-hardware-backed key"
-    except SecurityPipelineError as exc:
+ except SecurityPipelineError as exc:
         assert "hardware-backed" in str(exc)
 
 # -------------------------------------------------
@@ -150,9 +150,8 @@ def test_unverified_hardware_attestation():
     device_ctx = build_device(
         device_id=DEVICE_ID,
         registered=True,
-        state="active",
-        hardware_backed=True,
-        attestation_verified=False,      # ❌ critical
+        state="active",  
+        attestation_verified=False,  # ❌ critical
         binding_valid=True,
         clone_confirmed=False,
         replay_detected=False,
@@ -175,7 +174,6 @@ def test_device_identity_binding_invalid():
         device_id=DEVICE_ID,
         registered=True,
         state="active",
-        hardware_backed=True,
         attestation_verified=True,
         binding_valid=False,             # ❌ critical
         clone_confirmed=False,

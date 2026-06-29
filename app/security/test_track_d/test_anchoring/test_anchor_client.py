@@ -64,3 +64,26 @@ def test_multiple_anchors_increment_block_number():
     r2 = client.anchor("root2")
 
     assert r2.block_number == r1.block_number + 1
+
+def test_verify_receipt_wrapper():
+    from app.security.track_d.anchoring.mock_client import MockAnchorClient
+
+    client = MockAnchorClient()
+
+    receipt = client.anchor("root123")
+
+    assert client.verify_receipt(receipt) is True
+    
+import pytest
+
+from app.security.track_d.anchoring.anchor_client import AnchorClient
+
+
+def test_anchor_client_anchor_abstract():
+    with pytest.raises(TypeError):
+        AnchorClient()
+
+
+def test_anchor_client_verify_abstract():
+    with pytest.raises(TypeError):
+        AnchorClient()

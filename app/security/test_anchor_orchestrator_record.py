@@ -63,3 +63,28 @@ def test_record_threshold_triggers_anchor():
 
     assert result is not None
     assert mock_anchor.anchor.called
+
+def test_no_anchor_trigger_returns_none():
+    bridge = Mock()
+
+    record_policy = Mock()
+    record_policy.should_anchor.return_value = False
+
+    time_policy = Mock()
+    time_policy.should_anchor.return_value = False
+
+    orch = EvidenceAnchorOrchestrator(
+        bridge=bridge,
+        record_policy=record_policy,
+        time_policy=time_policy,
+    )
+
+    result = orch.evaluate(
+        records=[],
+        store=Mock(),
+        context=Mock(),
+    )
+
+    assert result is None
+
+    bridge.seal_anchor_and_record.assert_not_called()

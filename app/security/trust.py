@@ -1,6 +1,10 @@
 # app/security/trust.py
 
-from app.security.errors import SecurityPipelineError
+from app.security.errors import (
+    SecurityPipelineError,
+    FailureClass,
+)
+from app.security.results import DenyReason
 from app.security.context import SecurityContext
 
 
@@ -11,6 +15,7 @@ def enforce_trust(context: SecurityContext) -> None:
     """
 
     device = getattr(context, "device", None)
+
     if device is None:
         return
 
@@ -20,7 +25,13 @@ def enforce_trust(context: SecurityContext) -> None:
         or getattr(device, "is_clone", False)
         or getattr(device, "state", None) == "cloned"
     ):
-        raise SecurityPipelineError("Device cloning detected")
+        raise SecurityPipelineError(
+            DenyReason.DEVICE_CLONED,
+            FailureClass.DEVICE,
+        )
 
     if getattr(device, "compromised", False):
-        raise SecurityPipelineError("Device compromised")
+        raise SecurityPipelineError(
+            DenyReason.DEVICE_COMPROMISED,
+            FailureClass.DEVICE,
+        )

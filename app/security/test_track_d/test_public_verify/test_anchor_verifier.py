@@ -26,3 +26,18 @@ def test_anchor_verification_missing():
 
     assert response["verified"] is False
     assert response["proof"] is None
+
+from app.security.track_d.public_verify.anchor_verifier import AnchorVerifier
+
+
+class NoReceiptClient:
+    pass
+
+
+def test_client_without_get_receipt():
+    verifier = AnchorVerifier(NoReceiptClient())
+
+    result = verifier.verify("a" * 64)
+
+    assert result.verified is False
+    assert result.object_type == "ANCHOR"

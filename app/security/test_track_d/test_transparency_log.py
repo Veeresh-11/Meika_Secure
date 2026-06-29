@@ -1,5 +1,5 @@
 from app.security.track_d.audit.transparency_log import TransparencyLog
-
+import pytest
 
 def test_append_and_root_changes():
     log = TransparencyLog()
@@ -33,3 +33,23 @@ def test_tamper_detection():
     log._entries[0]["event"] = "HACKED"
 
     assert not log.validate()
+
+import pytest
+
+
+
+def test_empty_log_root():
+    log = TransparencyLog()
+
+    root = log.get_root()
+
+    assert isinstance(root, str)
+    assert len(root) == 64
+
+
+def test_invalid_inclusion_index():
+    log = TransparencyLog()
+
+    with pytest.raises(ValueError, match="Invalid index"):
+        log.get_inclusion_proof(0)
+        

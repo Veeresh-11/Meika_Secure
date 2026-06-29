@@ -42,3 +42,23 @@ def test_health_snapshot_never_raises():
     for _ in range(5):
         snapshot = kernel.health_snapshot()
         assert isinstance(snapshot, dict)
+
+class BrokenStore:
+
+    def next_sequence(self):
+        raise RuntimeError()
+
+    def last_hash(self):
+        raise RuntimeError()
+
+
+def test_health_snapshot_store_failures():
+
+    kernel = SecureIDKernel(
+        evidence_store=BrokenStore()
+    )
+
+    snap = kernel.health_snapshot()
+
+    assert snap["last_sequence_number"] is None
+    assert snap["last_record_hash"] is None

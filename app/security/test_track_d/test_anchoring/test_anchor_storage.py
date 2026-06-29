@@ -84,3 +84,12 @@ def test_integrity_violation_detection():
 
     with pytest.raises(ValueError):
         storage.get_by_transaction("tx-10")
+
+def test_get_by_transaction_missing():
+    store = AnchorStorage()
+    assert store.get_by_transaction("missing") is None
+
+
+def test_get_by_root_missing():
+    store = AnchorStorage()
+    assert store.get_by_root("missing") is None

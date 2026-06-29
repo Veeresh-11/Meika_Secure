@@ -4,7 +4,7 @@ import os  # Added for env vars
 from datetime import datetime, timedelta
 
 # Fetch from environment variable with a fallback for local dev only
-SECRET = os.getenv("JWT_SECRET_KEY", "dev-secret-change-later")
+SECRET = os.getenv("JWT_SECRET_KEY", "0123456789abcdef0123456789abcdef")
 ALGO = "HS256"
 
 

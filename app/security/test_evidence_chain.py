@@ -35,8 +35,8 @@ device = build_device(
 snapshot = DeviceSnapshot(
     device_id=device.device_id,
     registered=device.registered,
-    compromised=device.compromised,
-    clone_confirmed=device.clone_confirmed,
+    compromised=device.posture.compromised,
+    clone_confirmed=device.identity.clone_confirmed,
 )
 
 # Security context

@@ -6,6 +6,7 @@ from app.security.track_d.error_codes import (
     ErrorStage,
     ErrorDefinition,
     get_error_definition,
+    classify_decision
 )
 
 
@@ -66,4 +67,50 @@ def test_no_runtime_logic_leakage():
 
     for token in forbidden_imports:
         assert token not in source
+        
+class DummyDecision:
+    def __init__(self, reason):
+        self.reason = reason
+
+
+def test_classify_device_reason():
+    assert (
+        classify_decision(
+            DummyDecision("device trust failure")
+        )
+        == ErrorClass.DEVICE.value
+    )
+
+
+def test_classify_grant_reason():
+    assert (
+        classify_decision(
+            DummyDecision("grant missing")
+        )
+        == ErrorClass.GRANT.value
+    )
+
+
+def test_classify_policy_reason():
+    assert (
+        classify_decision(
+            DummyDecision("policy violation")
+        )
+        == ErrorClass.POLICY.value
+    )
+
+
+def test_classify_evidence_reason():
+    assert (
+        classify_decision(
+            DummyDecision("evidence tampered")
+        )
+        == ErrorClass.EVIDENCE.value
+    )
+
+
+def test_classify_unknown_reason():
+    assert classify_decision(
+        DummyDecision("something unrelated")
+    ) is None
 

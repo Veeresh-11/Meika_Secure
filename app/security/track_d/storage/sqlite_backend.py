@@ -28,7 +28,7 @@ pytest.importorskip("nacl")
 try:
     from nacl.signing import SigningKey, VerifyKey
     from nacl.encoding import HexEncoder
-except ImportError:
+except ImportError: # pragma: no cover
     SigningKey = None
     VerifyKey = None
     HexEncoder = None

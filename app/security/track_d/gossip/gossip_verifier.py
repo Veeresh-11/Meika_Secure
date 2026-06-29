@@ -31,22 +31,21 @@ class GossipVerifier:
 
         # Case 1: identical
         if remote_entries == local_entries:
-            return True
+         return True
 
         # Case 2: remote extends local
-        if len(remote_entries) >= len(local_entries):
-            for i in range(len(local_entries)):
-                if remote_entries[i] != local_entries[i]:
-                    raise ValueError("Fork detected: divergence in prefix")
-
-            return True
-
+        elif len(remote_entries) >= len(local_entries):
+           for i in range(len(local_entries)):
+              if remote_entries[i] != local_entries[i]:
+                 raise ValueError("Fork detected: divergence in prefix")
+           return True
+  
         # Case 3: remote shorter (possible truncation)
-        if len(remote_entries) < len(local_entries):
-            for i in range(len(remote_entries)):
-                if remote_entries[i] != local_entries[i]:
-                    raise ValueError("Fork detected: divergence")
+        else:
+          for i in range(len(remote_entries)):
+            if remote_entries[i] != local_entries[i]:
+              raise ValueError("Fork detected: divergence")
 
-            raise ValueError("Remote chain truncated")
+          raise ValueError("Remote chain truncated")
 
-        raise ValueError("Unknown inconsistency")
+        #raise ValueError("Unknown inconsistency")# unreachable

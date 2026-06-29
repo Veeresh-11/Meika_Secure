@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -7,7 +7,7 @@ from app.security.errors import SecurityPipelineError
 from app.security.grants.models import create_grant
 from app.security.grants.store import GrantStore
 from app.security.grants.validator import GrantValidator
-
+from app.security.grants.store import GrantNotFoundError
 
 def make_context():
     return SecurityContext(
@@ -95,4 +95,40 @@ def test_wrong_intent():
         validator.validate(
             grant.grant_id,
             make_context(),
+        )
+        
+def test_validate_missing_grant():
+
+    class MissingStore:
+        def get(self, grant_id):
+            raise GrantNotFoundError(grant_id)
+
+    validator = GrantValidator(MissingStore())
+
+    with pytest.raises(SecurityPipelineError):
+        validator.validate(
+            "missing",
+            SecurityContext.fake_allow_context(),
+        )
+
+
+def test_validate_expired_grant():
+
+    class ExpiredGrant:
+        principal_id = "user"
+        intent = "authentication.attempt"
+        expires_at = datetime.utcnow() - timedelta(minutes=1)
+
+    class Store:
+        def get(self, grant_id):
+            return ExpiredGrant()
+
+    validator = GrantValidator(Store())
+
+    ctx = SecurityContext.fake_allow_context()
+
+    with pytest.raises(SecurityPipelineError):
+        validator.validate(
+            "grant1",
+            ctx,
         )

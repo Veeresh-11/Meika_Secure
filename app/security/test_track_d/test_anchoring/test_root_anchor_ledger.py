@@ -6,7 +6,15 @@ from app.security.track_d.anchoring.anchor_policy_engine import (
     AnchorPolicy,
     AnchorPolicyEngine,
 )
-
+from app.security.track_d.anchoring.anchor_policy_registry import AnchorPolicyRegistry
+from app.security.track_d.anchoring.root_anchor_ledger import (
+RootAnchorLedger,
+)
+from app.security.track_d.anchoring.anchor_policy_registry import AnchorPolicyRegistry
+from app.security.track_d.governance.policy_upgrade_engine import (
+    PolicyUpgradeEngine,
+    PolicyUpgradeError,)
+from app.security.track_d.consensus.threshold_signature import ThresholdSigner
 
 def _hash(i: int) -> str:
     return f"{i:064x}"
@@ -225,4 +233,93 @@ def test_policy_hash_mismatch_detected():
     ledger._policy_engine = AnchorPolicyEngine(new_policy)
 
     with pytest.raises(ValueError):
+        ledger.validate_chain()
+
+# ---------------------------------------------------------
+# Invalid Timestamp
+# ---------------------------------------------------------
+
+def test_invalid_timestamp_rejected():
+
+    ledger = _ledger()
+    receipt = _receipt(_hash(1))
+
+    with pytest.raises(ValueError, match="RFC3339"):
+        ledger.append(
+            certificate_hash=_hash(1),
+            anchored_at="invalid",
+            receipts=[receipt],
+        )
+
+
+# ---------------------------------------------------------
+# Invalid Certificate Hash
+# ---------------------------------------------------------
+
+def test_invalid_certificate_hash_rejected():
+
+    ledger = _ledger()
+    receipt = _receipt(_hash(1))
+
+    with pytest.raises(ValueError, match="Invalid certificate hash"):
+        ledger.append(
+            certificate_hash="bad",
+            anchored_at="2026-01-01T00:00:00Z",
+            receipts=[receipt],
+        )
+
+
+# ---------------------------------------------------------
+# Empty Receipts
+# ---------------------------------------------------------
+
+def test_empty_receipts_rejected():
+
+    ledger = _ledger()
+
+    with pytest.raises(ValueError, match="Anchor receipts required"):
+        ledger.append(
+            certificate_hash=_hash(1),
+            anchored_at="2026-01-01T00:00:00Z",
+            receipts=[],
+        )
+
+
+# ---------------------------------------------------------
+# Explicit Fork Detection Branch
+# ---------------------------------------------------------
+from app.security.track_d.anchoring.root_anchor_ledger import _hash
+
+
+def test_validate_chain_detects_fork_branch():
+
+    ledger = _ledger()
+
+    r1 = _receipt(_hash(1))
+    r2 = _receipt(_hash(2))
+
+    ledger.append(
+        certificate_hash=_hash(1),
+        anchored_at="2026-01-01T00:00:00Z",
+        receipts=[r1],
+    )
+
+    ledger.append(
+        certificate_hash=_hash(2),
+        anchored_at="2026-01-02T00:00:00Z",
+        receipts=[r2],
+    )
+
+    # create a validly-hashed but incorrectly-linked entry
+    ledger._entries[1]["previous_entry_hash"] = "0" * 64
+
+    entry_copy = dict(ledger._entries[1])
+    entry_copy.pop("entry_hash")
+
+    ledger._entries[1]["entry_hash"] = _hash(entry_copy)
+
+    with pytest.raises(
+        ValueError,
+        match="Root chain fork detected",
+    ):
         ledger.validate_chain()

@@ -101,3 +101,47 @@ def test_policy_unapproved_network():
     ]
 
     assert engine.evaluate(receipts) is False
+    
+import pytest
+
+from app.security.track_d.anchoring.anchor_policy import AnchorPolicy
+
+
+def test_version_must_be_positive():
+    with pytest.raises(ValueError):
+        AnchorPolicy(
+            version=0,
+            required_networks=[],
+            minimum_total=1,
+            allowed_networks=["eth"],
+        ).validate_structure()
+
+
+def test_minimum_total_positive():
+    with pytest.raises(ValueError):
+        AnchorPolicy(
+            version=1,
+            required_networks=[],
+            minimum_total=0,
+            allowed_networks=["eth"],
+        ).validate_structure()
+
+
+def test_allowed_networks_required():
+    with pytest.raises(ValueError):
+        AnchorPolicy(
+            version=1,
+            required_networks=[],
+            minimum_total=1,
+            allowed_networks=[],
+        ).validate_structure()
+
+
+def test_minimum_total_less_than_required():
+    with pytest.raises(ValueError):
+        AnchorPolicy(
+            version=1,
+            required_networks=["eth","btc"],
+            minimum_total=1,
+            allowed_networks=["eth","btc"],
+        ).validate_structure()

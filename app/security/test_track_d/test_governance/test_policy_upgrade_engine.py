@@ -19,6 +19,16 @@ from app.security.track_d.governance.policy_upgrade_engine import (
     PolicyUpgradeError,
 )
 
+def _policy_engine():
+    return AnchorPolicyEngine(
+        AnchorPolicy(
+            version=1,
+            required_networks=["mocknet"],
+            minimum_total=1,
+            allowed_networks=["mocknet"],
+        )
+    )
+policy_engine = _policy_engine()
 
 def _receipt(root_hash: str):
     return AnchorReceipt.create(
@@ -48,7 +58,7 @@ def _environment():
     registry.register(p1)
 
     engine = AnchorPolicyEngine(p1)
-    ledger = RootAnchorLedger(engine)
+    ledger = RootAnchorLedger(policy_engine)
 
     return registry, ledger
 
@@ -153,5 +163,145 @@ def test_invalid_threshold_signature():
             previous_policy_hash=registry.latest().policy_hash,
             threshold_signature=sig,
             anchor_receipts=[_receipt(new_policy.policy_hash)],
+            anchored_at="2026-01-02T00:00:00Z",
+        )
+
+def test_upgrade_requires_existing_policy():
+
+    registry = AnchorPolicyRegistry()
+    ledger = RootAnchorLedger(policy_engine)
+
+    engine = PolicyUpgradeEngine(
+        registry=registry,
+        ledger=ledger,
+    )
+
+    signer = ThresholdSigner.generate(
+        total=3,
+        threshold=2,
+    )
+
+    policy = _policy(1)
+   
+    signature = signer.sign(policy.policy_hash)
+
+    with pytest.raises(
+        PolicyUpgradeError,
+        match="No existing policy",
+    ):
+        engine.upgrade(
+            new_policy=policy,
+            previous_policy_hash="x",
+            threshold_signature=signature,
+            anchor_receipts=[],
+            anchored_at="2026-01-01T00:00:00Z",
+        )
+        
+def test_invalid_threshold_signature():
+
+    registry = AnchorPolicyRegistry()
+    ledger = RootAnchorLedger(policy_engine)
+
+    current = _policy(1)
+    
+    registry.register(current)
+
+    engine = PolicyUpgradeEngine(
+        registry=registry,
+        ledger=ledger,
+    )
+
+    signer = ThresholdSigner.generate(
+        total=3,
+        threshold=2,
+    )
+
+    new_policy = _policy(2)
+    
+    signature = signer.sign("WRONG_HASH")
+
+    with pytest.raises(
+        PolicyUpgradeError,
+        match="Invalid threshold signature",
+    ):
+        engine.upgrade(
+            new_policy=new_policy,
+            previous_policy_hash=current.policy_hash,
+            threshold_signature=signature,
+            anchor_receipts=[],
+            anchored_at="2026-01-01T00:00:00Z",
+        )
+def test_governance_signer_not_established():
+
+    ThresholdSigner._governance_signer_id = None
+
+    registry = AnchorPolicyRegistry()
+    ledger = RootAnchorLedger(policy_engine)
+
+    current = _policy(1)
+    
+    registry.register(current)
+
+    engine = PolicyUpgradeEngine(
+        registry=registry,
+        ledger=ledger,
+    )
+
+    new_policy = _policy(2)
+
+    class FakeSignature:
+        signer_id = "x"
+
+        def verify(self, *_):
+            return True
+
+    with pytest.raises(
+        PolicyUpgradeError,
+        match="Governance signer not established",
+    ):
+        engine.upgrade(
+            new_policy=new_policy,
+            previous_policy_hash=current.policy_hash,
+            threshold_signature=FakeSignature(),
+            anchor_receipts=[],
+            anchored_at="2026-01-01T00:00:00Z",
+        )
+        
+def test_unauthorized_governance_signer():
+
+    registry, ledger = _environment()
+
+    governance_signer = ThresholdSigner.generate(
+        total=3,
+        threshold=2,
+    )
+
+    rogue_signer = ThresholdSigner.generate(
+        total=3,
+        threshold=2,
+    )
+
+    new_policy = _policy(2)
+
+    rogue_signature = rogue_signer.sign(
+        new_policy.policy_hash
+    )
+
+    engine = PolicyUpgradeEngine(
+        registry=registry,
+        ledger=ledger,
+    )
+
+    with pytest.raises(
+        PolicyUpgradeError,
+        match="Unauthorized governance signer",
+    ):
+        engine.upgrade(
+            new_policy=new_policy,
+            previous_policy_hash=registry.latest().policy_hash,
+            threshold_signature=rogue_signature,
+            anchor_receipts=[
+                _receipt(new_policy.policy_hash)
+            ],
             anchored_at="2026-01-02T00:00:00Z",
         )

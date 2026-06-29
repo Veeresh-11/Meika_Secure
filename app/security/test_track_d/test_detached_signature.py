@@ -43,3 +43,42 @@ def test_detached_sign_and_verify():
         signature_object=signature,
         now_utc="2026-04-01T00:00:01Z",
     )
+
+import pytest
+
+from app.security.track_d.signing.detached_signer import (
+    generate_detached_signature,
+)
+
+
+class FakeSigner:
+    def sign(self, payload):
+        return ("deadbeef", "key1")
+
+    def algorithm(self):
+        return "TEST"
+
+
+def test_invalid_signed_at_timestamp():
+    with pytest.raises(
+        ValueError,
+        match="RFC3339",
+    ):
+        generate_detached_signature(
+            payload={"a": 1},
+            signer=FakeSigner(),
+            signed_at_utc="invalid",
+        )
+
+
+def test_expiry_must_be_after_signed_at():
+    with pytest.raises(
+        ValueError,
+        match="expires_at must be after signed_at",
+    ):
+        generate_detached_signature(
+            payload={"a": 1},
+            signer=FakeSigner(),
+            signed_at_utc="2026-01-02T00:00:00Z",
+            expires_at_utc="2026-01-01T00:00:00Z",
+        )

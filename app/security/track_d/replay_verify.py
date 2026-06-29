@@ -26,9 +26,8 @@ from dataclasses import dataclass
 from typing import Iterable, Optional, List
 
 from app.security.evidence.models import EvidenceRecord
-from app.security.evidence.engine import EvidenceHashEngine
 from app.security.errors import SecurityInvariantViolation
-
+import hashlib
 
 # ---------------------------------------------------------------------
 # Replay Result Model
@@ -113,14 +112,14 @@ def verify_evidence_chain(
         # Sequence ordering
         # -------------------------------------------------------------
         if previous is not None:
-            if record.sequence != previous.sequence + 1:
+            if record.sequence_number != previous.sequence_number + 1:
                 return ReplayResult(
                     valid=False,
                     failure_code="MEIKA_REPLAY_SEQUENCE_GAP",
                     failure_stage="ORDER",
                     failure_message=(
                         f"Sequence break at index {index}: "
-                        f"expected {previous.sequence + 1}, got {record.sequence}"
+                        f"expected {previous.sequence_number + 1}, got {record.sequence_number}"
                     ),
                 )
 
@@ -130,7 +129,7 @@ def verify_evidence_chain(
                     failure_code="MEIKA_REPLAY_PREVIOUS_HASH_MISMATCH",
                     failure_stage="CHAIN",
                     failure_message=(
-                        f"Previous hash mismatch at sequence {record.sequence}"
+                        f"Previous hash mismatch at sequence {record.sequence_number}: "
                     ),
                 )
 
@@ -138,14 +137,20 @@ def verify_evidence_chain(
         # Hash recomputation
         # -------------------------------------------------------------
         try:
-            computed_hash = EvidenceHashEngine.compute_record_hash(record)
+            computed_hash = hashlib.sha256(
+    (
+        f"{record.sequence_number}|"
+        f"{record.previous_hash}|"
+        f"{record.payload_hash}"
+    ).encode("utf-8")
+).hexdigest()
         except Exception:
             return ReplayResult(
                 valid=False,
                 failure_code="MEIKA_REPLAY_HASH_COMPUTE_FAILED",
                 failure_stage="HASH",
                 failure_message=(
-                    f"Hash computation failed at sequence {record.sequence}"
+                    f"Hash computation failed at sequence {record.sequence_number}"
                 ),
             )
 
@@ -155,7 +160,7 @@ def verify_evidence_chain(
                 failure_code="MEIKA_REPLAY_HASH_MISMATCH",
                 failure_stage="HASH",
                 failure_message=(
-                    f"Hash mismatch at sequence {record.sequence}"
+                    f"Hash mismatch at sequence {record.sequence_number}"
                 ),
             )
 

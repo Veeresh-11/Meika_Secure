@@ -36,3 +36,33 @@ def test_basic_quorum_success():
 
     assert result.approved
 
+def test_consensus_proposal_to_dict():
+    from app.security.track_d.consensus.proposal import ConsensusProposal
+
+    p = ConsensusProposal(
+        proposal_type="upgrade",
+        payload={"a": 1},
+        created_at="2026",
+        proposer_node_id="node1",
+    )
+
+    data = p.to_dict()
+
+    assert data["proposal_type"] == "upgrade"
+    assert "proposal_hash" in data
+
+def test_consensus_result_to_dict():
+    from app.security.track_d.consensus.consensus_result import ConsensusResult
+
+    r = ConsensusResult(
+        proposal_hash="abc",
+        approved=True,
+        total_weight=5,
+        quorum=True,
+        participating_nodes=["n1"],
+    )
+
+    data = r.to_dict()
+
+    assert data["proposal_hash"] == "abc"
+    assert data["approved"] is True

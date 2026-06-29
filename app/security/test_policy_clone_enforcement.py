@@ -39,8 +39,8 @@ def test_cloned_device_token_denied():
     snapshot = DeviceSnapshot(
         device_id=device.device_id,
         registered=device.registered,
-        compromised=device.compromised,
-        clone_confirmed=device.clone_confirmed,
+        compromised=device.posture.compromised,
+        clone_confirmed=device.identity.clone_confirmed,
     )
 
     ctx = SecurityContext(

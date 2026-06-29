@@ -153,3 +153,23 @@ def get_error_definition(code: str) -> ErrorDefinition:
     Raises KeyError if code is unknown.
     """
     return ERROR_CODES[code]
+
+def classify_decision(decision) -> str | None:
+
+    reason = str(
+        getattr(decision, "reason", "")
+    ).lower()
+
+    if "device" in reason:
+        return ErrorClass.DEVICE.value
+
+    if "grant" in reason:
+        return ErrorClass.GRANT.value
+
+    if "policy" in reason:
+        return ErrorClass.POLICY.value
+
+    if "evidence" in reason:
+        return ErrorClass.EVIDENCE.value
+
+    return None

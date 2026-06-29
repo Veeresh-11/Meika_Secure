@@ -29,14 +29,14 @@ def test_policy_sanity():
     snapshot = DeviceSnapshot(
         device_id=device.device_id,
         registered=device.registered,
-        compromised=device.compromised,
-        clone_confirmed=device.clone_confirmed,
+        compromised=device.posture.compromised,
+        clone_confirmed=device.identity.clone_confirmed,
         state=device.state,
-        hardware_backed=device.hardware_backed,
-        attestation_verified=device.attestation_verified,
-        binding_valid=device.binding_valid,
-        replay_detected=device.replay_detected,
-        secure_boot=device.secure_boot,
+        hardware_backed=device.identity.hardware_backed,
+        attestation_verified=device.identity.attestation_verified,
+        binding_valid=device.identity.binding_valid,
+        replay_detected=device.identity.replay_detected,
+        secure_boot=device.posture.secure_boot,
     )
 
     ctx = SecurityContext(

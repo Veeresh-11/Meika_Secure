@@ -90,3 +90,80 @@ def test_tampering_detected():
     ledger._chain[0]["result"] = "HACKED"
 
     assert not ledger.validate_chain()
+
+def test_invalid_result_type():
+
+    ledger = VerificationLedger()
+
+    with pytest.raises(ValueError, match="Invalid result type"):
+        ledger.append(
+            payload_hash="a" * 64,
+            key_ids=[],
+            policy_family=None,
+            policy_version=None,
+            result="BAD",
+            reason=None,
+        )
+        
+def test_invalid_payload_hash():
+
+    ledger = VerificationLedger()
+
+    with pytest.raises(ValueError, match="Invalid payload_hash"):
+        ledger.append(
+            payload_hash="bad",
+            key_ids=[],
+            policy_family=None,
+            policy_version=None,
+            result="PASS",
+            reason=None,
+        )
+def test_key_ids_must_be_list():
+
+    ledger = VerificationLedger()
+
+    with pytest.raises(ValueError, match="key_ids must be a list"):
+        ledger.append(
+            payload_hash="a" * 64,
+            key_ids="not-a-list",
+            policy_family=None,
+            policy_version=None,
+            result="PASS",
+            reason=None,
+        )
+        
+def test_linkage_violation_detected():
+
+    ledger = VerificationLedger()
+
+    ledger.append(
+        payload_hash="a" * 64,
+        key_ids=[],
+        policy_family=None,
+        policy_version=None,
+        result="PASS",
+        reason=None,
+    )
+
+    ledger._chain[0]["previous_hash"] = "tampered"
+
+    assert ledger.validate_chain() is False
+    
+def test_entries_returns_copy():
+
+    ledger = VerificationLedger()
+
+    ledger.append(
+        payload_hash="a" * 64,
+        key_ids=[],
+        policy_family=None,
+        policy_version=None,
+        result="PASS",
+        reason=None,
+    )
+
+    entries = ledger.entries()
+
+    entries[0]["payload_hash"] = "evil"
+
+    assert ledger.entries()[0]["payload_hash"] == "a" * 64

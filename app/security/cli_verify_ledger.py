@@ -25,5 +25,5 @@ def main():
         sys.exit(2)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":# pragma: no cover
     main()

@@ -2,7 +2,7 @@ import jwt
 import hashlib
 from app.security.errors import SecurityError
 
-SECRET = "dev-secret-change-later"
+SECRET = "0123456789abcdef0123456789abcdef"
 ALGO = "HS256"
 
 

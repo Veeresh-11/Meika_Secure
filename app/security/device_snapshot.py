@@ -44,18 +44,56 @@ class DeviceSnapshot:
                 clone_confirmed=ctx.get("clone_confirmed", False),
             )
 
+        identity = getattr(ctx, "identity", None)
+        posture = getattr(ctx, "posture", None)
+
         return DeviceSnapshot(
-            device_id=getattr(ctx, "device_id"),
-            registered=getattr(ctx, "registered", False),
-            state=getattr(ctx, "state", None),
-            hardware_backed=getattr(ctx, "hardware_backed", False),
-            attestation_verified=getattr(ctx, "attestation_verified", False),
-            binding_valid=getattr(ctx, "binding_valid", False),
-            secure_boot=getattr(ctx, "secure_boot", False),
-            replay_detected=getattr(ctx, "replay_detected", False),
-            compromised=getattr(ctx, "compromised", False),
-            clone_confirmed=getattr(ctx, "clone_confirmed", False),
-        )
+    device_id=getattr(ctx, "device_id"),
+    registered=getattr(ctx, "registered", False),
+    state=getattr(ctx, "state", None),
+
+    hardware_backed=(
+        identity.hardware_backed
+        if identity is not None
+        else getattr(ctx, "hardware_backed", False)
+    ),
+
+    attestation_verified=(
+        identity.attestation_verified
+        if identity is not None
+        else getattr(ctx, "attestation_verified", False)
+    ),
+
+    binding_valid=(
+        identity.binding_valid
+        if identity is not None
+        else getattr(ctx, "binding_valid", False)
+    ),
+
+    replay_detected=(
+        identity.replay_detected
+        if identity is not None
+        else getattr(ctx, "replay_detected", False)
+    ),
+
+    clone_confirmed=(
+        identity.clone_confirmed
+        if identity is not None
+        else getattr(ctx, "clone_confirmed", False)
+    ),
+
+    secure_boot=(
+        posture.secure_boot
+        if posture is not None
+        else getattr(ctx, "secure_boot", False)
+    ),
+
+    compromised=(
+        posture.compromised
+        if posture is not None
+        else getattr(ctx, "compromised", False)
+    ),
+)
 
     # -----------------------------------------------------
     # FIX: required for evidence engine

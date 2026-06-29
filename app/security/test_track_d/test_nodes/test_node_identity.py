@@ -118,3 +118,63 @@ def test_lifecycle_expired():
 
     with pytest.raises(ValueError):
         n.validate_active("2026-01-03T00:00:00Z")
+        
+def test_generate_factory():
+    node = NodeIdentity.generate(weight=5)
+
+    assert node.weight == 5
+    assert node.private_key is not None
+    assert node.node_id
+    
+def test_validate_active_success():
+    node = NodeIdentity.generate(weight=1)
+
+    node.validate_active("2026-01-02T00:00:00Z")
+    
+def test_is_active_before_creation():
+    node = NodeIdentity.generate(weight=1)
+
+    assert node.is_active("2025-12-31T00:00:00Z") is False
+    
+def test_sign_vote():
+    node = NodeIdentity.generate(weight=1)
+
+    vote = node.sign_vote("abc123")
+
+    assert vote.node_id == node.node_id
+    assert vote.proposal_hash == "abc123"
+    assert vote.signature
+    
+def test_vote_verify_success():
+    node = NodeIdentity.generate(weight=1)
+
+    vote = node.sign_vote("proposal")
+
+    assert vote.verify(node.public_key_bytes) is True
+    
+def test_vote_verify_failure():
+    node1 = NodeIdentity.generate(weight=1)
+    node2 = NodeIdentity.generate(weight=1)
+
+    vote = node1.sign_vote("proposal")
+
+    assert vote.verify(node2.public_key_bytes) is False
+    
+def test_sign_vote_without_private_key():
+    node = NodeIdentity(
+        public_key=b"\x01" * 32,
+        created_at="2026-01-01T00:00:00Z",
+        capabilities=["CONSENSUS"],
+        weight=1,
+    )
+
+    with pytest.raises(ValueError, match="Node has no signing capability"):
+        node.sign_vote("proposal")
+def test_invalid_public_key_rejected():
+    with pytest.raises(ValueError, match="Invalid public key"):
+        NodeIdentity(
+            public_key=b"bad",      # not 32 bytes
+            created_at="2026-01-01T00:00:00Z",
+            capabilities=["CONSENSUS"],
+            weight=1,
+        )

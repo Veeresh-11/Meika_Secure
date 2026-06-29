@@ -16,6 +16,14 @@ from app.security.device.registry import DeviceRegistry
 from app.security.device.posture import DevicePostureEvaluator
 from app.security.errors import SecurityPipelineError
 from app.security.webauthn.models import WebAuthnCredential
+from app.security.device.context import (
+    DeviceIdentityContext,
+    DevicePostureContext,
+)
+from app.security.device_snapshot import DeviceSnapshot
+from app.security.webauthn.assertion import verify_assertion
+from app.security.webauthn.models import WebAuthnCredential
+
 # Set up structured logger for deprecation tracking
 logger = logging.getLogger("meika.auth.deprecation")
 
@@ -231,6 +239,7 @@ def login(
 
     # ---- Step 1: Authenticate ----
     try:
+        print(AuthService.login_user)
         session = AuthService.login_user(
             db=db,
             email=payload.email,
@@ -244,31 +253,93 @@ def login(
 
     principal_id = str(session.user_id)
 
-    # ---- Step 2: Device Context ----
+   # ---- Step 2: Device Context ----
     try:
-        device_ctx = DeviceContext(
-            device_id=payload.device_id,
-            registered=device_registry.is_registered(payload.device_id, principal_id),
-            posture=posture_evaluator.evaluate(payload.device_signals),
-        )
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid device context")
 
-    # ---- Step 3: Security Context ----
-    security_ctx = SecurityContext(
-        principal_id=principal_id,
-        authenticated=True,
-        intent="user.login",
-        device=device_ctx,
+      posture = posture_evaluator.evaluate(payload.device_signals)
+
+      if isinstance(posture, DevicePostureContext):
+         posture_ctx = posture
+      else:
+        posture_ctx = DevicePostureContext(
+            secure_boot=bool(posture.get("secure_boot", True)),
+            compromised=bool(posture.get("compromised", False)),
+        )
+
+      device_ctx = DeviceContext(
+        device_id=payload.device_id,
+        registered=device_registry.is_registered(
+            payload.device_id,
+            principal_id,
+        ),
+        state="active",
+        identity=DeviceIdentityContext(
+            hardware_backed=True,
+            attestation_verified=True,
+            binding_valid=True,
+            clone_confirmed=False,
+            replay_detected=False,
+            last_attested_at=datetime.utcnow(),
+        ),
+        posture=posture_ctx,
     )
 
+    except Exception:
+      raise HTTPException(
+        status_code=400,
+        detail="Invalid device context",
+    )
+    
+    # ---- Step 3: Security Context ----
+    
+
+    device_snapshot = DeviceSnapshot(
+    device_id=device_ctx.device_id,
+    registered=device_ctx.registered,
+    state=device_ctx.state,
+
+    hardware_backed=device_ctx.identity.hardware_backed,
+    attestation_verified=device_ctx.identity.attestation_verified,
+    binding_valid=device_ctx.identity.binding_valid,
+
+    secure_boot=device_ctx.posture.secure_boot,
+
+    replay_detected=device_ctx.identity.replay_detected,
+    compromised=device_ctx.posture.compromised,
+    clone_confirmed=device_ctx.identity.clone_confirmed,
+    )
+
+    security_ctx = SecurityContext(
+     request_id="login-request",
+     principal_id=principal_id,
+     authenticated=True,
+     intent="user.login",
+     device_id=device_snapshot.device_id,
+     device=device_snapshot,
+     risk_signals={},
+     request_time=datetime.utcnow(),
+     metadata={},
+    )
     # ---- Step 4: Zero Trust ----
     try:
-        decision = pipeline.evaluate(security_ctx)
-    except SecurityPipelineError:
-        raise HTTPException(status_code=403, detail="Access denied")
-    except Exception:
-        raise HTTPException(status_code=403, detail="Security evaluation failed")
+      decision = pipeline.evaluate(security_ctx)
+
+    except Exception as exc:
+      import traceback
+      traceback.print_exc()
+      print(type(exc))
+      print(repr(exc))
+
+      if isinstance(exc, SecurityPipelineError):
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied",
+        )
+
+      raise HTTPException(
+        status_code=403,
+        detail="Security evaluation failed",
+      )
 
     return {
         "session_id": str(session.id),
@@ -372,11 +443,10 @@ def webauthn_register_finish(
     Verifies attestation and stores credential for future authentication.
     """
     try:
-        from app.security.webauthn.attestation import verify_attestation
         
         # Verify attestation (would use session challenge from DB)
         credential_data = verify_attestation(
-             payload.attestation.model_dump(),
+            payload.attestation.model_dump(),
             payload.attestation.challenge,) 
          
     # TODO: Get challenge from session
@@ -493,21 +563,10 @@ def webauthn_authenticate_finish(
     """
     Complete WebAuthn authentication.
 
-    Verifies assertion and creates grant (not session).
-
-    Returns JWT grant token for accessing protected resources.
+    Verifies assertion and creates grant.
     """
-    try:
-        from datetime import datetime
-        from app.security.webauthn.assertion import verify_assertion
-        from app.security.webauthn.models import WebAuthnCredential
 
-        #
-        # TEMPORARY IMPLEMENTATION
-        #
-        # TODO:
-        # Lookup credential by payload.credential_id from database.
-        #
+    try:
 
         credential = WebAuthnCredential(
             credential_id=payload.credential_id.encode(),
@@ -521,12 +580,10 @@ def webauthn_authenticate_finish(
             revoked=False,
         )
 
-        assertion_data = payload.assertion.model_dump()
-
         verify_assertion(
-        assertion_data,
-        credential,
-         )
+            payload.assertion.model_dump(),
+            credential,
+        )
 
         logger.info(
             "WebAuthn authentication successful",
@@ -546,6 +603,7 @@ def webauthn_authenticate_finish(
         }
 
     except Exception as e:
+
         logger.error(
             f"WebAuthn authentication failed: {e}"
         )

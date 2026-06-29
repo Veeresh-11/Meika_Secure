@@ -24,3 +24,4 @@ def test_export_and_restore_produces_identical_chain():
 
     assert verify_store_integrity(new_store)
     assert new_store.next_sequence() == original_store.next_sequence()
+

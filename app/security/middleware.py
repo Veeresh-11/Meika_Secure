@@ -29,16 +29,16 @@ async def security_middleware(
     # 3️⃣ Enforce token ↔ device binding
     enforce_device_bound_token(
         token=token,
-        device_public_key=device_ctx.identity_public_key,
+        device_public_key=device_ctx
     )
 
     # 4️⃣ Build SecurityContext
     ctx = SecurityContext(
         request_id=str(uuid.uuid4()),
-        principal_id=device_ctx.principal_id,
+        principal_id=device_ctx,
         intent=f"{request.method} {request.url.path}",
         authenticated=True,
-        device_id=device_ctx.device_id,
+        device_id=device_ctx,
         device=device_ctx,
         risk_signals={},
         request_time=datetime.utcnow(),

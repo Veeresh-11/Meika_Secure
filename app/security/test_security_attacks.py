@@ -129,10 +129,16 @@ def test_missing_claims_rejected():
     del decoded["jti"]
 
     # We intentionally use a 'fake' hardcoded secret to generate a garbage token
-    forged = jwt.encode(decoded, "fake", algorithm="HS256") # nosemgrep
+    TEST_ATTACK_SECRET = (
+    "0123456789abcdef0123456789abcdef")
 
+    forged = jwt.encode(
+     decoded,
+     TEST_ATTACK_SECRET,
+     algorithm="HS256",
+    ) 
     with pytest.raises(Exception):
-        verifier.verify(forged, "client-1")
+      verifier.verify(forged, "client-1")
 
         
 def test_device_binding_enforced():

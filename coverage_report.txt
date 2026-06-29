@@ -1,0 +1,435 @@
+Name                                                                             Stmts   Miss Branch BrPart  Cover   Missing
+----------------------------------------------------------------------------------------------------------------------------
+app/api/__init__.py                                                                  0      0      0      0   100%
+app/api/auth.py                                                                    148     69      2      0    53%   30-34, 167-187, 221-273, 307-347, 374-412, 444-471, 500-553
+app/api/health.py                                                                    5      1      0      0    80%   7
+app/api/test_auth_webauthn.py                                                       26     26      0      0     0%   3-71
+app/api/test_auth_webauthn_finish.py                                                32     32      0      0     0%   1-147
+app/config/__init__.py                                                               0      0      0      0   100%
+app/config/settings.py                                                              13      0      0      0   100%
+app/db/__init__.py                                                                   0      0      0      0   100%
+app/db/models.py                                                                    45      0      0      0   100%
+app/db/session.py                                                                    6      0      0      0   100%
+app/domain/__init__.py                                                               0      0      0      0   100%
+app/main.py                                                                         61      8     12      3    82%   28, 33, 54, 73, 82-83, 87, 134
+app/observability/__init__.py                                                        0      0      0      0   100%
+app/security/__init__.py                                                             2      0      0      0   100%
+app/security/adaptive/__init__.py                                                    4      0      0      0   100%
+app/security/adaptive/mfa_policy.py                                                 10      0      6      0   100%
+app/security/adaptive/risk_decision.py                                               6      0      0      0   100%
+app/security/adaptive/risk_engine.py                                                15      0      4      0   100%
+app/security/adaptive/risk_score.py                                                 22      0     10      0   100%
+app/security/adaptive/risk_signals.py                                                8      0      0      0   100%
+app/security/adaptive/tests/test_mfa_policy.py                                      10      0      0      0   100%
+app/security/adaptive/tests/test_openapi_contracts.py                                1      0      0      0   100%
+app/security/adaptive/tests/test_risk_engine.py                                     13      0      0      0   100%
+app/security/adaptive/tests/test_risk_score.py                                      11      0      0      0   100%
+app/security/bootstrap.py                                                           23      0      2      0   100%
+app/security/build_fingerprint.py                                                   16      0      4      0   100%
+app/security/canonical.py                                                            3      0      0      0   100%
+app/security/cli_verify_ledger.py                                                   19      0      2      0   100%
+app/security/conftest.py                                                            45      6      2      1    85%   48, 58, 88, 145-148
+app/security/context.py                                                             38      0      2      0   100%
+app/security/decision.py                                                            31      0      2      0   100%
+app/security/device/context.py                                                      22      0      0      0   100%
+app/security/device/posture.py                                                       4      0      0      0   100%
+app/security/device/registry.py                                                      7      0      0      0   100%
+app/security/device/revocation.py                                                    3      0      0      0   100%
+app/security/device_snapshot.py                                                     21      0      2      0   100%
+app/security/device_trust.py                                                        22      0     16      0   100%
+app/security/errors.py                                                              21      0      0      0   100%
+app/security/evidence/anchor_bridge.py                                              27      0      0      0   100%
+app/security/evidence/anchor_orchestrator.py                                        19      1      4      1    91%   56
+app/security/evidence/anchor_policy.py                                              16      0      2      0   100%
+app/security/evidence/engine.py                                                     45      0      0      0   100%
+app/security/evidence/factory.py                                                    11      0      4      0   100%
+app/security/evidence/memory/cold.py                                                 7      0      0      0   100%
+app/security/evidence/memory/hot.py                                                  3      0      0      0   100%
+app/security/evidence/memory/replay.py                                               9      0      6      0   100%
+app/security/evidence/memory/retention.py                                            8      0      0      0   100%
+app/security/evidence/memory/tier.py                                                 6      0      0      0   100%
+app/security/evidence/models.py                                                      7      0      0      0   100%
+app/security/evidence/postgres_store.py                                             60      0      4      0   100%
+app/security/evidence/seal.py                                                       17      0      2      0   100%
+app/security/evidence/seal_service.py                                                6      0      0      0   100%
+app/security/evidence/store.py                                                      37      0      4      0   100%
+app/security/evidence/verify.py                                                     21      0      8      0   100%
+app/security/evidence/writer.py                                                     13      1      2      1    87%   61
+app/security/evidence_orchestrator.py                                               39      0     10      0   100%
+app/security/federation/discovery.py                                                 5      0      0      0   100%
+app/security/federation/jwks.py                                                      3      0      0      0   100%
+app/security/federation/jwt_builder.py                                              37      0      4      0   100%
+app/security/federation/keys.py                                                     32      0      4      0   100%
+app/security/federation/models.py                                                   10      0      0      0   100%
+app/security/federation/pq_signer.py                                                58      0     12      0   100%
+app/security/federation/replay_store.py                                             17      0      4      0   100%
+app/security/federation/replay_store_redis.py                                       14      1      4      1    89%   18
+app/security/federation/revocation_store.py                                         16      0      2      0   100%
+app/security/federation/revocation_store_redis.py                                   11      0      2      1    92%   13->exit
+app/security/federation/service.py                                                  50      0     10      0   100%
+app/security/federation/verifier.py                                                111      0     50      0   100%
+app/security/governance/policy_revocation.py                                        13      0      0      0   100%
+app/security/grants/issuer.py                                                       22      0     10      0   100%
+app/security/grants/models.py                                                       22      0      0      0   100%
+app/security/grants/store.py                                                        26      1     10      1    94%   37
+app/security/grants/validator.py                                                    22      0      8      0   100%
+app/security/graph/relationship_graph.py                                            26      0     16      0   100%
+app/security/graph/storage/base_store.py                                             9      0      0      0   100%
+app/security/graph/storage/cache.py                                                 23      0      2      0   100%
+app/security/graph/storage/memory_store.py                                          15      0      0      0   100%
+app/security/middleware.py                                                          20      0      4      0   100%
+app/security/observability/events.py                                                32      0      0      0   100%
+app/security/observability/metrics.py                                               30      0      6      0   100%
+app/security/password.py                                                            11      0      0      0   100%
+app/security/pipeline.py                                                           152      0     44      0   100%
+app/security/policy/__init__.py                                                      2      0      0      0   100%
+app/security/policy/adapter.py                                                      12      0      4      0   100%
+app/security/policy/engine.py                                                       89      0     50      0   100%
+app/security/policy/evaluator.py                                                     7      1      0      0    86%   27
+app/security/policy/evaluators/__init__.py                                           0      0      0      0   100%
+app/security/policy/evaluators/authentication.py                                     7      0      2      0   100%
+app/security/policy/evaluators/device.py                                            27      0     24      0   100%
+app/security/policy/evaluators/graph.py                                             16      0      4      0   100%
+app/security/policy/evaluators/risk.py                                               8      0      4      0   100%
+app/security/policy/loader.py                                                       16      0      4      0   100%
+app/security/policy/models.py                                                       17      0      0      0   100%
+app/security/policy/static_policy.py                                                 2      0      0      0   100%
+app/security/precedence.py                                                          17      0     10      0   100%
+app/security/receipts/generator.py                                                  14      0      0      0   100%
+app/security/receipts/models.py                                                     20      0      0      0   100%
+app/security/recovery.py                                                            39      5     16      5    82%   22, 64, 72, 75, 82
+app/security/results.py                                                             34      0      0      0   100%
+app/security/risk_engine.py                                                         28      1     12      2    92%   31->37, 49
+app/security/runtime_state.py                                                        4      0      0      0   100%
+app/security/schema/exceptions.py                                                    2      0      0      0   100%
+app/security/schema/manifest.py                                                     12      2      0      0    83%   14-21
+app/security/schema/semver.py                                                       16      0      2      0   100%
+app/security/schema/upgrade_engine.py                                               28      1     10      1    95%   52
+app/security/schema_guard.py                                                        24      2      6      0    93%   17-18
+app/security/simulation/__init__.py                                                  0      0      0      0   100%
+app/security/simulation/emitter.py                                                   5      0      0      0   100%
+app/security/simulation/engine.py                                                    5      1      0      0    80%   17
+app/security/simulation/models.py                                                    8      0      0      0   100%
+app/security/simulation/sample_rules.py                                              8      0      4      0   100%
+app/security/tamper_event.py                                                        13      0      0      0   100%
+app/security/test_anchor_bridge.py                                                  20      0      0      0   100%
+app/security/test_anchor_bridge_full.py                                             37      0      0      0   100%
+app/security/test_anchor_loop.py                                                    19      0      0      0   100%
+app/security/test_anchor_orchestrator_record.py                                     25      0      2      0   100%
+app/security/test_anchor_orchestrator_time.py                                       17      0      0      0   100%
+app/security/test_anchor_policy.py                                                  28      0      0      0   100%
+app/security/test_anchor_receipt_replay.py                                           8      0      0      0   100%
+app/security/test_bootstrap.py                                                      20      0      2      0   100%
+app/security/test_break_attempts/__init__.py                                         0      0      0      0   100%
+app/security/test_break_attempts/conftest.py                                        14      0      0      0   100%
+app/security/test_break_attempts/test_clock_skew.py                                 24      0      0      0   100%
+app/security/test_break_attempts/test_evidence_mandatory.py                         15      0      0      0   100%
+app/security/test_break_attempts/test_grant_race_conditions.py                       9      0      0      0   100%
+app/security/test_break_attempts/test_observability_failure.py                      13      0      0      0   100%
+app/security/test_break_attempts/test_policy_side_effects.py                        17      0      0      0   100%
+app/security/test_break_attempts/test_replay_window.py                              16      0      0      0   100%
+app/security/test_build_fingerprint.py                                              26      0      0      0   100%
+app/security/test_build_fingerprint_full.py                                         23      0      0      0   100%
+app/security/test_canonical_freeze.py                                                6      0      0      0   100%
+app/security/test_chain_verifier.py                                                 15      0      2      0   100%
+app/security/test_cli_verify_ledger.py                                              26      0      4      0   100%
+app/security/test_clone_detection.py                                                10      0      0      0   100%
+app/security/test_cold_evidence_store.py                                            18      0      0      0   100%
+app/security/test_concurrent_allow_appends.py                                       17      0      4      0   100%
+app/security/test_context.py                                                        43      0      0      0   100%
+app/security/test_cross_runtime_vector.py                                           13      0      0      0   100%
+app/security/test_decision.py                                                       28      0      0      0   100%
+app/security/test_decision_determinism.py                                           12      0      0      0   100%
+app/security/test_deny_evidence_completeness.py                                     13      0      0      0   100%
+app/security/test_deny_evidence_content.py                                          12      0      0      0   100%
+app/security/test_deny_has_evidence.py                                              10      0      0      0   100%
+app/security/test_deny_reason_freeze.py                                              6      0      0      0   100%
+app/security/test_deny_reason_uniqueness.py                                          4      0      0      0   100%
+app/security/test_device_context.py                                                 18      0      0      0   100%
+app/security/test_device_posture.py                                                 13      0      0      0   100%
+app/security/test_device_posture_full.py                                            13      0      0      0   100%
+app/security/test_device_registry.py                                                12      0      0      0   100%
+app/security/test_device_registry_full.py                                           12      0      0      0   100%
+app/security/test_device_revocation.py                                               6      0      0      0   100%
+app/security/test_device_snapshot.py                                                41      0      0      0   100%
+app/security/test_device_snapshot_full.py                                           36      0      0      0   100%
+app/security/test_device_trust.py                                                   77     18      2      1    76%   41-48, 142, 166, 190, 200-209
+app/security/test_device_trust_complete.py                                          49      0      0      0   100%
+app/security/test_device_trust_matrix.py                                            30      0      0      0   100%
+app/security/test_device_trust_precedence.py                                        12      0      0      0   100%
+app/security/test_discovery_doc.py                                                   5      0      0      0   100%
+app/security/test_evidence_append_only.py                                           14      0      0      0   100%
+app/security/test_evidence_append_only_migration.py                                  4      0      0      0   100%
+app/security/test_evidence_atomicity.py                                             16      0      0      0   100%
+app/security/test_evidence_chain.py                                                 22      0      4      0   100%
+app/security/test_evidence_chain_integrity.py                                       12      0      0      0   100%
+app/security/test_evidence_engine_full.py                                           31      0      0      0   100%
+app/security/test_evidence_factory.py                                               21      0      0      0   100%
+app/security/test_evidence_hash_determinism.py                                      10      0      0      0   100%
+app/security/test_evidence_orchestrator_full.py                                     92      0      0      0   100%
+app/security/test_evidence_reordering.py                                            14      0      0      0   100%
+app/security/test_evidence_schema_exists.py                                          4      0      0      0   100%
+app/security/test_evidence_store_full.py                                            31      0      0      0   100%
+app/security/test_evidence_tier.py                                                  13      0      0      0   100%
+app/security/test_evidence_verify_full.py                                           25      0      0      0   100%
+app/security/test_federation_basic.py                                               23      0      0      0   100%
+app/security/test_federation_jwt_builder_full.py                                    35      0      0      0   100%
+app/security/test_federation_keys_full.py                                           32      0      0      0   100%
+app/security/test_federation_pq_signer_full.py                                      41      0      0      0   100%
+app/security/test_federation_replay.py                                              32      1      0      0    97%   46
+app/security/test_federation_service_full.py                                        61      1      2      1    97%   41
+app/security/test_federation_verifier_branches.py                                   40      0      0      0   100%
+app/security/test_federation_verifier_full.py                                      257      1      8      1    99%   625
+app/security/test_full_enforcement.py                                               16      0      0      0   100%
+app/security/test_grant_expiry.py                                                   30      2      0      0    93%   62-63
+app/security/test_grant_issuer.py                                                   27      0      0      0   100%
+app/security/test_grant_issuer_full.py                                              17      0      0      0   100%
+app/security/test_grant_models.py                                                   20      0      0      0   100%
+app/security/test_grant_scope_mismatch.py                                           15      0      0      0   100%
+app/security/test_grant_store.py                                                    43      2      0      0    95%   35, 51
+app/security/test_grant_validator.py                                                53      0      0      0   100%
+app/security/test_graph_policy_evaluator.py                                         24      0      0      0   100%
+app/security/test_graph_storage_full.py                                             69      0      0      0   100%
+app/security/test_helpers/context_factory.py                                         4      0      0      0   100%
+app/security/test_helpers/device_builder.py                                         15      0      0      0   100%
+app/security/test_helpers/device_snapshot_builder.py                                 4      0      0      0   100%
+app/security/test_helpers/pipeline_builder.py                                        3      0      0      0   100%
+app/security/test_hot_evidence_store.py                                             13      0      0      0   100%
+app/security/test_jwks_export.py                                                    15      0      0      0   100%
+app/security/test_jwt_builder_full.py                                               37      0      0      0   100%
+app/security/test_jwt_builder_pq.py                                                121      8      6      1    93%   155-178, 229->exit
+app/security/test_kernel_build_fingerprint.py                                        4      0      0      0   100%
+app/security/test_kernel_determinism_contract.py                                    11      0      0      0   100%
+app/security/test_kernel_health_snapshot.py                                         39      0      2      0   100%
+app/security/test_kernel_safe_mode_branches.py                                      14      0      0      0   100%
+app/security/test_law_freeze/test_canonical_serialization.py                        12      0      0      0   100%
+app/security/test_law_freeze/test_deny_reason_enum_freeze.py                         5      0      0      0   100%
+app/security/test_law_freeze/test_deny_reason_uniqueness_freeze.py                   9      0      0      0   100%
+app/security/test_law_freeze/test_determinism_snapshot.py                           16      2      2      1    83%   28-29
+app/security/test_law_freeze/test_fail_closed_evidence.py                           10      1      0      0    90%   8
+app/security/test_law_freeze/test_precedence_lock.py                                11      1      0      0    91%   8
+app/security/test_law_freeze/test_single_entry.py                                   13      0      0      0   100%
+app/security/test_mfa_policy.py                                                     18      0      0      0   100%
+app/security/test_middleware.py                                                     66      0      0      0   100%
+app/security/test_multi_anchor_adversarial.py                                       17      2      0      0    88%   12, 18
+app/security/test_multi_anchor_integration.py                                        8      0      0      0   100%
+app/security/test_no_direct_decision_instantiation.py                               14      1      8      1    91%   25
+app/security/test_observability_is_non_authoritative.py                             12      1      0      0    92%   14
+app/security/test_observability_metrics.py                                          37      0      2      0   100%
+app/security/test_password.py                                                       16      0      0      0   100%
+app/security/test_pipeline_core.py                                                  28      0      0      0   100%
+app/security/test_pipeline_deny_normalization.py                                    13      0      0      0   100%
+app/security/test_pipeline_evidence_guard.py                                        14      0      0      0   100%
+app/security/test_pipeline_evidence_required.py                                     13      0      0      0   100%
+app/security/test_pipeline_governance.py                                            14      0      0      0   100%
+app/security/test_pipeline_grants.py                                                22      0      0      0   100%
+app/security/test_pipeline_kernel_branches.py                                      170      0     18      0   100%
+app/security/test_pipeline_sprint4.py                                               20      1      0      0    95%   34
+app/security/test_policy_adapter_full.py                                            26      0      0      0   100%
+app/security/test_policy_authentication.py                                          18      0      0      0   100%
+app/security/test_policy_clone_enforcement.py                                       19      0      0      0   100%
+app/security/test_policy_device.py                                                  87      0      0      0   100%
+app/security/test_policy_engine_conditions.py                                       82      0      0      0   100%
+app/security/test_policy_engine_evaluate.py                                         49      0      0      0   100%
+app/security/test_policy_loader_full.py                                             24      0      0      0   100%
+app/security/test_policy_matcher.py                                                106      0      4      0   100%
+app/security/test_policy_not_called_after_device_fail.py                            17      0      0      0   100%
+app/security/test_policy_revocation.py                                              12      0      0      0   100%
+app/security/test_policy_revocation_registry.py                                     20      0      0      0   100%
+app/security/test_policy_risk.py                                                    22      0      0      0   100%
+app/security/test_policy_sanity.py                                                  14      0      0      0   100%
+app/security/test_postgres_integration.py                                           37     24      2      0    33%   35-125
+app/security/test_postgres_serializable.py                                          15     12      4      0    16%   7-23
+app/security/test_postgres_store_full.py                                           145      2      6      2    97%   31, 95
+app/security/test_pq_signer_algorithms.py                                          129      1      2      1    98%   28
+app/security/test_precedence_contract.py                                            17      0      0      0   100%
+app/security/test_precedence_immutability.py                                        14      3      2      0    69%   11-13
+app/security/test_precedence_priority.py                                            12      0      0      0   100%
+app/security/test_receipt_generator.py                                              51      0      0      0   100%
+app/security/test_receipt_models.py                                                 21      0      0      0   100%
+app/security/test_recovery_export_restore.py                                        14      0      2      0   100%
+app/security/test_recovery_hash_stability.py                                        11      0      2      0   100%
+app/security/test_recovery_partial_restore.py                                       13      0      4      0   100%
+app/security/test_red_team_attacks.py                                               18      0      0      0   100%
+app/security/test_regression_no_magic_strings.py                                     7      0      0      0   100%
+app/security/test_relationship_graph.py                                             44      0      2      0   100%
+app/security/test_replay_store.py                                                   18      0      0      0   100%
+app/security/test_retention_controller.py                                           23      0      0      0   100%
+app/security/test_revocation_store.py                                               14      0      0      0   100%
+app/security/test_risk_engine.py                                                    18      0      0      0   100%
+app/security/test_root_seal.py                                                      17      0      2      0   100%
+app/security/test_runtime_state.py                                                   7      0      0      0   100%
+app/security/test_safe_mode.py                                                      27      0      0      0   100%
+app/security/test_sample_rules.py                                                   18      0      0      0   100%
+app/security/test_schema_guard.py                                                   65      0      6      0   100%
+app/security/test_schema_semantic.py                                                19      0      0      0   100%
+app/security/test_schema_upgrade.py                                                 19      0      0      0   100%
+app/security/test_schema_upgrade_anchored.py                                        13      0      0      0   100%
+app/security/test_seal_service.py                                                   16      0      0      0   100%
+app/security/test_security_attacks.py                                               74      0      0      0   100%
+app/security/test_security_invariants.py                                            14      0      0      0   100%
+app/security/test_simulation_emitter.py                                              7      0      0      0   100%
+app/security/test_simulation_safety.py                                              12      1      0      0    92%   13
+app/security/test_snapshot_contract.py                                              23      0      0      0   100%
+app/security/test_soc2_anchor_export.py                                             28      0      2      0   100%
+app/security/test_sqlite_backend_integration.py                                     16      0      0      0   100%
+app/security/test_static_policy.py                                                  12      0      0      0   100%
+app/security/test_tamper_alert.py                                                   15      0      0      0   100%
+app/security/test_tamper_event.py                                                    9      0      0      0   100%
+app/security/test_token_binding.py                                                   9      0      0      0   100%
+app/security/test_token_enforce_full.py                                             29      0      2      1    97%   26->29
+app/security/test_token_issuer_full.py                                              14      0      0      0   100%
+app/security/test_token_revocation.py                                               20      0      0      0   100%
+app/security/test_track_c/test_cold_store_is_read_only.py                            7      0      2      0   100%
+app/security/test_track_c/test_fork_detection.py                                    14      0      0      0   100%
+app/security/test_track_c/test_hot_store_loss_is_safe.py                             5      0      0      0   100%
+app/security/test_track_c/test_partial_chain_deletion.py                            11      0      0      0   100%
+app/security/test_track_c/test_replay_chain_integrity.py                            11      0      0      0   100%
+app/security/test_track_c/test_replay_version_agnostic.py                           12      0      2      0   100%
+app/security/test_track_c/test_retention_no_mutation.py                              6      0      0      0   100%
+app/security/test_track_c/test_tier_change_does_not_affect_replay.py                 9      0      2      0   100%
+app/security/test_track_d/test_anchor_providers/test_provider_factory.py             8      0      0      0   100%
+app/security/test_track_d/test_anchor_providers/test_static_provider.py              6      0      0      0   100%
+app/security/test_track_d/test_anchoring/test_anchor_client.py                      29      0      0      0   100%
+app/security/test_track_d/test_anchoring/test_anchor_policy_engine.py               33      0      0      0   100%
+app/security/test_track_d/test_anchoring/test_anchor_policy_registry.py             55      0      2      0   100%
+app/security/test_track_d/test_anchoring/test_anchor_receipt.py                     22      0      0      0   100%
+app/security/test_track_d/test_anchoring/test_anchor_storage.py                     47      0      4      0   100%
+app/security/test_track_d/test_anchoring/test_multi_anchor_client.py                20      0      0      0   100%
+app/security/test_track_d/test_anchoring/test_root_anchor_ledger.py                 73      0      0      0   100%
+app/security/test_track_d/test_anchoring/test_root_proposal.py                      20      0      0      0   100%
+app/security/test_track_d/test_certificates/test_root_certificate.py                23      0      0      0   100%
+app/security/test_track_d/test_consensus/test_basic_consensus.py                    18      0      0      0   100%
+app/security/test_track_d/test_consensus/test_duplicate_vote_rejected.py            14      0      0      0   100%
+app/security/test_track_d/test_consensus/test_vote.py                               16      0      0      0   100%
+app/security/test_track_d/test_detached_lifecycle.py                                33      0      0      0   100%
+app/security/test_track_d/test_detached_security_hardening.py                       59      0      0      0   100%
+app/security/test_track_d/test_detached_signature.py                                14      0      0      0   100%
+app/security/test_track_d/test_error_code_registry.py                               29      0     10      0   100%
+app/security/test_track_d/test_error_envelope_schema.py                             12      0      0      0   100%
+app/security/test_track_d/test_gossip/test_consistency_proof.py                     35      0      2      0   100%
+app/security/test_track_d/test_gossip/test_consistency_proof_unit.py                16      0      0      0   100%
+app/security/test_track_d/test_gossip/test_gossip_verifier.py                       30      0      0      0   100%
+app/security/test_track_d/test_governance/test_policy_upgrade_engine.py             52      0      0      0   100%
+app/security/test_track_d/test_governance_constitution.py                           29      0      0      0   100%
+app/security/test_track_d/test_governance_downgrade.py                               3      0      0      0   100%
+app/security/test_track_d/test_governance_expired_policy.py                         24      0      0      0   100%
+app/security/test_track_d/test_key_registry.py                                      25      0      0      0   100%
+app/security/test_track_d/test_malformed_signature_object.py                         7      0      0      0   100%
+app/security/test_track_d/test_merkle/test_inclusion_proof.py                        8      0      0      0   100%
+app/security/test_track_d/test_merkle/test_proof_tampering.py                        9      0      0      0   100%
+app/security/test_track_d/test_merkle/test_tree_determinism.py                       7      0      0      0   100%
+app/security/test_track_d/test_nodes/test_bootstrap_manifest.py                     24      0      0      0   100%
+app/security/test_track_d/test_nodes/test_node_identity.py                          38      0      0      0   100%
+app/security/test_track_d/test_nodes/test_node_manifest.py                          15      0      0      0   100%
+app/security/test_track_d/test_nodes/test_node_registry.py                          29      0      0      0   100%
+app/security/test_track_d/test_public_verify/test_anchor_verifier.py                16      0      0      0   100%
+app/security/test_track_d/test_public_verify/test_consensus_verifier.py             32      0      0      0   100%
+app/security/test_track_d/test_public_verify/test_inclusion_verifier.py             20      0      0      0   100%
+app/security/test_track_d/test_public_verify/test_public_verify_determinism.py       7      0      0      0   100%
+app/security/test_track_d/test_public_verify/test_root_verifier.py                  18      0      0      0   100%
+app/security/test_track_d/test_replay_schema.py                                     13      1      0      0    92%   29
+app/security/test_track_d/test_role_escalation_attack.py                            22      0      0      0   100%
+app/security/test_track_d/test_signature_flood_attack.py                            25      1      0      0    96%   68
+app/security/test_track_d/test_signature_tamper_resistance.py                       51      0      0      0   100%
+app/security/test_track_d/test_simulation.py                                        23      0      0      0   100%
+app/security/test_track_d/test_simulation_boundary.py                               12      1      0      0    92%   27
+app/security/test_track_d/test_soc2_export_logic.py                                 33      0      0      0   100%
+app/security/test_track_d/test_soc2_export_schema.py                                13      1      0      0    92%   43
+app/security/test_track_d/test_soc2_signing.py                                      23      0      0      0   100%
+app/security/test_track_d/test_threshold_adversarial.py                             57      0      0      0   100%
+app/security/test_track_d/test_threshold_extreme_adversarial.py                     25      0      0      0   100%
+app/security/test_track_d/test_threshold_signing.py                                 31      0      2      0   100%
+app/security/test_track_d/test_transparency_integration.py                          45      0      2      0   100%
+app/security/test_track_d/test_transparency_log.py                                  20      0      0      0   100%
+app/security/test_track_d/test_verification_ledger.py                               37      0      0      0   100%
+app/security/test_trust.py                                                          48      0      0      0   100%
+app/security/test_version_freeze.py                                                  5      0      0      0   100%
+app/security/test_webauthn_assertion.py                                             38      0      0      0   100%
+app/security/test_webauthn_attestation.py                                           41      0      0      0   100%
+app/security/test_webauthn_challenge.py                                              9      0      0      0   100%
+app/security/test_webauthn_mapper.py                                                11      0      0      0   100%
+app/security/time/clock.py                                                          24      0      6      0   100%
+app/security/tokens/enforce.py                                                      16      0      2      0   100%
+app/security/tokens/issuer.py                                                       11      0      0      0   100%
+app/security/track_d/__init__.py                                                     0      0      0      0   100%
+app/security/track_d/anchoring/anchor_client.py                                     10      2      0      0    80%   11, 15
+app/security/track_d/anchoring/anchor_policy.py                                     20      4     10      4    73%   24, 27, 30, 36
+app/security/track_d/anchoring/anchor_policy_engine.py                              38      0      8      0   100%
+app/security/track_d/anchoring/anchor_policy_registry.py                            56      7     28      4    85%   32, 35, 38, 82-85, 111
+app/security/track_d/anchoring/anchor_providers/base_provider.py                    13      3      0      0    77%   10, 14, 18
+app/security/track_d/anchoring/anchor_providers/provider_factory.py                  9      0      2      0   100%
+app/security/track_d/anchoring/anchor_providers/static_provider.py                  21      1      2      1    91%   41
+app/security/track_d/anchoring/anchor_receipt.py                                    33      0      4      0   100%
+app/security/track_d/anchoring/anchor_storage.py                                    51      2      6      2    93%   84, 115
+app/security/track_d/anchoring/anchor_verifier.py                                   11      0      2      0   100%
+app/security/track_d/anchoring/mock_client.py                                       24      1      2      0    96%   53
+app/security/track_d/anchoring/multi_anchor_client.py                               41      8     20      7    75%   24, 27, 57, 68, 88, 105, 108->92, 110-111
+app/security/track_d/anchoring/root_anchor_ledger.py                                56      4     22      4    90%   33, 87, 90, 153
+app/security/track_d/anchoring/root_proposal.py                                     33      3     10      2    88%   65, 68, 104
+app/security/track_d/audit/transparency_log.py                                      57      2     16      2    95%   61, 92
+app/security/track_d/audit/verification_ledger.py                                   45      5     12      4    84%   87, 90, 93, 133, 160
+app/security/track_d/certificates/root_certificate.py                               36      0      0      0   100%
+app/security/track_d/consensus/consensus_result.py                                  11      1      0      0    91%   28
+app/security/track_d/consensus/models.py                                             5      0      0      0   100%
+app/security/track_d/consensus/proposal.py                                          15      1      0      0    93%   44
+app/security/track_d/consensus/quorum_engine.py                                     26      2      8      2    88%   38, 43
+app/security/track_d/consensus/threshold_signature.py                               37      2      6      2    91%   27, 53
+app/security/track_d/consensus/vote.py                                              21      0      0      0   100%
+app/security/track_d/error_codes.py                                                 42      4      8      4    84%   164, 167, 170, 173
+app/security/track_d/export_soc2.py                                                 23      0      4      0   100%
+app/security/track_d/gossip/__init__.py                                              0      0      0      0   100%
+app/security/track_d/gossip/consistency_proof.py                                    15      0      4      0   100%
+app/security/track_d/gossip/gossip_verifier.py                                      22      2     14      2    89%   48, 52
+app/security/track_d/governance/governance_registry.py                              82     19     32      8    73%   28, 74, 77, 127, 143, 166, 187->186, 190, 203-216, 224-228
+app/security/track_d/governance/policy_upgrade_engine.py                            29      3     12      3    85%   62, 73, 79
+app/security/track_d/merkle/proof.py                                                23      2      6      2    86%   22, 36
+app/security/track_d/merkle/tree.py                                                 30      3      8      1    89%   34-36
+app/security/track_d/merkle/verifier.py                                             15      1      6      1    90%   34
+app/security/track_d/nodes/__init__.py                                               0      0      0      0   100%
+app/security/track_d/nodes/bootstrap_manifest.py                                    29      0      2      0   100%
+app/security/track_d/nodes/node_identity.py                                         68      6     28      5    89%   56-57, 79, 139, 147, 150->exit, 160
+app/security/track_d/nodes/node_manifest.py                                         27      0      0      0   100%
+app/security/track_d/nodes/node_registry.py                                         20      2      4      1    88%   34, 54
+app/security/track_d/public_verify/anchor_verifier.py                               15      1      4      1    89%   16
+app/security/track_d/public_verify/consensus_verifier.py                            16      1      6      2    86%   27->29, 30
+app/security/track_d/public_verify/inclusion_verifier.py                            15      0      4      0   100%
+app/security/track_d/public_verify/models.py                                        14      0      0      0   100%
+app/security/track_d/public_verify/root_verifier.py                                 13      0      2      0   100%
+app/security/track_d/replay_verify.py                                               38     38     14      0     0%   23-189
+app/security/track_d/schemas/__init__.py                                             4      0      0      0   100%
+app/security/track_d/schemas/error_envelope.py                                       1      0      0      0   100%
+app/security/track_d/schemas/error_envelope_schema.py                                1      1      0      0     0%   5
+app/security/track_d/schemas/replay_verification_result.py                           1      0      0      0   100%
+app/security/track_d/schemas/simulation_result.py                                    1      0      0      0   100%
+app/security/track_d/schemas/soc2_export_manifest.py                                 1      0      0      0   100%
+app/security/track_d/signing/detached_signer.py                                     21      2      4      2    84%   17, 41
+app/security/track_d/signing/detached_verifier.py                                   59      7     26      5    86%   76, 79, 91, 134, 137, 165-166
+app/security/track_d/signing/ed25519_local.py                                       46      7      6      2    83%   36, 49, 55-56, 93-94, 110
+app/security/track_d/signing/ed25519_provider.py                                    34      6      0      0    82%   60-65
+app/security/track_d/signing/key_registry.py                                        75     13     26      9    76%   21, 75, 78, 84, 88->91, 133, 138, 143, 172, 181-183, 190-194
+app/security/track_d/signing/signer_interface.py                                    18      5      0      0    72%   46, 57, 64, 71, 78
+app/security/track_d/signing/threshold_signer.py                                    34      4     12      4    83%   18, 42, 60, 68
+app/security/track_d/signing/threshold_verifier.py                                  76      4     32      5    92%   77, 90, 135, 138, 141->145
+app/security/track_d/signing/trust_store.py                                         82     28     46     14    58%   32, 64, 67, 70, 74, 80, 128, 133, 144, 164, 169, 174, 179, 183-185, 188-190, 194, 205-216
+app/security/track_d/signing/verifier.py                                            37     12     12      5    65%   62, 65, 68, 79, 112-122
+app/security/track_d/simulation.py                                                  22      0      2      0   100%
+app/security/track_d/storage/sqlite_backend.py                                     170     61     40      7    58%   31-34, 42, 87-90, 109-112, 115, 118, 128, 131-137, 140-142, 154, 169, 228-229, 264, 276, 284, 329-351, 366-393
+app/security/track_d/transparency/__init__.py                                        0      0      0      0   100%
+app/security/track_d/transparency/merkle_transparency_log.py                       100     40     42     13    51%   53, 59, 65-78, 109, 113, 117, 120, 142, 154, 163-176, 195-202, 213, 216-217, 221-223, 232
+app/security/track_d/transparency/transparency_log.py                               44      4     10      3    87%   74, 77, 111, 134
+app/security/trust.py                                                               11      0      6      0   100%
+app/security/version.py                                                              4      0      0      0   100%
+app/security/webauthn/assertion.py                                                  10      0      4      0   100%
+app/security/webauthn/attestation.py                                                18      0     12      0   100%
+app/security/webauthn/challenge.py                                                   4      0      0      0   100%
+app/security/webauthn/mapper.py                                                      4      0      0      0   100%
+app/security/webauthn/models.py                                                     13      0      0      0   100%
+app/services/__init__.py                                                             0      0      0      0   100%
+app/services/auth_service.py                                                        38     25      4      0    31%   19-48, 59-94, 104-110
+app/services/credential_service.py                                                  23     14      4      0    33%   15-27, 35-53
+app/services/test_auth_service.py                                                   52     52      0      0     0%   1-129
+app/services/test_credential_service.py                                             36     36      0      0     0%   1-84
+----------------------------------------------------------------------------------------------------------------------------
+TOTAL                                                                            10729    699   1206    160    92%
+Coverage failure: total of 92 is less than fail-under=100

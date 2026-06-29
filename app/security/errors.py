@@ -25,6 +25,7 @@ class FailureClass(str, Enum):
     EVIDENCE = "evidence"
     TIME = "time"
     HARDWARE = "hardware"
+    GOVERNANCE = "governance"
 
     # Required for device precedence and Track A determinism
     DEVICE = "device"
@@ -36,7 +37,7 @@ class SecurityPipelineError(Exception):
         self.failure_class = failure_class
 
         # ✅ FIX: only expose canonical reason
-        super().__init__(reason.value)
+        super().__init__(str(reason.value))
 
 class SecurityError(Exception):
     """

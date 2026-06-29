@@ -22,13 +22,15 @@ class ConsensusVerifier:
             minimum_weight=minimum_weight,
         )
 
-        # Use correct field from ConsensusResult
-        quorum_met = getattr(result, "quorum_met", None)
-        if quorum_met is None:
-            quorum_met = getattr(result, "quorum", None)
-        if quorum_met is None:
-            quorum_met = getattr(result, "success", False)
-
+        quorum_met = (
+    getattr(result, "quorum_met", None)
+    if hasattr(result, "quorum_met")
+    else getattr(
+        result,
+        "quorum",
+        getattr(result, "success", False),
+    )
+)
         if not quorum_met:
             return VerificationResponse(
                 verified=False,
