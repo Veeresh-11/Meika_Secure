@@ -359,6 +359,7 @@ class SecureIDKernel(SecurityPipeline):
         with self._append_lock:
             try:
                 record = evidence_engine.build_evidence_record(
+                    
                     context=context,
                     policy=None,
                     risk=None,
@@ -372,6 +373,7 @@ class SecureIDKernel(SecurityPipeline):
                     record,
                     store=self.evidence_store,
                 )
+                
 
                 if receipt is None:
                     raise RuntimeError("Evidence append returned None")
@@ -391,7 +393,7 @@ class SecureIDKernel(SecurityPipeline):
             except Exception as e:
                 self._enter_safe_mode("EVIDENCE_COMMIT_FAILURE")
                 raise SecurityInvariantViolation(
-                    "Evidence commit failed"
+                  "Evidence commit failed"
                 ) from e
 
         try:

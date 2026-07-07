@@ -9,6 +9,8 @@ from app.security.errors import SecurityPipelineError
 from app.security.webauthn.attestation import (
     AttestationVerificationError,
 )
+from datetime import datetime
+from unittest.mock import MagicMock
 from app.security.webauthn.assertion import verify_assertion
 
 # ---------------------------------------------------------
@@ -63,9 +65,6 @@ def test_register_success(monkeypatch):
             "display_name": "Boss",
         },
     )
-
-    print(response.status_code)
-    print(response.json())
 
     assert response.status_code == 200
 
@@ -287,7 +286,6 @@ def test_login_security_pipeline_error(monkeypatch):
     )
 
     def fail(ctx):
-     print(type(SecurityPipelineError("Denied")))
      raise SecurityPipelineError("Denied")
 
     monkeypatch.setattr(
@@ -363,9 +361,27 @@ def test_login_security_generic_failure(monkeypatch):
 
 def test_webauthn_register_start_success(monkeypatch):
 
+    user = SimpleNamespace(
+        id=123,
+        email="user@example.com",
+    )
+
+    challenge_record = SimpleNamespace(
+        challenge="challenge123",
+    )
+
     monkeypatch.setattr(
-        "app.security.webauthn.challenge.generate_challenge",
-        lambda: "challenge123",
+        auth.AuthService,
+        "get_user_by_email",
+        staticmethod(lambda db, email: user),
+    )
+
+    monkeypatch.setattr(
+        auth.ChallengeService,
+        "create",
+        staticmethod(
+            lambda **kwargs: challenge_record
+        ),
     )
 
     response = client.post(
@@ -376,28 +392,36 @@ def test_webauthn_register_start_success(monkeypatch):
         },
     )
 
-    print(response.status_code)
-    print(response.json())
-
     assert response.status_code == 200
-    
+
     body = response.json()
 
     assert body["challenge"] == "challenge123"
     assert body["rp"]["name"] == "Meika Authenticator"
     assert body["user"]["name"] == "user@example.com"
 
-
 def test_webauthn_register_start_failure(monkeypatch):
 
-    def fail():
-        raise Exception()
+    user = SimpleNamespace(
+        id=123,
+        email="user@example.com",
+    )
 
     monkeypatch.setattr(
-    "app.security.webauthn.challenge.generate_challenge",
-    fail,
-     )
-    
+        auth.AuthService,
+        "get_user_by_email",
+        staticmethod(lambda db, email: user),
+    )
+
+    def fail(**kwargs):
+        raise RuntimeError("database failure")
+
+    monkeypatch.setattr(
+        auth.ChallengeService,
+        "create",
+        staticmethod(fail),
+    )
+
     response = client.post(
         "/auth/webauthn/register/start",
         json={
@@ -408,15 +432,77 @@ def test_webauthn_register_start_failure(monkeypatch):
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Registration failed"
-    
 # ---------------------------------------------------------
 # WebAuthn Register Finish
 # ---------------------------------------------------------
 
 def test_webauthn_register_finish_success(monkeypatch):
 
+    challenge = SimpleNamespace(
+        user_id="user-123",
+        challenge="challenge123",
+        used=False,
+    )
+
     monkeypatch.setattr(
-        "app.security.webauthn.attestation.verify_attestation",
+        auth.ChallengeService,
+        "get",
+        staticmethod(lambda **kwargs: challenge),
+    )
+
+    monkeypatch.setattr(
+        auth.ChallengeService,
+        "validate",
+        staticmethod(lambda challenge: None),
+    )
+
+    monkeypatch.setattr(
+        auth.ChallengeService,
+        "consume",
+        staticmethod(lambda **kwargs: None),
+    )
+
+    #
+    # Device
+    #
+
+    monkeypatch.setattr(
+        auth.DeviceService,
+        "get_by_identifier",
+        staticmethod(lambda **kwargs: None),
+    )
+
+    device = SimpleNamespace(
+        id="device-123",
+    )
+
+    monkeypatch.setattr(
+        auth.DeviceService,
+        "register",
+        staticmethod(lambda **kwargs: device),
+    )
+
+    #
+    # Credential
+    #
+
+    credential = SimpleNamespace(
+        id="cred-123",
+    )
+
+    monkeypatch.setattr(
+        auth.CredentialService,
+        "create_webauthn_credential",
+        staticmethod(lambda **kwargs: credential),
+    )
+
+    #
+    # WebAuthn
+    #
+
+    monkeypatch.setattr(
+        auth,
+        "verify_attestation",
         lambda *args, **kwargs: {
             "credential_id": "cred-123",
         },
@@ -443,18 +529,41 @@ def test_webauthn_register_finish_success(monkeypatch):
 
     assert body["status"] == "registered"
     assert body["credential_id"] == "cred-123"
-
-
+    assert body["message"] == "WebAuthn credential successfully registered"
+    
 def test_webauthn_register_finish_attestation_failure(monkeypatch):
+
+    challenge = SimpleNamespace(
+        challenge="challenge123",
+        used=False,
+    )
+
+    monkeypatch.setattr(
+        auth.ChallengeService,
+        "get",
+        staticmethod(lambda **kwargs: challenge),
+    )
+
+    monkeypatch.setattr(
+        auth.ChallengeService,
+        "validate",
+        staticmethod(lambda challenge: None),
+    )
+
+    monkeypatch.setattr(
+        auth.ChallengeService,
+        "consume",
+        staticmethod(lambda **kwargs: None),
+    )
 
     def fail(*args, **kwargs):
         raise AttestationVerificationError("Bad attestation")
 
     monkeypatch.setattr(
-    auth,
-    "verify_attestation",
-    fail,
-)
+        auth,
+        "verify_attestation",
+        fail,
+    )
 
     response = client.post(
         "/auth/webauthn/register/finish",
@@ -473,7 +582,6 @@ def test_webauthn_register_finish_attestation_failure(monkeypatch):
 
     assert response.status_code == 422
     assert response.json()["detail"] == "Bad attestation"
-
 
 def test_webauthn_register_finish_internal_error(monkeypatch):
 
@@ -511,9 +619,27 @@ def test_webauthn_register_finish_internal_error(monkeypatch):
 
 def test_webauthn_authenticate_start_success(monkeypatch):
 
+    user = SimpleNamespace(
+        id=123,
+        email="user@example.com",
+    )
+
+    challenge_record = SimpleNamespace(
+        challenge="challenge-auth",
+    )
+
     monkeypatch.setattr(
-        "app.security.webauthn.challenge.generate_challenge",
-        lambda: "challenge-auth",
+        auth.AuthService,
+        "get_user_by_email",
+        staticmethod(lambda db, email: user),
+    )
+
+    monkeypatch.setattr(
+        auth.ChallengeService,
+        "create",
+        staticmethod(
+            lambda **kwargs: challenge_record
+        ),
     )
 
     response = client.post(
@@ -534,13 +660,26 @@ def test_webauthn_authenticate_start_success(monkeypatch):
 
 def test_webauthn_authenticate_start_failure(monkeypatch):
 
-    def fail():
-        raise RuntimeError("boom")
+    user = SimpleNamespace(
+        id=123,
+        email="user@example.com",
+    )
 
     monkeypatch.setattr(
-    "app.security.webauthn.challenge.generate_challenge",
-    fail,
-)
+        auth.AuthService,
+        "get_user_by_email",
+        staticmethod(lambda db, email: user),
+    )
+
+    def fail(**kwargs):
+        raise RuntimeError("database failure")
+
+    monkeypatch.setattr(
+        auth.ChallengeService,
+        "create",
+        staticmethod(fail),
+    )
+
     response = client.post(
         "/auth/webauthn/authenticate/start",
         json={
@@ -558,41 +697,191 @@ def test_webauthn_authenticate_start_failure(monkeypatch):
 
 def test_webauthn_authenticate_finish_success(monkeypatch):
 
+    credential_record = SimpleNamespace(
+        id="cred-123",
+        credential_id="credential-123",
+        device_id="device-123",
+        public_key="public-key",
+        sign_count=0,
+        hardware_backed=True,
+        attestation_verified=True,
+        attestation_type="basic",
+        created_at=datetime.utcnow(),
+        last_used_at=datetime.utcnow(),
+        revoked=False,
+    )
+
+    monkeypatch.setattr(
+        auth.CredentialService,
+        "get_webauthn_credential",
+        staticmethod(lambda **kwargs: credential_record),
+    )
+
+    update_sign_count = MagicMock()
+
+    monkeypatch.setattr(
+        auth.CredentialService,
+        "update_sign_count",
+        update_sign_count,
+    )
+
+    touch_last_used = MagicMock()
+
+    monkeypatch.setattr(
+        auth.CredentialService,
+        "touch_last_used",
+        touch_last_used,
+    )
+
     monkeypatch.setattr(
         auth,
         "verify_assertion",
         lambda *args, **kwargs: None,
     )
 
+    user = SimpleNamespace(
+        id="user-123",
+    )
+
+    monkeypatch.setattr(
+        auth.AuthService,
+        "get_user_by_email",
+        staticmethod(lambda *args, **kwargs: user),
+    )
+
+    #
+    # Session
+    #
+
+    session = SimpleNamespace(
+        id="session-123",
+    )
+
+    monkeypatch.setattr(
+        auth.SessionService,
+        "create",
+        staticmethod(lambda **kwargs: session),
+    )
+
+    #
+    # Grant
+    #
+
+    grant = SimpleNamespace(
+        id="grant-123",
+        jwt_id="jwt-123",
+    )
+
+    grant_create = MagicMock(
+        return_value=grant,
+    )
+
+    monkeypatch.setattr(
+        auth.GrantService,
+        "create",
+        grant_create,
+    )
+
+    monkeypatch.setattr(
+        auth.GrantService,
+        "touch",
+        staticmethod(lambda **kwargs: None),
+    )
+
+    #
+    # Device
+    #
+
+    device = SimpleNamespace(
+        id="device-123",
+    )
+
+    monkeypatch.setattr(
+        auth.DeviceService,
+        "get",
+        staticmethod(lambda **kwargs: device),
+    )
+
+    monkeypatch.setattr(
+        auth.DeviceService,
+        "touch",
+        staticmethod(lambda **kwargs: None),
+    )
+
+    #
+    # JWT
+    #
+
+    issue_token = MagicMock(
+        return_value="mock.jwt.token",
+    )
+
+    monkeypatch.setattr(
+        auth.TokenService,
+        "issue_access_token",
+        issue_token,
+    )
+
     response = client.post(
-    "/auth/webauthn/authenticate/finish",
-    json={
-        "email": "user@example.com",
-        "credential_id": "credential-123",
-        "assertion": {
-            "id": "credential-123",
-            "rawId": "credential-123",
-            "type": "public-key",
-            "response": {
+        "/auth/webauthn/authenticate/finish",
+        json={
+            "email": "user@example.com",
+            "credential_id": "credential-123",
+            "assertion": {
+                "id": "credential-123",
+                "rawId": "credential-123",
+                "type": "public-key",
                 "response": {
-                    "clientDataJSON": "",
-                    "authenticatorData": "",
-                    "signature": "",
-                }
+                    "response": {
+                        "clientDataJSON": "",
+                        "authenticatorData": "",
+                        "signature": "",
+                    }
+                },
             },
         },
-    },
-)
+    )
+
     assert response.status_code == 200
 
     body = response.json()
 
     assert body["status"] == "authenticated"
-    assert body["grant_id"] == "grant-placeholder"
-    assert body["access_token"] == "jwt-token-placeholder"
+    assert body["grant_id"] == "grant-123"
+    assert body["session_id"] == "session-123"
+    assert body["access_token"] == "mock.jwt.token"
     assert body["token_type"] == "Bearer"
+    assert body["expires_in"] == 3600
 
+    update_sign_count.assert_called_once()
+    touch_last_used.assert_called_once()
+    grant_create.assert_called_once()
+    issue_token.assert_called_once()
 
+    #
+    # Verify GrantService.create()
+    #
+
+    grant_kwargs = grant_create.call_args.kwargs
+
+    assert grant_kwargs["user_id"] == "user-123"
+    assert grant_kwargs["session_id"] == "session-123"
+    assert grant_kwargs["credential_id"] == "cred-123"
+    assert grant_kwargs["device_id"] == "device-123"
+    assert grant_kwargs["grant_type"] == "access"
+    assert grant_kwargs["created_by"] == "webauthn"
+
+    #
+    # Verify TokenService.issue_access_token()
+    #
+
+    token_kwargs = issue_token.call_args.kwargs
+
+    assert token_kwargs["grant"] is grant
+    assert token_kwargs["device_public_key"] == b"public-key"
+    
+    
+    
 def test_webauthn_authenticate_finish_failure(monkeypatch):
 
     def fail(*args, **kwargs):
@@ -600,7 +889,7 @@ def test_webauthn_authenticate_finish_failure(monkeypatch):
 
     monkeypatch.setattr(
     auth,
-    "verify_attestation",
+    "verify_assertion",
     fail,
 )
 

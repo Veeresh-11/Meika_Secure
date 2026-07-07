@@ -3,24 +3,33 @@
 -- Hardened Governance Edition
 -- ============================================================
 
--- ------------------------------------------------------------
+-- ============================================================
+-- Identity Schema
+-- ============================================================
+
+CREATE SCHEMA IF NOT EXISTS identity;
+
+-- ============================================================
 -- Core Ledger Table
--- ------------------------------------------------------------
+-- ============================================================
 
-CREATE TABLE IF NOT EXISTS evidence_ledger (
-    sequence_number BIGINT PRIMARY KEY CHECK (sequence_number >= 0),
+CREATE TABLE IF NOT EXISTS identity.evidence_ledger (
 
-    -- NULL allowed only for genesis record
+    sequence_number BIGINT PRIMARY KEY
+        CHECK (sequence_number >= 0),
+
+    -- NULL only for genesis record
     previous_hash TEXT,
 
     payload_hash TEXT NOT NULL,
+
     record_hash TEXT NOT NULL UNIQUE,
 
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
 
-    -- --------------------------------------------------------
-    -- Hash Format Enforcement
-    -- --------------------------------------------------------
+    ------------------------------------------------------------
+    -- Hash validation
+    ------------------------------------------------------------
 
     CONSTRAINT record_hash_format
         CHECK (record_hash ~ '^[a-f0-9]{64}$'),
@@ -30,82 +39,155 @@ CREATE TABLE IF NOT EXISTS evidence_ledger (
 );
 
 CREATE INDEX IF NOT EXISTS idx_evidence_sequence
-ON evidence_ledger(sequence_number);
+ON identity.evidence_ledger(sequence_number);
 
--- ------------------------------------------------------------
--- Strict Chain Integrity (Database-Level)
--- ------------------------------------------------------------
+-- ============================================================
+-- Chain Integrity
+-- ============================================================
 
--- Foreign key ensures previous_hash references real record
--- DEFERRABLE allows insertion order safety within transaction
-
-DO $$
+DO
+$$
 BEGIN
-    IF NOT EXISTS (
+
+    IF NOT EXISTS
+    (
         SELECT 1
         FROM pg_constraint
         WHERE conname = 'fk_previous_hash'
-    ) THEN
-        ALTER TABLE evidence_ledger
+    )
+    THEN
+
+        ALTER TABLE identity.evidence_ledger
+
         ADD CONSTRAINT fk_previous_hash
+
         FOREIGN KEY (previous_hash)
-        REFERENCES evidence_ledger(record_hash)
+
+        REFERENCES identity.evidence_ledger(record_hash)
+
         DEFERRABLE INITIALLY DEFERRED;
+
     END IF;
+
 END
 $$;
 
--- ------------------------------------------------------------
--- Append-Only Enforcement
--- ------------------------------------------------------------
+-- ============================================================
+-- Append Only Enforcement
+-- ============================================================
 
-CREATE OR REPLACE FUNCTION forbid_mutation()
-RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION identity.forbid_mutation()
+
+RETURNS trigger
+
+AS
+$$
 BEGIN
-    RAISE EXCEPTION 'Evidence ledger is append-only';
+
+    RAISE EXCEPTION
+        'Evidence ledger is append-only';
+
 END;
-$$ LANGUAGE plpgsql;
+$$
+LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS no_update ON evidence_ledger;
+DROP TRIGGER IF EXISTS no_update
+ON identity.evidence_ledger;
+
 CREATE TRIGGER no_update
-BEFORE UPDATE ON evidence_ledger
-FOR EACH ROW
-EXECUTE FUNCTION forbid_mutation();
 
-DROP TRIGGER IF EXISTS no_delete ON evidence_ledger;
+BEFORE UPDATE
+
+ON identity.evidence_ledger
+
+FOR EACH ROW
+
+EXECUTE FUNCTION identity.forbid_mutation();
+
+
+DROP TRIGGER IF EXISTS no_delete
+ON identity.evidence_ledger;
+
 CREATE TRIGGER no_delete
-BEFORE DELETE ON evidence_ledger
+
+BEFORE DELETE
+
+ON identity.evidence_ledger
+
 FOR EACH ROW
-EXECUTE FUNCTION forbid_mutation();
 
--- ------------------------------------------------------------
--- Schema Metadata (Governance)
--- ------------------------------------------------------------
+EXECUTE FUNCTION identity.forbid_mutation();
 
-CREATE TABLE IF NOT EXISTS schema_metadata (
-    id INTEGER PRIMARY KEY DEFAULT 1,
+-- ============================================================
+-- Schema Metadata
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS identity.schema_metadata (
+
+    id INTEGER PRIMARY KEY
+        DEFAULT 1,
+
     schema_version TEXT NOT NULL,
+
     schema_checksum TEXT NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+
+    created_at TIMESTAMP NOT NULL
+        DEFAULT NOW()
 );
 
--- Insert initial row if not exists
-INSERT INTO schema_metadata (id, schema_version, schema_checksum)
-VALUES (1, '1.0.0', '')
-ON CONFLICT (id) DO NOTHING;
+INSERT INTO identity.schema_metadata
+(
+    id,
+    schema_version,
+    schema_checksum
+)
+VALUES
+(
+    1,
+    '1.0.0',
+    ''
+)
+ON CONFLICT (id)
+DO NOTHING;
 
--- Prevent modification of schema metadata
+-- ============================================================
+-- Immutable Metadata
+-- ============================================================
 
-CREATE OR REPLACE FUNCTION forbid_schema_version_change()
-RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION identity.forbid_schema_version_change()
+
+RETURNS trigger
+
+AS
+$$
 BEGIN
-    RAISE EXCEPTION 'Schema version metadata is immutable';
-END;
-$$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS no_schema_update ON schema_metadata;
+    RAISE EXCEPTION
+        'Schema version metadata is immutable';
+
+END;
+$$
+LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS no_schema_update
+ON identity.schema_metadata;
 
 CREATE TRIGGER no_schema_update
-BEFORE UPDATE OR DELETE ON schema_metadata
+
+BEFORE UPDATE OR DELETE
+
+ON identity.schema_metadata
+
 FOR EACH ROW
-EXECUTE FUNCTION forbid_schema_version_change();
+
+EXECUTE FUNCTION identity.forbid_schema_version_change();
+
+-- ============================================================
+-- Helpful Comments
+-- ============================================================
+
+COMMENT ON TABLE identity.evidence_ledger IS
+'Append-only cryptographic evidence ledger used by the Meika Security Kernel.';
+
+COMMENT ON TABLE identity.schema_metadata IS
+'Schema governance metadata used to validate integrity and version compatibility.';

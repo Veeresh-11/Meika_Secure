@@ -3,6 +3,19 @@
 import hashlib
 from app.security.version import SCHEMA_VERSION
 
+def _normalize_dsn(dsn: str) -> str:
+    """
+    Convert a SQLAlchemy PostgreSQL URL into a psycopg2-compatible DSN.
+    """
+
+    if dsn.startswith("postgresql+psycopg://"):
+        return dsn.replace(
+            "postgresql+psycopg://",
+            "postgresql://",
+            1,
+        )
+
+    return dsn
 
 def compute_schema_checksum(path: str) -> str:
     with open(path, "rb") as f:
@@ -18,12 +31,13 @@ def validate_schema(dsn: str, schema_path: str) -> None:
         raise RuntimeError("psycopg2 is required for schema validation")
 
     expected_checksum = compute_schema_checksum(schema_path)
+    
 
-    conn = psycopg2.connect(dsn)
+    conn = psycopg2.connect(_normalize_dsn(dsn))
     cur = conn.cursor()
 
     cur.execute(
-        "SELECT schema_version, schema_checksum FROM schema_metadata WHERE id = 1"
+        "SELECT schema_version, schema_checksum FROM identity.schema_metadata WHERE id = 1"
     )
     row = cur.fetchone()
 

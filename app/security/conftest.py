@@ -21,7 +21,7 @@ from app.security.pipeline import SecureIDKernel
 from app.security.context import SecurityContext
 from app.security.evidence.store import InMemoryEvidenceStore
 from app.security.evidence_orchestrator import EvidenceEnforcedPipeline
-from app.security.evidence.postgres_store import PostgresEvidenceStore
+import app.security.evidence.postgres_store as postgres_store
 # -------------------------------------------------
 # TRACK A — CORE KERNEL FIXTURES
 # -------------------------------------------------
@@ -134,15 +134,29 @@ def evidence_record(kernel_with_store):
     return store.get(decision.evidence_hash)
 
 
-POSTGRES_DSN = os.getenv("POSTGRES_DSN")
-
 
 @pytest.fixture
 def postgres_kernel():
-    if not POSTGRES_DSN:
-        pytest.skip("Postgres DSN not configured")
-    # ✅ Import ONLY when needed    
-    import psycopg2
-    store = PostgresEvidenceStore(POSTGRES_DSN)
 
-    return SecureIDKernel(evidence_store=store)
+    postgres_dsn = (
+        os.getenv("POSTGRES_TEST_DSN")
+        or os.getenv("POSTGRES_DSN")
+    )
+
+    if not postgres_dsn:
+        pytest.skip("Postgres DSN not configured")
+
+    store = postgres_store.PostgresEvidenceStore(
+    postgres_dsn
+)
+
+    # Never clear the append-only ledger.
+
+    kernel = SecureIDKernel(
+        evidence_store=store,
+    )
+
+    yield kernel
+
+    if hasattr(store, "close"):
+        store.close()

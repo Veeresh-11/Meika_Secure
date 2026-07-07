@@ -157,8 +157,7 @@ def test_append_sequence_collision(mock_connect, mock_validate):
 
     cursor = FakeCursor(
         fetchone_values=[
-            None,
-            (99,),
+            (98,None),
         ]
     )
 

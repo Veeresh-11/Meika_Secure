@@ -64,7 +64,6 @@ class HSMSigner:
     """
 
     def sign(self, message: str) -> str:
-        # TODO: integrate real hardware signing
         return sha256("HSM" + message)
 
     def public_key(self) -> str:

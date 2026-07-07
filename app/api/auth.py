@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from pydantic import ( BaseModel, Field, EmailStr, ConfigDict, )
 import logging
 from datetime import datetime
+from app.security.persistence import db
 from app.security.webauthn.attestation import (
     AttestationVerificationError,verify_attestation)
 from app.db.session import SessionLocal
@@ -15,7 +16,6 @@ from app.security.device.context import DeviceContext
 from app.security.device.registry import DeviceRegistry
 from app.security.device.posture import DevicePostureEvaluator
 from app.security.errors import SecurityPipelineError
-from app.security.webauthn.models import WebAuthnCredential
 from app.security.device.context import (
     DeviceIdentityContext,
     DevicePostureContext,
@@ -23,6 +23,13 @@ from app.security.device.context import (
 from app.security.device_snapshot import DeviceSnapshot
 from app.security.webauthn.assertion import verify_assertion
 from app.security.webauthn.models import WebAuthnCredential
+from app.services.webauthn.challenge_service import ChallengeService
+from app.services.credential_service import CredentialService
+from app.services.grant_service import GrantService
+from uuid import uuid4
+from app.services.session_service import SessionService
+from app.services.token_service import TokenService
+from app.services.device_service import DeviceService
 
 # Set up structured logger for deprecation tracking
 logger = logging.getLogger("meika.auth.deprecation")
@@ -191,7 +198,8 @@ def register(payload: RegisterRequest = Body(...), db: Session = Depends(get_db)
         )
     except Exception:
         raise HTTPException(status_code=409, detail="User already exists")
-
+    
+    
     return {
         "user_id": str(user.id),
         "warning": "Password authentication is deprecated. Please use WebAuthn instead.",
@@ -239,7 +247,6 @@ def login(
 
     # ---- Step 1: Authenticate ----
     try:
-        print(AuthService.login_user)
         session = AuthService.login_user(
             db=db,
             email=payload.email,
@@ -327,8 +334,6 @@ def login(
     except Exception as exc:
       import traceback
       traceback.print_exc()
-      print(type(exc))
-      print(repr(exc))
 
       if isinstance(exc, SecurityPipelineError):
         raise HTTPException(
@@ -376,12 +381,24 @@ def webauthn_register_start(
     2. POST attestation response to /auth/webauthn/register/finish
     """
     try:
-        from app.security.webauthn.challenge import generate_challenge
+        user = AuthService.get_user_by_email(
+        db,
+        payload.email,
+       )
+
+        if user is None:
+         raise HTTPException(
+         status_code=404,
+         detail="User not found",
+        )
         
-        challenge = generate_challenge()
-        
-        # TODO: Store registration session in DB with TTL
-        # For now, return challenge
+        challenge_record = ChallengeService.create(
+        db=db,
+        user_id=user.id,      # or the resolved UUID for the user
+        purpose="register",
+        )
+
+        challenge = challenge_record.challenge
         
         logger.info(
             "WebAuthn registration started",
@@ -413,11 +430,18 @@ def webauthn_register_start(
                 {"alg": -7, "type": "public-key"}  # ES256
             ]
         }
+    except HTTPException:
+        raise
+
     except Exception as e:
-        logger.error(f"WebAuthn registration start failed: {e}")
-        raise HTTPException(status_code=400, detail="Registration failed")
+        logger.exception(
+            "WebAuthn Registration start failed"
+        )
 
-
+        raise HTTPException(
+            status_code=400,
+            detail="Registration failed",
+        )
 # --------------------
 # WebAuthn: Register Finish
 # --------------------
@@ -444,12 +468,50 @@ def webauthn_register_finish(
     """
     try:
         
-        # Verify attestation (would use session challenge from DB)
+        challenge = ChallengeService.get(
+          db=db,
+          challenge=payload.attestation.challenge,
+        )
+
+        ChallengeService.validate(challenge)
+
         credential_data = verify_attestation(
-            payload.attestation.model_dump(),
-            payload.attestation.challenge,) 
+        payload.attestation.model_dump(),
+        challenge.challenge,
+        )
+
+        ChallengeService.consume(
+         db=db,
+         challenge=challenge,
+        )
+        
+        device = DeviceService.get_by_identifier(
+        db=db,
+        device_identifier=payload.attestation.credential_id,
+        )
+
+        if device is None:
+          device = DeviceService.register(
+            db=db,
+            user_id=challenge.user_id,
+            device_identifier=payload.attestation.credential_id,
+            device_name= "WebAuthn Device",
+            hardware_backed=payload.attestation.hardware_backed,
+            attestation_verified=True,
+            )
          
-    # TODO: Get challenge from session
+        credential = CredentialService.create_webauthn_credential(
+         db=db,
+         user_id=challenge.user_id,
+         device_id=device.id,
+         credential_id=credential_data["credential_id"],
+         public_key=payload.attestation.public_key,
+         hardware_backed=payload.attestation.hardware_backed,
+         attestation_verified=payload.attestation.attestation_verified,
+         attestation_type=payload.attestation.type,
+     )
+        
+        
         logger.info(
             "WebAuthn credential registered",
             extra={
@@ -512,12 +574,26 @@ def webauthn_authenticate_start(
     2. POST assertion response to /auth/webauthn/authenticate/finish
     """
     try:
-        from app.security.webauthn.challenge import generate_challenge
         
-        challenge = generate_challenge()
+        user = AuthService.get_user_by_email(
+        db,
+        payload.email,
+     )  
+
+        if user is None:
+         raise HTTPException(
+         status_code=404,
+         detail="User not found",
+       )
         
-        # TODO: Get user credentials from DB
-        # For now, return empty credential list
+        challenge_record = ChallengeService.create(
+          db=db,
+          user_id=user.id,
+          purpose="authenticate",
+        )
+
+        challenge = challenge_record.challenge
+        
         
         logger.info(
             "WebAuthn authentication started",
@@ -532,14 +608,21 @@ def webauthn_authenticate_start(
             "timeout": 60000,
             "rpId": "meika.example.com",
             "allowCredentials": [
-                # TODO: Populate from DB
-                # {"id": credential_id, "type": "public-key"}
+               
             ]
         }
+    except HTTPException :
+        raise 
+    
     except Exception as e:
-        logger.error(f"WebAuthn authentication start failed: {e}")
-        raise HTTPException(status_code=400, detail="Authentication failed")
+        logger.exception(
+            "WebAuthn authentication start failed"
+        )
 
+        raise HTTPException(
+            status_code=400,
+            detail="Authentication failed",
+        )
 
 # --------------------
 # WebAuthn: Authenticate Finish
@@ -563,49 +646,199 @@ def webauthn_authenticate_finish(
     """
     Complete WebAuthn authentication.
 
-    Verifies assertion and creates grant.
+    Workflow:
+
+        Verify Assertion
+              ↓
+        Update Credential
+              ↓
+        Create Session
+              ↓
+        Create Authorization Grant
+              ↓
+        Issue Device-Bound JWT
+              ↓
+        Return Authenticated Session
     """
 
     try:
 
-        credential = WebAuthnCredential(
-            credential_id=payload.credential_id.encode(),
-            public_key=b"temporary-public-key",
-            sign_count=0,
-            hardware_backed=True,
-            attestation_verified=True,
-            attestation_type="basic",
-            created_at=datetime.utcnow(),
-            last_used_at=datetime.utcnow(),
-            revoked=False,
+        # --------------------------------------------------
+        # Load credential
+        # --------------------------------------------------
+
+        credential_record = CredentialService.get_webauthn_credential(
+            db=db,
+            credential_id=payload.credential_id,
         )
+
+        if credential_record is None:
+            raise HTTPException(
+                status_code=401,
+                detail="Credential not found",
+            )
+
+        # --------------------------------------------------
+        # Load user
+        # --------------------------------------------------
+
+        user = AuthService.get_user_by_email(
+            db,
+            payload.email,
+        )
+
+        if user is None:
+            raise HTTPException(
+                status_code=404,
+                detail="User not found",
+            )
+
+        # --------------------------------------------------
+        # Convert DB model into WebAuthn verification model
+        # --------------------------------------------------
+
+        credential = WebAuthnCredential(
+            credential_id=credential_record.credential_id.encode(),
+            public_key=credential_record.public_key.encode(),
+            sign_count=credential_record.sign_count,
+            hardware_backed=credential_record.hardware_backed,
+            attestation_verified=credential_record.attestation_verified,
+            attestation_type=credential_record.attestation_type,
+            created_at=credential_record.created_at,
+            last_used_at=credential_record.last_used_at,
+            revoked=credential_record.revoked,
+        )
+
+        # --------------------------------------------------
+        # Verify assertion
+        # --------------------------------------------------
 
         verify_assertion(
             payload.assertion.model_dump(),
             credential,
         )
 
+        # --------------------------------------------------
+        # Update credential metadata
+        # --------------------------------------------------
+
+        CredentialService.update_sign_count(
+            db=db,
+            credential=credential_record,
+            sign_count=credential.sign_count,
+        )
+
+        CredentialService.touch_last_used(
+            db=db,
+            credential=credential_record,
+        )
+
+        # --------------------------------------------------
+        # Create authenticated session
+        # --------------------------------------------------
+
+        session = SessionService.create(
+            db=db,
+            user_id=user.id,
+            device_id=credential_record.device_id,
+        )
+
+        # --------------------------------------------------
+        # Create authorization grant
+        # --------------------------------------------------
+         
+    # TODO(Device Persistence):
+# credential_record.id currently acts as a temporary
+# device identifier.
+#
+# Replace with Device.id after introducing the
+# identity.devices table.
+        grant = GrantService.create(
+             db=db,
+            user_id=user.id,
+            session_id=session.id,
+            credential_id=credential_record.id,
+            jwt_id=uuid4(),
+            device_id=credential_record.device_id,
+            grant_type="access",
+            created_by="webauthn",
+        )
+
+        # --------------------------------------------------
+        # Update Device Activity
+        # --------------------------------------------------
+
+        device = DeviceService.get(
+            db=db,
+            device_id=credential_record.device_id,
+        )
+
+        if device:
+            DeviceService.touch(
+                 db=db,
+                device=device,
+        )
+
+        # --------------------------------------------------
+        # Update Grant Activity
+        # --------------------------------------------------
+
+        GrantService.touch(
+            db=db,
+            grant=grant,
+        )
+        
+
+        # --------------------------------------------------
+        # Issue JWT
+        # --------------------------------------------------
+
+        access_token = TokenService.issue_access_token(
+            db=db,
+            grant=grant,
+            device_public_key=credential.public_key,
+        )
+
+        # --------------------------------------------------
+        # Audit Log
+        # --------------------------------------------------
+
         logger.info(
             "WebAuthn authentication successful",
             extra={
+                "user_id": str(user.id),
                 "email": payload.email,
                 "credential_id": payload.credential_id,
+                "grant_id": str(grant.id),
+                "session_id": str(session.id),
+                "jwt_id": str(grant.jwt_id),
                 "event": "webauthn_auth_success",
             },
         )
 
+        # --------------------------------------------------
+        # Response
+        # --------------------------------------------------
+
         return {
             "status": "authenticated",
-            "grant_id": "grant-placeholder",
-            "access_token": "jwt-token-placeholder",
+            "grant_id": str(grant.id),
+            "session_id": str(session.id),
+            "access_token": access_token,
             "token_type": "Bearer",
             "expires_in": 3600,
         }
 
-    except Exception as e:
+    except HTTPException:
+        raise
 
-        logger.error(
-            f"WebAuthn authentication failed: {e}"
+    except Exception:
+        logger.exception(
+            "WebAuthn authentication failed",
+            extra ={
+                "email": payload.email,
+                "credential_id": payload.credential_id,
+                "event": "webauthn_auth_failure",},
         )
 
         raise HTTPException(

@@ -37,6 +37,7 @@ def test_issue_device_bound_token():
         token,
         SECRET,
         algorithms=[ALGO],
+        audience="meika-api",
     )
 
     assert payload["sub"] == "user1"

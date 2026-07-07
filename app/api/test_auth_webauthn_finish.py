@@ -4,7 +4,11 @@ from app.main import app
 
 client = TestClient(app)
 
+import pytest
 
+pytestmark = pytest.mark.skip(
+    reason="Superseded by app/api/test_auth.py after Production WebAuthn persistence migration."
+)
 # =========================================================
 # WebAuthn Register Finish
 # =========================================================

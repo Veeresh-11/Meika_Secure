@@ -108,4 +108,35 @@ class AuthService:
             resource=resource,
         )
         db.add(audit)
+        
+    @staticmethod
+    def get_user_by_email(
+      db: Session,
+      email: str,
+      
+    ) -> User | None:
+
+      return (
+         db.query(User)
+         .filter(
+             User.email == email,
+             User.status == "active",
+         )
+         .first()
+    )
+
+
+@staticmethod
+def get_user(
+    db: Session,
+    user_id,
+) -> User | None:
+
+    return (
+        db.query(User)
+        .filter(
+            User.id == user_id,
+        )
+        .first()
+    )
 
