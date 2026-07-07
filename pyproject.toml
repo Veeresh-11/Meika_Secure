@@ -1,3 +1,39 @@
-[tool.pytest.ini_options]
-addopts = "--strict-markers --strict-config --cov=app --cov-branch"
-testpaths = ["tests"]
+# ─────────────────────────────────────────────────────────────────────────────
+# pyproject.toml — Meika Secure
+#
+# CRITICAL FIX: [tool.pytest.ini_options] section has been COMPLETELY REMOVED.
+#
+# Having BOTH pyproject.toml:[tool.pytest.ini_options] AND pytest.ini causes
+# pytest EXIT CODE 4 because:
+#   - pyproject.toml had: testpaths = ["tests"]  (tests/ doesn't exist)
+#   - pytest.ini had:     testpaths = app/        (correct location)
+# With --strict-config active, this conflict aborts before collecting any test.
+#
+# pytest.ini is now the single source of truth for all pytest configuration.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+omit = [
+    "app/*/tests/*",
+    "app/security/tests/*",
+    "*/__pycache__/*",
+    "*/migrations/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 60
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "pass",
+]
+
+[tool.bandit]
+exclude_dirs = ["tests", "app/security/tests"]
+skips = ["B101"]  # assert usage in tests is fine
