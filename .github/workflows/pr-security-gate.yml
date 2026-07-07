@@ -104,7 +104,7 @@ jobs:
             pytest-cov==6.2.1 \
             pytest-asyncio==0.25.3 \
             pytest-mock==3.14.0 \
-            psgcopy==3.3.4 \
+            psgcopy[binary]==3.3.4 \
             psycopg2-binary==2.9.10 \
             redis==5.2.1 \
             anyio==4.8.0 \
