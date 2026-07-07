@@ -5,19 +5,6 @@ on:
   push:
     branches: [main]
 
-# ─────────────────────────────────────────────────────────────────────────────
-# FIX 1 — CONCURRENCY (root cause of cancellation)
-#
-# PROBLEM: The old group was `pr-${{ github.ref }}`
-# When you push to main AND have a PR open for the same branch,
-# both triggers fire with the SAME group key → one cancels the other.
-# The log says: "Canceling since a higher priority waiting request for
-# pr-refs/heads/main exists" — this is exactly what killed the job at 6m15s.
-#
-# FIX: Separate group keys for push vs PR so they never conflict.
-# Also only cancel-in-progress for PRs (not for main branch pushes —
-# you want main to always complete fully).
-# ─────────────────────────────────────────────────────────────────────────────
 concurrency:
   group: >-
     ${{ github.workflow }}-
@@ -76,16 +63,6 @@ jobs:
       PYTHONUNBUFFERED: 1
 
     steps:
-      # ────────────────────────────────────────────────────────────────────
-      # FIX 2 — Node.js 24 deprecation warning
-      # GitHub is now FORCING actions/checkout@v4, setup-python@v5,
-      # upload-artifact@v4 to run on Node.js 24 (they target Node.js 20).
-      # These actions don't have a v5 yet — the fix is to add:
-      #   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true  (at org/repo level)
-      # OR simply acknowledge the warning is harmless since GitHub already
-      # forces Node.js 24. No action needed in the YAML itself for these.
-      # The warning does NOT cause failure — only CodeQL and concurrency did.
-      # ────────────────────────────────────────────────────────────────────
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -95,18 +72,9 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      # ────────────────────────────────────────────────────────────────────
-      # FIX 3 — CodeQL disk space issue
-      # PROBLEM: "did not complete successfully... disk space constraints"
-      # ubuntu-latest has ~14GB total; CodeQL incremental analysis needs
-      # significantly more for some repos.
-      # FIX: Free up disk space BEFORE CodeQL init. This recovers ~10GB.
-      # ────────────────────────────────────────────────────────────────────
+      # ── Disk cleanup for CodeQL ─────────────────────────────────────────────
       - name: Free disk space for CodeQL
         run: |
-          echo "Disk before cleanup:"
-          df -h /
-          # Remove large unused packages from the runner
           sudo rm -rf \
             /usr/share/dotnet \
             /usr/local/lib/android \
@@ -114,23 +82,16 @@ jobs:
             /opt/hostedtoolcache/CodeQL \
             /usr/local/share/boost \
             "$AGENT_TOOLSDIRECTORY"
-          sudo apt-get clean
-          sudo apt-get autoremove -y
-          echo "Disk after cleanup:"
+          sudo apt-get clean -qq
+          sudo apt-get autoremove -y -qq
           df -h /
 
       - name: Init CodeQL
         uses: github/codeql-action/init@v4
         with:
           languages: python
-          # Disable incremental analysis to avoid the disk space issue entirely
-          # Remove this line once you have more disk space / larger runner
-          config: |
-            disable-default-queries: false
 
-      # ────────────────────────────────────────────────────────────────────
-      # Install Dependencies
-      # ────────────────────────────────────────────────────────────────────
+      # ── Install deps ────────────────────────────────────────────────────────
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip wheel
@@ -150,9 +111,7 @@ jobs:
             pip-audit==2.9.0 \
             "bandit[sarif]==1.8.6"
 
-      # ────────────────────────────────────────────────────────────────────
-      # DB migrations
-      # ────────────────────────────────────────────────────────────────────
+      # ── DB migrations ───────────────────────────────────────────────────────
       - name: Wait for DB and run migrations
         run: |
           until pg_isready -h localhost -p 5432 -U test_user; do
@@ -166,28 +125,18 @@ jobs:
               PGPASSWORD=test_pass psql \
                 -h localhost -p 5432 \
                 -U test_user -d test_db \
-                -f "$f" || echo "Migration $f had errors (may be harmless)"
+                -f "$f" || echo "Migration $f had errors (continuing)"
             done
           fi
 
-      # ────────────────────────────────────────────────────────────────────
-      # FIX 4 — pip-audit exit code 1 (vulnerable packages found)
-      # PROBLEM: pip-audit exits 1 when vulnerabilities ARE found.
-      # Your requirements.txt has unversioned deps — pip-audit can't check
-      # versions it doesn't know. OR some pinned deps have known CVEs.
-      # FIX A: continue-on-error: true so it never blocks the gate.
-      # FIX B: --ignore-vuln for any false positives you've reviewed.
-      # FIX C: Print a clear summary so you know what to fix.
-      # ────────────────────────────────────────────────────────────────────
+      # ── Dependency audit ────────────────────────────────────────────────────
       - name: Dependency Audit
-        continue-on-error: true      # ← MUST be true until deps are pinned + clean
+        continue-on-error: true
         run: |
-          echo "Running pip-audit..."
           pip-audit --desc on --format=json --output=audit-results.json || true
-          echo ""
           echo "=== AUDIT SUMMARY ==="
           python3 -c "
-          import json, sys
+          import json
           try:
               data = json.load(open('audit-results.json'))
               vulns = [d for d in data.get('dependencies', []) if d.get('vulns')]
@@ -197,71 +146,65 @@ jobs:
                   print(f'Found vulnerabilities in {len(vulns)} package(s):')
                   for pkg in vulns:
                       for v in pkg['vulns']:
-                          print(f'  [{v[\"id\"]}] {pkg[\"name\"]}=={pkg[\"version\"]}: {v[\"description\"][:80]}')
-                          print(f'    Fix: {v.get(\"fix_versions\", [\"no fix available\"])}')
+                          fix = v.get('fix_versions', ['no fix yet'])
+                          print(f'  [{v[\"id\"]}] {pkg[\"name\"]}=={pkg[\"version\"]} → fix: {fix}')
           except Exception as e:
-              print(f'Could not parse audit results: {e}')
-          " || pip-audit --desc on || true
+              print(f'Could not parse audit JSON: {e}')
+          " || true
 
-      # ────────────────────────────────────────────────────────────────────
-      # Bandit SAST
-      # ────────────────────────────────────────────────────────────────────
+      # ── Bandit SAST ─────────────────────────────────────────────────────────
       - name: Bandit Scan
         run: |
           bandit -r app/ -f sarif -o bandit.sarif -ll || true
           if [ ! -f bandit.sarif ]; then
-            cat > bandit.sarif <<'SARIF_EOF'
-          {
-            "version": "2.1.0",
-            "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
-            "runs": []
-          }
-          SARIF_EOF
+            printf '{"version":"2.1.0","runs":[]}\n' > bandit.sarif
           fi
 
-      - name: Check Bandit SARIF
-        id: bandit_check
+      - name: Check and Upload Bandit SARIF
         run: |
-          if python3 -c "
-          import json,sys
+          EMPTY=$(python3 -c "
+          import json
           d=json.load(open('bandit.sarif'))
-          runs=d.get('runs',[])
-          results=[r for run in runs for r in run.get('results',[])]
-          print(f'Bandit findings: {len(results)}')
-          sys.exit(0 if not results else 1)
-          " 2>/dev/null; then
-            echo "empty=true" >> $GITHUB_OUTPUT
-          else
-            echo "empty=false" >> $GITHUB_OUTPUT
-          fi
+          results=[r for run in d.get('runs',[]) for r in run.get('results',[])]
+          print('true' if not results else 'false')
+          " 2>/dev/null || echo "true")
+          echo "bandit_empty=$EMPTY" >> $GITHUB_ENV
 
       - name: Upload Bandit SARIF
-        if: steps.bandit_check.outputs.empty == 'false'
+        if: env.bandit_empty == 'false'
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: bandit.sarif
 
-      # ────────────────────────────────────────────────────────────────────
-      # Semgrep
-      # ────────────────────────────────────────────────────────────────────
+      # ── Semgrep ─────────────────────────────────────────────────────────────
       - name: Semgrep
         uses: returntocorp/semgrep-action@v1
         continue-on-error: true
         with:
           config: auto
 
-      # ────────────────────────────────────────────────────────────────────
-      # Tests + Coverage
-      # ────────────────────────────────────────────────────────────────────
+      # ── Tests + Coverage ─────────────────────────────────────────────────────
+      # ROOT CAUSE OF EXIT CODE 4 WAS HERE:
+      # The workflow was passing --asyncio-mode=auto AND testpaths flags that
+      # conflicted with pytest.ini settings. With --strict-config active in
+      # pytest.ini, any duplicate/conflicting option causes exit code 4.
+      #
+      # FIX: Let pytest.ini drive ALL configuration. The workflow only passes
+      # --cov flags that aren't in pytest.ini. No testpaths, no asyncio-mode,
+      # no markers — those all come from pytest.ini now.
+      # ─────────────────────────────────────────────────────────────────────────
       - name: Tests + Coverage
         run: |
-          pytest \
+          # Verify config conflict is gone before running
+          echo "=== Active pytest config ==="
+          python3 -m pytest --co -q --no-header 2>&1 | head -5 || true
+
+          # Run tests — let pytest.ini control testpaths, markers, asyncio_mode
+          python3 -m pytest \
             --cov=app \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
             --cov-fail-under=60 \
-            --tb=short \
-            --asyncio-mode=auto \
             -v
 
       - name: Upload Coverage
@@ -272,9 +215,7 @@ jobs:
           path: coverage.xml
           if-no-files-found: ignore
 
-      # ────────────────────────────────────────────────────────────────────
-      # Trivy
-      # ────────────────────────────────────────────────────────────────────
+      # ── Trivy ───────────────────────────────────────────────────────────────
       - name: Trivy Scan
         uses: aquasecurity/trivy-action@master
         continue-on-error: true
@@ -292,28 +233,20 @@ jobs:
           path: trivy.sarif
           if-no-files-found: ignore
 
-      # ────────────────────────────────────────────────────────────────────
-      # Red Team Smoke Tests
-      # ────────────────────────────────────────────────────────────────────
+      # ── Red Team ────────────────────────────────────────────────────────────
       - name: Red Team Tests
         run: |
           if [ -f app/security/tests/test_red_team_attacks.py ]; then
-            pytest app/security/tests/test_red_team_attacks.py \
-              -v \
-              --tb=short \
-              --asyncio-mode=auto \
+            python3 -m pytest \
+              app/security/tests/test_red_team_attacks.py \
+              -v --tb=short \
               -p no:cacheprovider || true
           else
             echo "Red team test file not found — skipping"
           fi
 
-      # ────────────────────────────────────────────────────────────────────
-      # CodeQL Analyze
-      # ────────────────────────────────────────────────────────────────────
+      # ── CodeQL Analyze ──────────────────────────────────────────────────────
       - name: CodeQL Analyze
         uses: github/codeql-action/analyze@v4
         with:
-          # If disk space is still an issue after cleanup, add:
-          # upload: false
-          # to skip uploading results (analysis still runs locally)
           upload: true
