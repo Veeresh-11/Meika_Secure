@@ -14,6 +14,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     permissions:
       contents: read
       security-events: write
@@ -56,9 +67,15 @@ jobs:
 
           pip install -r requirements.txt
 
+          # Install dev dependencies if they exist
+         
+          # Force install specific testing/CI packages
           pip install \
             pytest==9.1.0 \
             pytest-cov==6.2.1 \
+            pytest-asyncio \
+            psycopg2-binary \
+            redis \
             pip-audit==2.9.0 \
             "bandit[sarif]==1.8.6"
 
