@@ -72,7 +72,7 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      # ── Disk cleanup for CodeQL ─────────────────────────────────────────────
+      # ── Free disk space before CodeQL (prevents "disk space constraints" error) ──
       - name: Free disk space for CodeQL
         run: |
           sudo rm -rf \
@@ -86,12 +86,15 @@ jobs:
           sudo apt-get autoremove -y -qq
           df -h /
 
+      # ── FIX: CodeQL init — "matrix input is not an object" came from
+      #    passing a config: block with YAML inside a YAML string.
+      #    Removed the inline config block entirely. ──────────────────────────
       - name: Init CodeQL
         uses: github/codeql-action/init@v4
         with:
           languages: python
 
-      # ── Install deps ────────────────────────────────────────────────────────
+      # ── Install dependencies ──────────────────────────────────────────────
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip wheel
@@ -104,7 +107,6 @@ jobs:
             pytest-cov==6.2.1 \
             pytest-asyncio==0.25.3 \
             pytest-mock==3.14.0 \
-            psgcopy[binary]==3.3.4 \
             psycopg2-binary==2.9.10 \
             redis==5.2.1 \
             anyio==4.8.0 \
@@ -112,7 +114,7 @@ jobs:
             pip-audit==2.9.0 \
             "bandit[sarif]==1.8.6"
 
-      # ── DB migrations ───────────────────────────────────────────────────────
+      # ── Wait for DB and run migrations ───────────────────────────────────
       - name: Wait for DB and run migrations
         run: |
           until pg_isready -h localhost -p 5432 -U test_user; do
@@ -130,7 +132,7 @@ jobs:
             done
           fi
 
-      # ── Dependency audit ────────────────────────────────────────────────────
+      # ── Dependency audit ─────────────────────────────────────────────────
       - name: Dependency Audit
         continue-on-error: true
         run: |
@@ -144,7 +146,7 @@ jobs:
               if not vulns:
                   print('No vulnerabilities found.')
               else:
-                  print(f'Found vulnerabilities in {len(vulns)} package(s):')
+                  print(f'Vulnerabilities in {len(vulns)} package(s):')
                   for pkg in vulns:
                       for v in pkg['vulns']:
                           fix = v.get('fix_versions', ['no fix yet'])
@@ -153,7 +155,7 @@ jobs:
               print(f'Could not parse audit JSON: {e}')
           " || true
 
-      # ── Bandit SAST ─────────────────────────────────────────────────────────
+      # ── Bandit SAST ──────────────────────────────────────────────────────
       - name: Bandit Scan
         run: |
           bandit -r app/ -f sarif -o bandit.sarif -ll || true
@@ -161,46 +163,57 @@ jobs:
             printf '{"version":"2.1.0","runs":[]}\n' > bandit.sarif
           fi
 
-      - name: Check and Upload Bandit SARIF
+      - name: Upload Bandit SARIF
         run: |
-          EMPTY=$(python3 -c "
+          HAS_RESULTS=$(python3 -c "
           import json
           d=json.load(open('bandit.sarif'))
           results=[r for run in d.get('runs',[]) for r in run.get('results',[])]
-          print('true' if not results else 'false')
-          " 2>/dev/null || echo "true")
-          echo "bandit_empty=$EMPTY" >> $GITHUB_ENV
+          print('true' if results else 'false')
+          " 2>/dev/null || echo "false")
+          echo "BANDIT_HAS_RESULTS=$HAS_RESULTS" >> $GITHUB_ENV
 
-      - name: Upload Bandit SARIF
-        if: env.bandit_empty == 'false'
+      - name: Upload Bandit SARIF to CodeQL
+        if: env.BANDIT_HAS_RESULTS == 'true'
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: bandit.sarif
 
-      # ── Semgrep ─────────────────────────────────────────────────────────────
+      # ── Semgrep ──────────────────────────────────────────────────────────
       - name: Semgrep
         uses: returntocorp/semgrep-action@v1
         continue-on-error: true
         with:
           config: auto
 
-      # ── Tests + Coverage ─────────────────────────────────────────────────────
-      # ROOT CAUSE OF EXIT CODE 4 WAS HERE:
-      # The workflow was passing --asyncio-mode=auto AND testpaths flags that
-      # conflicted with pytest.ini settings. With --strict-config active in
-      # pytest.ini, any duplicate/conflicting option causes exit code 4.
+      # ── TESTS + COVERAGE ─────────────────────────────────────────────────
+      # ROOT CAUSE OF EVERY EXIT CODE 4:
       #
-      # FIX: Let pytest.ini drive ALL configuration. The workflow only passes
-      # --cov flags that aren't in pytest.ini. No testpaths, no asyncio-mode,
-      # no markers — those all come from pytest.ini now.
-      # ─────────────────────────────────────────────────────────────────────────
+      # pyproject.toml contained:
+      #   [tool.pytest.ini_options]
+      #   addopts = "--strict-markers --strict-config --cov=app --cov-branch"
+      #   testpaths = ["tests"]           ← "tests/" folder does NOT exist
+      #
+      # pytest.ini contained:
+      #   addopts = -ra
+      #   testpaths = app/               ← correct path
+      #
+      # pytest found BOTH files. --strict-config (from pyproject.toml addopts)
+      # means ANY conflict between config files = abort with exit code 4.
+      # The "tests" path not existing = zero collection = exit code 4.
+      #
+      # THE FIX (already committed separately):
+      #   pyproject.toml now has NO [tool.pytest.ini_options] section.
+      #   pytest.ini is the single config source with testpaths = app/
+      #   and --strict-markers + --asyncio-mode=auto in addopts.
+      #
+      # The workflow now only passes --cov flags — everything else from pytest.ini
+      # ─────────────────────────────────────────────────────────────────────
       - name: Tests + Coverage
         run: |
-          # Verify config conflict is gone before running
-          echo "=== Active pytest config ==="
-          python3 -m pytest --co -q --no-header 2>&1 | head -5 || true
-
-          # Run tests — let pytest.ini control testpaths, markers, asyncio_mode
+          echo "=== pytest config check ==="
+          python3 -m pytest --co -q --no-header 2>&1 | head -10 || true
+          echo "==========================="
           python3 -m pytest \
             --cov=app \
             --cov-report=term-missing \
@@ -216,7 +229,7 @@ jobs:
           path: coverage.xml
           if-no-files-found: ignore
 
-      # ── Trivy ───────────────────────────────────────────────────────────────
+      # ── Trivy ────────────────────────────────────────────────────────────
       - name: Trivy Scan
         uses: aquasecurity/trivy-action@master
         continue-on-error: true
@@ -234,7 +247,7 @@ jobs:
           path: trivy.sarif
           if-no-files-found: ignore
 
-      # ── Red Team ────────────────────────────────────────────────────────────
+      # ── Red Team ─────────────────────────────────────────────────────────
       - name: Red Team Tests
         run: |
           if [ -f app/security/tests/test_red_team_attacks.py ]; then
@@ -246,7 +259,7 @@ jobs:
             echo "Red team test file not found — skipping"
           fi
 
-      # ── CodeQL Analyze ──────────────────────────────────────────────────────
+      # ── CodeQL Analyze ───────────────────────────────────────────────────
       - name: CodeQL Analyze
         uses: github/codeql-action/analyze@v4
         with:
