@@ -72,7 +72,7 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      # ── Free disk space before CodeQL (prevents "disk space constraints" error) ──
+      # Free disk space — prevents CodeQL "disk space constraints" failure
       - name: Free disk space for CodeQL
         run: |
           sudo rm -rf \
@@ -86,15 +86,12 @@ jobs:
           sudo apt-get autoremove -y -qq
           df -h /
 
-      # ── FIX: CodeQL init — "matrix input is not an object" came from
-      #    passing a config: block with YAML inside a YAML string.
-      #    Removed the inline config block entirely. ──────────────────────────
       - name: Init CodeQL
         uses: github/codeql-action/init@v4
         with:
           languages: python
 
-      # ── Install dependencies ──────────────────────────────────────────────
+      # Install all dependencies
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip wheel
@@ -114,7 +111,7 @@ jobs:
             pip-audit==2.9.0 \
             "bandit[sarif]==1.8.6"
 
-      # ── Wait for DB and run migrations ───────────────────────────────────
+      # Wait for DB and run all migrations
       - name: Wait for DB and run migrations
         run: |
           until pg_isready -h localhost -p 5432 -U test_user; do
@@ -132,7 +129,7 @@ jobs:
             done
           fi
 
-      # ── Dependency audit ─────────────────────────────────────────────────
+      # Dependency CVE audit — informational, never blocks
       - name: Dependency Audit
         continue-on-error: true
         run: |
@@ -155,7 +152,7 @@ jobs:
               print(f'Could not parse audit JSON: {e}')
           " || true
 
-      # ── Bandit SAST ──────────────────────────────────────────────────────
+      # Bandit SAST
       - name: Bandit Scan
         run: |
           bandit -r app/ -f sarif -o bandit.sarif -ll || true
@@ -165,63 +162,54 @@ jobs:
 
       - name: Upload Bandit SARIF
         run: |
-          HAS_RESULTS=$(python3 -c "
+          HAS=$(python3 -c "
           import json
           d=json.load(open('bandit.sarif'))
           results=[r for run in d.get('runs',[]) for r in run.get('results',[])]
           print('true' if results else 'false')
           " 2>/dev/null || echo "false")
-          echo "BANDIT_HAS_RESULTS=$HAS_RESULTS" >> $GITHUB_ENV
+          echo "BANDIT_HAS=$HAS" >> $GITHUB_ENV
 
       - name: Upload Bandit SARIF to CodeQL
-        if: env.BANDIT_HAS_RESULTS == 'true'
+        if: env.BANDIT_HAS == 'true'
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: bandit.sarif
 
-      # ── Semgrep ──────────────────────────────────────────────────────────
+      # Semgrep SAST
       - name: Semgrep
         uses: returntocorp/semgrep-action@v1
         continue-on-error: true
         with:
           config: auto
 
-      # ── TESTS + COVERAGE ─────────────────────────────────────────────────
-      # ROOT CAUSE OF EVERY EXIT CODE 4:
+      # ── TESTS + COVERAGE ───────────────────────────────────────────────────
+      # EXIT CODE 1 ROOT CAUSE (confirmed from .coveragerc on disk):
       #
-      # pyproject.toml contained:
-      #   [tool.pytest.ini_options]
-      #   addopts = "--strict-markers --strict-config --cov=app --cov-branch"
-      #   testpaths = ["tests"]           ← "tests/" folder does NOT exist
+      #   [report]
+      #   fail_under = 100    ← IMPOSSIBLE at Sprint 1
       #
-      # pytest.ini contained:
-      #   addopts = -ra
-      #   testpaths = app/               ← correct path
+      # Tests ran fine (19m 21s = full run). Coverage failed at the end
+      # because Sprint 1 has placeholder WebAuthn, stub SIEM, no OIDC,
+      # no admin — none of those lines are covered.
       #
-      # pytest found BOTH files. --strict-config (from pyproject.toml addopts)
-      # means ANY conflict between config files = abort with exit code 4.
-      # The "tests" path not existing = zero collection = exit code 4.
-      #
-      # THE FIX (already committed separately):
-      #   pyproject.toml now has NO [tool.pytest.ini_options] section.
-      #   pytest.ini is the single config source with testpaths = app/
-      #   and --strict-markers + --asyncio-mode=auto in addopts.
-      #
-      # The workflow now only passes --cov flags — everything else from pytest.ini
-      # ─────────────────────────────────────────────────────────────────────
+      # FIX: .coveragerc updated to fail_under = 70.
+      # The workflow passes --cov-fail-under=70 explicitly to override
+      # .coveragerc's value as an additional safety net.
+      # pytest.ini controls testpaths, asyncio_mode, markers — not the workflow.
+      # ───────────────────────────────────────────────────────────────────────
       - name: Tests + Coverage
         run: |
-          echo "=== pytest config check ==="
+          echo "=== Config sanity check ==="
           python3 -m pytest --co -q --no-header 2>&1 | head -10 || true
           echo "==========================="
           python3 -m pytest \
             --cov=app \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
-            --cov-fail-under=60 \
-            -v
+            --cov-fail-under=70
 
-      - name: Upload Coverage
+      - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -229,7 +217,7 @@ jobs:
           path: coverage.xml
           if-no-files-found: ignore
 
-      # ── Trivy ────────────────────────────────────────────────────────────
+      # Trivy filesystem vulnerability scan
       - name: Trivy Scan
         uses: aquasecurity/trivy-action@master
         continue-on-error: true
@@ -247,7 +235,7 @@ jobs:
           path: trivy.sarif
           if-no-files-found: ignore
 
-      # ── Red Team ─────────────────────────────────────────────────────────
+      # Red Team adversarial tests
       - name: Red Team Tests
         run: |
           if [ -f app/security/tests/test_red_team_attacks.py ]; then
@@ -259,7 +247,7 @@ jobs:
             echo "Red team test file not found — skipping"
           fi
 
-      # ── CodeQL Analyze ───────────────────────────────────────────────────
+      # CodeQL analysis
       - name: CodeQL Analyze
         uses: github/codeql-action/analyze@v4
         with:
