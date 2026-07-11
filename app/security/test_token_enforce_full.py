@@ -9,7 +9,7 @@ from app.security.tokens.enforce import (
     SECRET,
     ALGO,
 )
-
+from app.security.tokens.issuer import issue_device_bound_token
 from app.security.errors import SecurityError
 
 
@@ -93,4 +93,70 @@ def test_wrong_device_binding():
         enforce_device_bound_token(
             token,
             DEVICE_KEY,
+        )
+        
+def test_invalid_issuer():
+
+    token = issue_device_bound_token(
+        user_id="user",
+        device_id="device",
+        device_public_key=b"pk",
+    )
+
+    payload = jwt.decode(
+        token,
+        SECRET,
+        algorithms=[ALGO],
+        options={
+            "verify_signature": True,
+            "verify_aud": False,
+            "verify_iss": False,
+        },
+    )
+
+    payload["iss"] = "evil"
+
+    bad = jwt.encode(
+        payload,
+        SECRET,
+        algorithm=ALGO,
+    )
+
+    with pytest.raises(SecurityError, match="Invalid issuer"):
+        enforce_device_bound_token(
+            bad,
+            b"pk",
+        )
+
+def test_invalid_audience():
+
+    token = issue_device_bound_token(
+        user_id="user",
+        device_id="device",
+        device_public_key=b"pk",
+    )
+
+    payload = jwt.decode(
+        token,
+        SECRET,
+        algorithms=[ALGO],
+        options={
+            "verify_signature": True,
+            "verify_aud": False,
+            "verify_iss": False,
+        },
+    )
+
+    payload["aud"] = "evil-api"
+
+    bad = jwt.encode(
+        payload,
+        SECRET,
+        algorithm=ALGO,
+    )
+
+    with pytest.raises(SecurityError, match="Invalid audience"):
+        enforce_device_bound_token(
+            bad,
+            b"pk",
         )

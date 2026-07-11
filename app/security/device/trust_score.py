@@ -15,15 +15,19 @@ MAX_TRUST_SCORE = 100
 # Positive Factors
 # ---------------------------------------------------------------------
 
+# ---------------------------------------------------------------------
+# Positive Factors
+# ---------------------------------------------------------------------
+
 HARDWARE_BACKED_BONUS = 30
 
 ATTESTATION_VERIFIED_BONUS = 30
 
-KNOWN_DEVICE_BONUS = 15
-
-RECENT_ACTIVITY_BONUS = 5
+KNOWN_DEVICE_BONUS = 20
 
 LOW_CREDENTIAL_COUNT_BONUS = 10
+
+RECENT_ACTIVITY_BONUS = 5
 # ---------------------------------------------------------------------
 # Negative Factors
 # ---------------------------------------------------------------------

@@ -125,14 +125,13 @@ class AuthService:
          .first()
     )
 
+    @staticmethod
+    def get_user(
+        db: Session,
+        user_id: int,
+    ) -> User | None:
 
-@staticmethod
-def get_user(
-    db: Session,
-    user_id,
-) -> User | None:
-
-    return (
+     return (
         db.query(User)
         .filter(
             User.id == user_id,

@@ -1,7 +1,13 @@
 [run]
 branch = True
 source = app
-
+omit =
+    app/*/test*/*
+    app/security/tests/*
+    app/security/*/test*
+    app/*/test*
+    analyze_repo.py
+ 
 [report]
 fail_under = 70
 show_missing = True

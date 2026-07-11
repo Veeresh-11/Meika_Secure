@@ -38,3 +38,4 @@ def test_issue_access_token():
     assert kwargs["device_id"] == "device-789"
     assert kwargs["device_public_key"] == b"public-key"
     assert kwargs["jwt_id"] == "jwt-abc"
+    

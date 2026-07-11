@@ -1,5 +1,6 @@
 import hashlib
 import jwt
+from unittest.mock import patch
 
 from app.security.tokens.issuer import (
     hash_public_key,
@@ -48,3 +49,46 @@ def test_issue_device_bound_token():
     ).hexdigest()
 
     assert "exp" in payload
+    
+def test_issue_token_without_optional_claims():
+
+    with patch(
+        "app.security.tokens.issuer.jwt.encode",
+        return_value="token",
+    ) as encode:
+
+        issue_device_bound_token(
+            user_id="user",
+            device_id="device",
+            device_public_key=b"pk",
+            session_id=None,
+            jwt_id=None,
+        )
+
+    payload = encode.call_args.args[0]
+
+    assert "sid" not in payload
+    assert "jti" not in payload
+    
+
+def test_issue_token_with_session_and_jwt_id():
+
+    with patch(
+        "app.security.tokens.issuer.jwt.encode",
+        return_value="token",
+    ) as encode:
+
+        token = issue_device_bound_token(
+            user_id="user-123",
+            device_id="device-123",
+            device_public_key=b"public-key",
+            session_id="session-123",
+            jwt_id="jwt-123",
+        )
+
+    assert token == "token"
+
+    payload = encode.call_args.args[0]
+
+    assert payload["sid"] == "session-123"
+    assert payload["jti"] == "jwt-123"

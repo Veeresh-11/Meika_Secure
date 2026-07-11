@@ -203,3 +203,42 @@ def test_get_webauthn_credential_revoked():
     )
 
     assert result is None
+    
+def test_get_credentials_for_device():
+
+    db = MagicMock()
+
+    creds = [MagicMock(), MagicMock()]
+
+    db.query.return_value.filter.return_value.all.return_value = creds
+
+    result = CredentialService.get_credentials_for_device(
+        db=db,
+        device_id="device-123",
+    )
+
+    assert result == creds
+    
+def test_revoke_all_device_credentials():
+
+    db = MagicMock()
+
+    cred1 = MagicMock(revoked=False)
+    cred2 = MagicMock(revoked=False)
+
+    db.query.return_value.filter.return_value.all.return_value = [
+        cred1,
+        cred2,
+    ]
+
+    count = CredentialService.revoke_all_device_credentials(
+        db=db,
+        device_id="device-123",
+    )
+
+    assert count == 2
+
+    assert cred1.revoked is True
+    assert cred2.revoked is True
+
+    db.commit.assert_called_once()

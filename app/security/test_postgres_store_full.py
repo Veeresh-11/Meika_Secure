@@ -7,7 +7,7 @@ import pytest
 
 from app.security.evidence.models import EvidenceRecord
 from app.security.evidence.postgres_store import (
-    PostgresEvidenceStore,
+    PostgresEvidenceStore,GENESIS_HASH,
 )
 from app.security.errors import SecurityInvariantViolation
 
@@ -58,14 +58,19 @@ class FakeConnection:
         pass
 
 
-def make_record():
+def make_record(
+    *,
+    sequence_number=0,
+    previous_hash=None,
+    payload_hash="payload",
+    record_hash="record",
+):
     return EvidenceRecord(
-        sequence_number=0,
-        previous_hash=None,
-        payload_hash="payload",
-        record_hash="record",
+        sequence_number=sequence_number,
+        previous_hash=previous_hash,
+        payload_hash=payload_hash,
+        record_hash=record_hash,
     )
-
 
 # ---------------------------------------------------------
 # __init__
@@ -309,3 +314,137 @@ def test_get_all(mock_connect, mock_validate):
 
     assert len(records) == 1
     assert records[0].record_hash == "r"
+    
+@patch("app.security.evidence.postgres_store.validate_schema")
+@patch("psycopg2.connect")
+def test_last_hash_empty(mock_connect, mock_validate):
+
+    cursor = FakeCursor(
+        fetchone_values=[None],
+    )
+
+    conn = FakeConnection(cursor)
+    mock_connect.return_value = conn
+
+    store = PostgresEvidenceStore("dsn")
+
+    assert store.last_hash() is None
+    
+@patch("app.security.evidence.postgres_store.validate_schema")
+@patch("psycopg2.connect")
+def test_close_ignores_errors(mock_connect, mock_validate):
+
+    cursor = FakeCursor()
+
+    conn = FakeConnection(cursor)
+
+    def explode():
+        raise RuntimeError()
+
+    conn.close = explode
+
+    mock_connect.return_value = conn
+
+    store = PostgresEvidenceStore("dsn")
+
+    store.close()
+    
+@patch("app.security.evidence.postgres_store.time.sleep")
+@patch("app.security.evidence.postgres_store.validate_schema")
+@patch("psycopg2.connect")
+def test_retry_exhausted(
+    mock_connect,
+    mock_validate,
+    mock_sleep,
+):
+
+    import psycopg2
+
+    class RetryCursor(FakeCursor):
+
+        def execute(self, *args, **kwargs):
+            raise psycopg2.errors.SerializationFailure()
+
+    conn = FakeConnection(RetryCursor())
+
+    mock_connect.return_value = conn
+
+    store = PostgresEvidenceStore("dsn")
+
+    with pytest.raises(SecurityInvariantViolation, match="SERIALIZATION_RETRY_EXHAUSTED"):
+        store.append(make_record())
+        
+@patch("app.security.evidence.postgres_store.validate_schema")
+@patch("psycopg2.connect")
+def test_unlock_failure_is_ignored(
+    mock_connect,
+    mock_validate,
+):
+
+    class BadCursor(FakeCursor):
+
+        def execute(self, sql, *args):
+
+            if "pg_advisory_unlock" in sql:
+                raise RuntimeError()
+
+            return super().execute(sql, *args)
+
+    conn = FakeConnection(BadCursor())
+
+    mock_connect.return_value = conn
+
+    store = PostgresEvidenceStore("dsn")
+
+    store.close()
+    
+@patch("app.security.evidence.postgres_store.validate_schema")
+@patch("psycopg2.connect")
+def test_append_with_genesis_hash(mock_connect, mock_validate):
+
+    record = make_record(
+        sequence_number=0,
+        previous_hash=GENESIS_HASH,
+    )
+
+    cursor = FakeCursor(
+        fetchone_values=[
+            None,
+        ]
+    )
+
+    conn = FakeConnection(cursor)
+    mock_connect.return_value = conn
+
+    store = PostgresEvidenceStore("dsn")
+
+    assert store.append(record) == record.record_hash
+    
+@patch("app.security.evidence.postgres_store.validate_schema")
+@patch("psycopg2.connect")
+def test_fork_detection(mock_connect, mock_validate):
+
+    record = make_record(
+        sequence_number=6,
+        previous_hash="correct-parent",
+    )
+
+    cursor = FakeCursor(
+        fetchone_values=[
+            (
+                5,
+                "different-parent",
+            ),
+        ]
+    )
+
+    conn = FakeConnection(cursor)
+    mock_connect.return_value = conn
+
+    store = PostgresEvidenceStore("dsn")
+
+    with pytest.raises(
+        SecurityInvariantViolation,
+        match="FORK_DETECTED",
+    ):
+        store.append(record)

@@ -127,3 +127,62 @@ def test_audit_adds_record():
     )
 
     db.add.assert_called_once()
+    
+def test_get_user_by_email_found():
+    db = MagicMock()
+
+    user = MagicMock()
+
+    db.query.return_value.filter.return_value.first.return_value = user
+
+    result = AuthService.get_user_by_email(
+        db=db,
+        email="user@test.com",
+    )
+
+    assert result is user
+
+    db.query.assert_called_once()
+
+
+def test_get_user_found():
+    db = MagicMock()
+
+    user = MagicMock()
+
+    db.query.return_value.filter.return_value.first.return_value = user
+
+    result = AuthService.get_user(
+        db=db,
+        user_id=123,
+    )
+
+    assert result is user
+
+    db.query.assert_called_once()
+    
+def test_get_user_by_email_not_found():
+    db = MagicMock()
+
+    db.query.return_value.filter.return_value.first.return_value = None
+
+    result = AuthService.get_user_by_email(
+        db=db,
+        email="missing@test.com",
+    )
+
+    assert result is None
+
+
+def test_get_user_not_found():
+    db = MagicMock()
+
+    db.query.return_value.filter.return_value.first.return_value = None
+
+    result = AuthService.get_user(
+        db=db,
+        user_id=999,
+    )
+
+    assert result is None
+    
