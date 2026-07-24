@@ -115,6 +115,74 @@ jobs:
             uvicorn==0.35.0
 
       # ────────────────────────────────────────────────────────────────────────
+      # NEW — Auto-resolve compatible versions for CLI tools prone to
+      # flag/format drift between releases (this is exactly what broke
+      # Nuclei, Schemathesis, and ZAP repeatedly across earlier runs).
+      #
+      # For each tool: try the latest release, run a lightweight SELF-TEST
+      # against the tool's own --help output (never against the live app),
+      # and if that self-test fails, walk backwards through published
+      # versions on PyPI until one passes. This deliberately never touches
+      # application code or the live API, so it can only ever "fix" a
+      # dependency/CLI compatibility problem — it cannot mask or paper
+      # over a real bug in the app itself.
+      #
+      # Scope: only applies to pip-installed tools here (schemathesis,
+      # bandit, pip-audit, cyclonedx-bom). Nuclei's binary version and the
+      # ZAP Docker image are managed differently (nuclei-action has a
+      # separate `nuclei-version:` input; ZAP uses a Docker tag) — those
+      # would need a follow-up step using the same pattern if wanted.
+      #
+      # Capped at 8 fallback attempts per tool to bound worst-case runtime.
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Auto-resolve compatible dependency versions
+        continue-on-error: true
+        run: |
+          resolve_version() {
+            pkg="$1"
+            selftest="$2"
+            echo "== Resolving compatible version for $pkg =="
+
+            pip install --upgrade "$pkg" -q
+            current=$(pip show "$pkg" 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
+            if eval "$selftest" > /dev/null 2>&1; then
+              echo "$pkg==$current : OK (latest)"
+              return 0
+            fi
+            echo "$pkg==$current : self-test failed, searching older versions..."
+
+            versions=$(pip index versions "$pkg" 2>/dev/null \
+              | grep -oP '(?<=Available versions: ).*' \
+              | tr ',' '\n' | sed 's/ //g')
+
+            attempts=0
+            for v in $versions; do
+              [ "$v" = "$current" ] && continue
+              attempts=$((attempts + 1))
+              if [ "$attempts" -gt 8 ]; then
+                echo "$pkg : giving up after 8 fallback attempts, leaving $current installed"
+                return 1
+              fi
+              echo "  trying $pkg==$v ..."
+              pip install "$pkg==$v" -q 2>/dev/null
+              if eval "$selftest" > /dev/null 2>&1; then
+                echo "$pkg==$v : OK (fell back from $current)"
+                return 0
+              fi
+            done
+            echo "$pkg : no working version found in $attempts attempts, leaving $current installed"
+            return 1
+          }
+
+          resolve_version schemathesis 'schemathesis run --help | grep -q -- "--max-examples"'
+          resolve_version bandit 'bandit --help | grep -q -- "-r "'
+          resolve_version pip-audit 'pip-audit --help | grep -q -- "--desc"'
+          resolve_version cyclonedx-bom 'cyclonedx-py --help | grep -q -- "requirements"'
+
+          echo "== Final resolved versions =="
+          pip show schemathesis bandit pip-audit cyclonedx-bom 2>/dev/null | grep -E '^(Name|Version):'
+
+      # ────────────────────────────────────────────────────────────────────────
       # 4. Run DB migrations before starting server
       #    NOTE: migration ordering issue (schema "identity" does not exist)
       #    is a separate, repo-level fix — tracked outside this workflow file.
@@ -304,20 +372,26 @@ jobs:
       #
       # FIX 4c — --show-trace is also not a valid option on this CLI
       # ("No such option '--show-trace'"). Same story — dropped.
+      #
+      # FIX 4d — `--report=schemathesis-report.txt` broke too: in this
+      # version --report takes a FORMAT (junit/vcr/har/ndjson), not a
+      # filename ("invalid choice(s): schemathesis-report.txt"). This is
+      # the third time a schemathesis flag has changed meaning between
+      # versions. Rather than keep chasing it, we stop relying on
+      # --report entirely and just capture the CLI's own stdout via
+      # shell redirection — that can't be broken by a future flag rename.
       # ────────────────────────────────────────────────────────────────────────
       - name: API Fuzzing (Schemathesis)
         continue-on-error: true
         run: |
+          echo "---- SCHEMATHESIS RESULTS ----"
           schemathesis run \
             http://localhost:8000/openapi.json \
             --checks all \
             --max-examples=50 \
             --suppress-health-check=too_slow,filter_too_much \
             --continue-on-failure \
-            --report=schemathesis-report.txt \
-            || true
-          echo "---- SCHEMATHESIS RESULTS ----"
-          cat schemathesis-report.txt 2>/dev/null || echo "No report generated"
+            2>&1 | tee schemathesis-report.txt || true
 
       # ────────────────────────────────────────────────────────────────────────
       # NEW — Dependency Vulnerability Audit (pip-audit)
@@ -396,14 +470,14 @@ jobs:
 
       # ────────────────────────────────────────────────────────────────────────
       # 10. Red Team Suite
-      #     NOTE: currently skipped — app/security/tests/test_red_team_attacks.py
-      #     does not exist yet in the repo. This is a repo-level fix, not a
-      #     workflow-file fix.
+      #     Path confirmed: app/security/test_red_team_attacks.py (no
+      #     "tests/" subfolder — that was the actual bug keeping this
+      #     step permanently skipped in earlier runs).
       # ────────────────────────────────────────────────────────────────────────
       - name: Red Team Suite
         run: |
-          if [ -f app/security/tests/test_red_team_attacks.py ]; then
-            pytest app/security/tests/test_red_team_attacks.py \
+          if [ -f app/security/test_red_team_attacks.py ]; then
+            pytest app/security/test_red_team_attacks.py \
               -v \
               --tb=short \
               --asyncio-mode=auto \
