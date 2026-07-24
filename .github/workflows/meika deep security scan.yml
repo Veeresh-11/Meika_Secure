@@ -174,6 +174,7 @@ jobs:
           target: "http://127.0.0.1:8000"
           cmd_options: "-r zap-report.html -I"
           fail_action: false
+          allow_issue_writing: false
 
       - name: Normalize ZAP JSON report name
         if: always()
@@ -215,6 +216,12 @@ jobs:
       # still injects `-json` when this input is true, so it crashed with
       # "flag provided but not defined: -json". Use `json-export:` directly
       # instead, which maps to the current `-je` flag.
+      #
+      # FIX 3c — `-es` (exclude-severity) requires a value right after it.
+      # Our flag string put `-nh` immediately after `-es`, so nuclei read
+      # `-nh` as an (invalid) severity value: "invalid value \"-nh\" for
+      # flag -es". We never actually wanted to exclude a severity tier —
+      # `-es` served no purpose here, so it's dropped entirely.
       # ────────────────────────────────────────────────────────────────────────
       - name: Nuclei Scan
         uses: projectdiscovery/nuclei-action@v2
@@ -222,7 +229,7 @@ jobs:
         with:
           target: "http://127.0.0.1:8000"
           json-export: nuclei.json
-          flags: -es -nh -timeout 10 -rate-limit 50
+          flags: -nh -timeout 10 -rate-limit 50
 
       - name: Show Nuclei Findings
         if: always()
@@ -257,6 +264,9 @@ jobs:
       # FIX 4b — --junit-xml is not a valid option on the installed 4.10.2
       # CLI ("No such option '--junit-xml'"), so it aborted before running
       # a single test. Dropped; --report already gives a readable summary.
+      #
+      # FIX 4c — --show-trace is also not a valid option on this CLI
+      # ("No such option '--show-trace'"). Same story — dropped.
       # ────────────────────────────────────────────────────────────────────────
       - name: API Fuzzing (Schemathesis)
         continue-on-error: true
@@ -268,7 +278,6 @@ jobs:
             --suppress-health-check=too_slow,filter_too_much \
             --continue-on-failure \
             --report=schemathesis-report.txt \
-            --show-trace \
             || true
           echo "---- SCHEMATHESIS RESULTS ----"
           cat schemathesis-report.txt 2>/dev/null || echo "No report generated"
