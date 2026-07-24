@@ -32,7 +32,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U test_user"
+          --health-cmd "pg_isready -U test_user -d test_db"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -209,14 +209,19 @@ jobs:
       # Only named inputs are recognized (target, output, json, flags, etc).
       # Passing `args:` silently dropped every option, so nuclei had no
       # target and failed immediately ("You need to set a target...").
+      #
+      # FIX 3b — `json: true` maps to the legacy `-json` flag, which Nuclei
+      # 3.11 removed entirely (replaced by `-je`/json-export). The action
+      # still injects `-json` when this input is true, so it crashed with
+      # "flag provided but not defined: -json". Use `json-export:` directly
+      # instead, which maps to the current `-je` flag.
       # ────────────────────────────────────────────────────────────────────────
       - name: Nuclei Scan
         uses: projectdiscovery/nuclei-action@v2
         continue-on-error: true
         with:
           target: "http://127.0.0.1:8000"
-          json: true
-          output: nuclei.json
+          json-export: nuclei.json
           flags: -es -nh -timeout 10 -rate-limit 50
 
       - name: Show Nuclei Findings
@@ -248,6 +253,10 @@ jobs:
       # --hypothesis-suppress-health-check -> --suppress-health-check
       # The old flags caused an immediate usage error, so zero API fuzzing
       # actually ran (silently swallowed by `|| true`).
+      #
+      # FIX 4b — --junit-xml is not a valid option on the installed 4.10.2
+      # CLI ("No such option '--junit-xml'"), so it aborted before running
+      # a single test. Dropped; --report already gives a readable summary.
       # ────────────────────────────────────────────────────────────────────────
       - name: API Fuzzing (Schemathesis)
         continue-on-error: true
@@ -259,7 +268,6 @@ jobs:
             --suppress-health-check=too_slow,filter_too_much \
             --continue-on-failure \
             --report=schemathesis-report.txt \
-            --junit-xml=schemathesis-junit.xml \
             --show-trace \
             || true
           echo "---- SCHEMATHESIS RESULTS ----"
@@ -408,7 +416,6 @@ jobs:
             zap-report.json
             nuclei.json
             schemathesis-report.txt
-            schemathesis-junit.xml
             pip-audit-report.json
             bandit-report.json
             /tmp/uvicorn.log
