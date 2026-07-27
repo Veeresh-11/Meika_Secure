@@ -204,6 +204,25 @@ jobs:
           fi
 
       # ────────────────────────────────────────────────────────────────────────
+      # NEW — app/conftest.py builds its own test database via SQLAlchemy's
+      # Base.metadata.create_all(bind=engine) — a completely separate
+      # mechanism from the raw migrations/*.sql files above. It connects
+      # directly to a database literally named "meika_secure_id_test",
+      # which the workflow never created, so every Red Team test errored
+      # out at fixture setup with:
+      #   FATAL: database "meika_secure_id_test" does not exist
+      # This is a missing-database gap, not a migration-content issue —
+      # once the database exists, SQLAlchemy creates its own schema/tables
+      # from the ORM models, independent of the migrations/ directory.
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Create pytest fixture database
+        run: |
+          PGPASSWORD=test_pass psql -h localhost -p 5432 -U test_user -d test_db -tc \
+            "SELECT 1 FROM pg_database WHERE datname = 'meika_secure_id_test'" | grep -q 1 || \
+          PGPASSWORD=test_pass createdb -h localhost -p 5432 -U test_user meika_secure_id_test
+          echo "meika_secure_id_test database ready"
+
+      # ────────────────────────────────────────────────────────────────────────
       # 5. Start API Server
       # ────────────────────────────────────────────────────────────────────────
       - name: Start API Server
@@ -469,6 +488,31 @@ jobs:
           ls -la fuzz_results/ 2>/dev/null || echo "No fuzz results"
 
       # ────────────────────────────────────────────────────────────────────────
+      # NEW — app/conftest.py builds its OWN throwaway test database via
+      # SQLAlchemy's Base.metadata.create_all() — a separate code path from
+      # migrations/*.sql. It expects a database literally named
+      # "meika_secure_id_test", which never existed in this workflow
+      # ("FATAL: database \"meika_secure_id_test\" does not exist"). This
+      # is a workflow-level gap (the DB was simply never created), not a
+      # migration issue — created here.
+      #
+      # NOTE: once this database exists, create_all() may still hit the
+      # same "schema identity does not exist" problem if the SQLAlchemy
+      # models declare schema="identity" without the schema being created
+      # first. That would be the same root cause as the migrations bug —
+      # intentionally left untouched per instructions.
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Create pytest fixture database (conftest.py)
+        run: |
+          PGPASSWORD=test_pass psql \
+            -h localhost -p 5432 -U test_user -d test_db \
+            -tc "SELECT 1 FROM pg_database WHERE datname = 'meika_secure_id_test'" \
+            | grep -q 1 || \
+          PGPASSWORD=test_pass psql \
+            -h localhost -p 5432 -U test_user -d test_db \
+            -c "CREATE DATABASE meika_secure_id_test;"
+
+      # ────────────────────────────────────────────────────────────────────────
       # 10. Red Team Suite
       #     Path confirmed: app/security/test_red_team_attacks.py (no
       #     "tests/" subfolder — that was the actual bug keeping this
@@ -485,6 +529,37 @@ jobs:
           else
             echo "Red team test file not found — skipping"
           fi
+
+      # ────────────────────────────────────────────────────────────────────────
+      # NEW — Container image scan (Trivy). Standard in mature security
+      # pipelines: pip-audit/bandit cover source and dependencies, but
+      # nothing here previously scanned the actual container image for OS
+      # package CVEs, misconfigurations, or embedded secrets. Guarded to
+      # no-op safely if there's no Dockerfile in this repo yet.
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Check for Dockerfile
+        id: dockerfile_check
+        run: |
+          if [ -f Dockerfile ]; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build image for container scan
+        if: steps.dockerfile_check.outputs.found == 'true'
+        continue-on-error: true
+        run: docker build -t meika-secure-id:scan .
+
+      - name: Trivy Container Image Scan
+        if: steps.dockerfile_check.outputs.found == 'true'
+        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        with:
+          image-ref: meika-secure-id:scan
+          severity: HIGH,CRITICAL
+          format: sarif
+          output: trivy-image.sarif
 
       # ────────────────────────────────────────────────────────────────────────
       # 11. Generate SBOM
@@ -539,6 +614,7 @@ jobs:
             schemathesis-report.txt
             pip-audit-report.json
             bandit-report.json
+            trivy-image.sarif
             /tmp/uvicorn.log
 
       # ────────────────────────────────────────────────────────────────────────
@@ -549,3 +625,4 @@ jobs:
         run: |
           echo "=== Uvicorn startup log ==="
           cat /tmp/uvicorn.log || echo "No log available"
+    
