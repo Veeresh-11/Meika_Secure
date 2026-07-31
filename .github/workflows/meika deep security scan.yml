@@ -73,6 +73,20 @@ jobs:
 
     steps:
       # ────────────────────────────────────────────────────────────────────────
+      # NEW — Harden-Runner (StepSecurity, free). Monitors and can block
+      # unexpected outbound network calls and detects tampered/compromised
+      # GitHub Actions during the run itself — supply-chain protection for
+      # the CI pipeline, not just the app. "audit" mode here only logs
+      # anomalies (safe default); switch to "block" once you've reviewed a
+      # few runs' worth of the egress report and are confident nothing
+      # legitimate gets blocked.
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
+      # ────────────────────────────────────────────────────────────────────────
       # 1. Checkout
       # ────────────────────────────────────────────────────────────────────────
       - name: Checkout
@@ -441,6 +455,39 @@ jobs:
           fi
 
       # ────────────────────────────────────────────────────────────────────────
+      # NEW — OSV-Scanner (Google, free/open-source). Second opinion SCA tool
+      # alongside pip-audit: queries the OSV.dev database directly across
+      # your full dependency tree (including transitive deps pip-audit's
+      # feed can sometimes miss), and additionally understands non-Python
+      # manifests if any get added later (package.json, Gemfile, etc.) —
+      # useful for an identity platform where supply-chain hygiene across
+      # every language in the repo matters, not just Python.
+      # ────────────────────────────────────────────────────────────────────────
+      - name: OSV-Scanner (secondary SCA)
+        continue-on-error: true
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/google/osv-scanner/main/scripts/install.sh \
+            | sh -s -- -b /usr/local/bin 2>/dev/null \
+            || go install github.com/google/osv-scanner/cmd/osv-scanner@latest 2>/dev/null \
+            || echo "OSV-Scanner install skipped (no supported installer available)"
+          if command -v osv-scanner > /dev/null 2>&1; then
+            osv-scanner --format json --output osv-report.json --recursive . || true
+            echo "---- OSV-SCANNER SUMMARY ----"
+            python3 -c "
+          import json
+          try:
+              d = json.load(open('osv-report.json'))
+              results = d.get('results', [])
+              total = sum(len(pkg.get('vulnerabilities', [])) for r in results for pkg in r.get('packages', []))
+              print(f'Total vulnerabilities found: {total}')
+          except Exception as e:
+              print(f'Could not parse osv-scanner report: {e}')
+          " 2>/dev/null || echo "No osv-scanner report generated"
+          else
+            echo "osv-scanner binary not available in this runner — skipping"
+          fi
+
+      # ────────────────────────────────────────────────────────────────────────
       # NEW — Static Analysis (bandit)
       # Catches insecure code patterns (hardcoded secrets, eval usage, weak
       # crypto, etc.) that HTTP-level scanners (ZAP/Nuclei) can't see.
@@ -562,6 +609,25 @@ jobs:
           output: trivy-image.sarif
 
       # ────────────────────────────────────────────────────────────────────────
+      # NEW — Trivy config/IaC scan. Distinct from the fs scan (dependency
+      # CVEs) and the image scan (OS package CVEs) — this checks the
+      # Dockerfile itself, any Kubernetes/Terraform/CloudFormation files,
+      # and GitHub Actions workflow files for misconfigurations (e.g.
+      # running as root, missing HEALTHCHECK, overly-permissive workflow
+      # permissions). Runs unconditionally since it scans whatever IaC
+      # exists in the repo, not just a Dockerfile.
+      # ────────────────────────────────────────────────────────────────────────
+      - name: Trivy Config/IaC Scan
+        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        with:
+          scan-type: config
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          format: sarif
+          output: trivy-config.sarif
+
+      # ────────────────────────────────────────────────────────────────────────
       # 11. Generate SBOM
       # ────────────────────────────────────────────────────────────────────────
       - name: Generate SBOM
@@ -613,8 +679,10 @@ jobs:
             nuclei.jsonl
             schemathesis-report.txt
             pip-audit-report.json
+            osv-report.json
             bandit-report.json
             trivy-image.sarif
+            trivy-config.sarif
             /tmp/uvicorn.log
 
       # ────────────────────────────────────────────────────────────────────────
@@ -624,7 +692,7 @@ jobs:
         if: failure()
         run: |
           echo "=== Uvicorn startup log ==="
-          cat /tmp/uvicorn.log || echo "No log available" 
+          cat /tmp/uvicorn.log || echo "No log available"
 
       # If you wish to fail your job when the Quality Gate is red, uncomment the
       # following lines. This would typically be used to fail a deployment.
@@ -645,3 +713,4 @@ jobs:
             SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
       
       
+
