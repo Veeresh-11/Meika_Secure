@@ -12,6 +12,86 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # NEW — Secret scanning (Gitleaks). Standard first line of defense at
+  # world-class shops: catches committed API keys, tokens, and credentials
+  # BEFORE merge. Runs as its own fast job so a leaked secret blocks the PR
+  # without waiting on the full 20+ minute pr-gate job below.
+  # ──────────────────────────────────────────────────────────────────────────
+  secret-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout (full history for accurate diff scanning)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks Secret Scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "true"
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # NEW — GitHub's native Dependency Review. Complements pip-audit: pip-audit
+  # scans the whole dependency tree on every run, but isn't diff-aware.
+  # Dependency Review specifically flags NEW vulnerable/license-incompatible
+  # dependencies introduced by *this* PR against the GitHub Advisory
+  # Database, and can annotate the PR diff directly. Only meaningful on
+  # pull_request events (it has no base ref to diff against otherwise).
+  # ──────────────────────────────────────────────────────────────────────────
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: always
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # NEW — OSSF Scorecard. The same supply-chain security posture check run
+  # by GitHub, Google, and most major open-source foundations — scores the
+  # repo on branch protection, pinned dependencies, vulnerable dependencies,
+  # dangerous workflow patterns, code review practices, etc. Free, and
+  # results publish to the public OpenSSF database (great to be able to
+  # point to when a customer/auditor asks "how do you compare to Okta's
+  # security posture?"). Evaluates repo-wide state, so it only makes sense
+  # on push to main, not per-PR.
+  # ──────────────────────────────────────────────────────────────────────────
+  scorecard:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      security-events: write
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Run OSSF Scorecard
+        uses: ossf/scorecard-action@v2
+        with:
+          results_file: scorecard-results.sarif
+          results_format: sarif
+          publish_results: true
+      - name: Upload Scorecard SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: scorecard-results.sarif
+
   pr-gate:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -26,11 +106,10 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U test_user -d test_db"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
       redis:
         image: redis:7-alpine
         ports:
@@ -40,7 +119,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
     permissions:
       contents: read
       security-events: write
@@ -63,6 +141,18 @@ jobs:
       PYTHONUNBUFFERED: 1
 
     steps:
+      # ────────────────────────────────────────────────────────────────────
+      # NEW — Harden-Runner (StepSecurity, free). Same protection added to
+      # deep-scan.yml: monitors/can block unexpected outbound network calls
+      # during the run and flags tampered Actions — supply-chain protection
+      # for the CI pipeline itself. "audit" mode logs only; switch to
+      # "block" after reviewing a few runs' egress reports.
+      # ────────────────────────────────────────────────────────────────────
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -85,7 +175,6 @@ jobs:
           sudo apt-get clean -qq
           sudo apt-get autoremove -y -qq
           df -h /
-
       - name: Init CodeQL
         uses: github/codeql-action/init@v4
         with:
@@ -110,7 +199,6 @@ jobs:
             httpx==0.28.1 \
             pip-audit==2.9.0 \
             "bandit[sarif]==1.8.6"
-
       # Wait for DB and run all migrations
       - name: Wait for DB and run migrations
         run: |
@@ -128,6 +216,26 @@ jobs:
                 -f "$f" || echo "Migration $f had errors (continuing)"
             done
           fi
+
+      # ────────────────────────────────────────────────────────────────────
+      # NEW — same issue found and fixed in the deep-scan workflow:
+      # app/conftest.py builds its own throwaway test database via
+      # SQLAlchemy's Base.metadata.create_all() — a separate code path
+      # from migrations/*.sql. It expects a database literally named
+      # "meika_secure_id_test", which never existed here either
+      # ("FATAL: database \"meika_secure_id_test\" does not exist").
+      # This is a workflow-level gap (the DB was simply never created),
+      # not a migration issue — created here, same as deep-scan.yml.
+      # ────────────────────────────────────────────────────────────────────
+      - name: Create pytest fixture database (conftest.py)
+        run: |
+          PGPASSWORD=test_pass psql \
+            -h localhost -p 5432 -U test_user -d test_db \
+            -tc "SELECT 1 FROM pg_database WHERE datname = 'meika_secure_id_test'" \
+            | grep -q 1 || \
+          PGPASSWORD=test_pass psql \
+            -h localhost -p 5432 -U test_user -d test_db \
+            -c "CREATE DATABASE meika_secure_id_test;"
 
       # Dependency CVE audit — informational, never blocks
       - name: Dependency Audit
@@ -151,7 +259,6 @@ jobs:
           except Exception as e:
               print(f'Could not parse audit JSON: {e}')
           " || true
-
       # Bandit SAST
       - name: Bandit Scan
         run: |
@@ -159,7 +266,6 @@ jobs:
           if [ ! -f bandit.sarif ]; then
             printf '{"version":"2.1.0","runs":[]}\n' > bandit.sarif
           fi
-
       - name: Upload Bandit SARIF
         run: |
           HAS=$(python3 -c "
@@ -169,19 +275,32 @@ jobs:
           print('true' if results else 'false')
           " 2>/dev/null || echo "false")
           echo "BANDIT_HAS=$HAS" >> $GITHUB_ENV
-
       - name: Upload Bandit SARIF to CodeQL
         if: env.BANDIT_HAS == 'true'
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: bandit.sarif
 
+      # ────────────────────────────────────────────────────────────────────
       # Semgrep SAST
+      # UPGRADED — "auto" alone doesn't guarantee JWT-specific or
+      # secrets-specific rules always fire (it's heuristic based on
+      # detected languages/frameworks). Since this IS an identity/token
+      # platform, explicitly pinning p/jwt and p/secrets alongside
+      # p/security-audit ensures those checks always run regardless of
+      # what auto-detection decides. All free, open-source Semgrep
+      # Registry rulesets — no Semgrep App/Cloud account needed.
+      # ────────────────────────────────────────────────────────────────────
       - name: Semgrep
         uses: returntocorp/semgrep-action@v1
         continue-on-error: true
         with:
-          config: auto
+          config: >-
+            p/security-audit
+            p/secrets
+            p/jwt
+            p/python
+            p/owasp-top-ten
 
       # ── TESTS + COVERAGE ───────────────────────────────────────────────────
       # EXIT CODE 1 ROOT CAUSE (confirmed from .coveragerc on disk):
@@ -208,7 +327,6 @@ jobs:
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
             --cov-fail-under=70
-
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
         if: always()
@@ -228,25 +346,44 @@ jobs:
           format: sarif
           output: trivy.sarif
 
-      - name: Upload Trivy Report
+      # NEW — Trivy config/IaC scan (Dockerfile misconfig, workflow
+      # permission issues, etc.) — same addition as deep-scan.yml.
+      - name: Trivy Config/IaC Scan
+        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        with:
+          scan-type: config
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          format: sarif
+          output: trivy-config.sarif
+
+      - name: Upload Trivy Reports
         uses: actions/upload-artifact@v4
         with:
           name: trivy-report
-          path: trivy.sarif
+          path: |
+            trivy.sarif
+            trivy-config.sarif
           if-no-files-found: ignore
 
+      # ────────────────────────────────────────────────────────────────────
       # Red Team adversarial tests
+      # FIX — path was app/security/tests/test_red_team_attacks.py, which
+      # doesn't exist (extra "tests/" subfolder). Confirmed real path is
+      # app/security/test_red_team_attacks.py — same bug found and fixed
+      # in the deep-scan workflow.
+      # ────────────────────────────────────────────────────────────────────
       - name: Red Team Tests
         run: |
-          if [ -f app/security/tests/test_red_team_attacks.py ]; then
+          if [ -f app/security/test_red_team_attacks.py ]; then
             python3 -m pytest \
-              app/security/tests/test_red_team_attacks.py \
+              app/security/test_red_team_attacks.py \
               -v --tb=short \
               -p no:cacheprovider || true
           else
             echo "Red team test file not found — skipping"
           fi
-
       # CodeQL analysis
       - name: CodeQL Analyze
         uses: github/codeql-action/analyze@v4
