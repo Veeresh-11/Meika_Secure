@@ -199,23 +199,113 @@ jobs:
             httpx==0.28.1 \
             pip-audit==2.9.0 \
             "bandit[sarif]==1.8.6"
-      # Wait for DB and run all migrations
-      - name: Wait for DB and run migrations
+      # DB-011 — authoritative migration/bootstrap path
+      - name: Wait for DB
         run: |
           until pg_isready -h localhost -p 5432 -U test_user; do
             echo "Waiting for postgres..."
             sleep 2
           done
           echo "Postgres is ready"
-          if [ -d migrations ]; then
-            for f in $(ls migrations/*.sql 2>/dev/null | sort); do
-              echo "Running migration: $f"
-              PGPASSWORD=test_pass psql \
-                -h localhost -p 5432 \
-                -U test_user -d test_db \
-                -f "$f" || echo "Migration $f had errors (continuing)"
-            done
-          fi
+
+      - name: Generate Ephemeral CI Signing Key
+        run: |
+          python - <<'PYKEY' >> "$GITHUB_ENV"
+          from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+          from cryptography.hazmat.primitives import serialization
+
+          key = Ed25519PrivateKey.generate()
+          raw = key.private_bytes(
+              serialization.Encoding.Raw,
+              serialization.PrivateFormat.Raw,
+              serialization.NoEncryption(),
+          )
+          print(f"SIGNING_PRIVATE_KEY={raw.hex()}")
+          PYKEY
+
+      - name: Bootstrap Database
+        run: |
+          python scripts/bootstrap_db.py
+
+      - name: Show Applied Migrations
+        run: |
+          PGPASSWORD=test_pass psql \
+            -h localhost \
+            -U test_user \
+            -d test_db \
+            -c "SELECT version, applied_at FROM schema_migrations ORDER BY version;"
+
+      ####################################################################
+      # Verify Exact Migration Chain (DB-011)
+      ####################################################################
+
+      - name: Verify Exact Migration Chain
+        run: |
+          python - <<'PY'
+          import os
+          import psycopg2
+
+          expected_versions = [
+              "000",
+              "001",
+              "002",
+              "003",
+              "004",
+              "005",
+              "006",
+              "007",
+              "008",
+              "009",
+              "010",
+              "011",
+              "012",
+              "013",
+              "014",
+              "015",
+              "016",
+              "017",
+          ]
+
+          conn = psycopg2.connect(
+              host=os.environ["DB_HOST"],
+              port=int(os.environ["DB_PORT"]),
+              dbname=os.environ["DB_NAME"],
+              user=os.environ["DB_USER"],
+              password=os.environ["DB_PASSWORD"],
+          )
+
+          try:
+              with conn.cursor() as cur:
+                  cur.execute(
+                      """
+                      SELECT version
+                      FROM schema_migrations
+                      ORDER BY version
+                      """
+                  )
+                  actual_versions = [row[0] for row in cur.fetchall()]
+
+              print("===== DB-011 MIGRATION CHAIN VERIFICATION =====")
+              print(f"Expected migration count: {len(expected_versions)}")
+              print(f"Actual migration count:   {len(actual_versions)}")
+              print(f"Actual versions:          {actual_versions}")
+
+              if actual_versions != expected_versions:
+                  raise SystemExit(
+                      "FAIL: migration history does not exactly match 000-017"
+                  )
+
+              print("PASS: migration history exactly matches 000-017")
+          finally:
+              conn.close()
+
+      - name: PostgreSQL Version
+        run: |
+          PGPASSWORD=test_pass psql \
+            -h localhost \
+            -U test_user \
+            -d test_db \
+            -c "SELECT version();"
 
       # ────────────────────────────────────────────────────────────────────
       # NEW — same issue found and fixed in the deep-scan workflow:
