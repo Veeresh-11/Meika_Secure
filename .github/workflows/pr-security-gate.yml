@@ -327,6 +327,13 @@ jobs:
             -h localhost -p 5432 -U test_user -d test_db \
             -c "CREATE DATABASE meika_secure_id_test;"
 
+      # Provision pytest's separate database through the authoritative migration chain.
+      - name: Bootstrap and validate pytest database
+        env:
+          DB_NAME: meika_secure_id_test
+        run: |
+          python scripts/bootstrap_db.py
+
       # Dependency CVE audit — informational, never blocks
       - name: Dependency Audit
         continue-on-error: true
