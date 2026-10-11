@@ -57,6 +57,9 @@ jobs:
       DB_USER: "test_user"
       DB_PASSWORD: "test_pass"
       DATABASE_URL: "postgresql://test_user:test_pass@localhost:5432/test_db"
+      POSTGRES_TEST_DSN: "postgresql+psycopg://test_user:test_pass@localhost:5432/meika_evidence_test"
+      WEBAUTHN_TEST_DSN: "postgresql+psycopg://test_user:test_pass@localhost:5432/meika_secure_id_test"
+      EVIDENCE_DSN: "postgresql://test_user:test_pass@localhost:5432/meika_evidence_test"
 
       # ── Redis ─────────────────────────────────────────────────────────────
       REDIS_URL: "redis://localhost:6379/0"
@@ -64,6 +67,7 @@ jobs:
       # ── App secrets (CI-only, not production) ─────────────────────────────
       SIGNING_PRIVATE_KEY: "dummy_test_key_123"
       SECRET_KEY: "ci-test-secret-key-not-for-production"
+      JWT_SECRET_KEY: "ci-only-jwt-secret-key-at-least-32-chars"
       JWT_ISSUER: "https://meika.test"
       ALGORITHM: "EdDSA"
       ENVIRONMENT: "test"
@@ -196,49 +200,32 @@ jobs:
           echo "== Final resolved versions =="
           pip show schemathesis bandit pip-audit cyclonedx-bom 2>/dev/null | grep -E '^(Name|Version):'
 
-      # ────────────────────────────────────────────────────────────────────────
-      # 4. Run DB migrations before starting server
-      #    NOTE: migration ordering issue (schema "identity" does not exist)
-      #    is a separate, repo-level fix — tracked outside this workflow file.
-      # ────────────────────────────────────────────────────────────────────────
-      - name: Run DB Migrations
+      # Bootstrap the database with ordered migrations and fail-fast validation.
+      - name: Bootstrap and validate application database
         run: |
-          until pg_isready -h localhost -p 5432 -U test_user; do
+          until pg_isready -h localhost -p 5432 -U test_user -d test_db; do
             echo "Waiting for postgres..."
             sleep 2
           done
-          if [ -d migrations ]; then
-            for f in $(ls migrations/*.sql 2>/dev/null | sort); do
-              echo "Applying: $f"
-              PGPASSWORD=test_pass psql \
-                -h localhost -p 5432 \
-                -U test_user -d test_db \
-                -f "$f" || echo "Warning: $f had errors (continuing)"
-            done
-          fi
-
-      # ────────────────────────────────────────────────────────────────────────
-      # NEW — app/conftest.py builds its own test database via SQLAlchemy's
-      # Base.metadata.create_all(bind=engine) — a completely separate
-      # mechanism from the raw migrations/*.sql files above. It connects
-      # directly to a database literally named "meika_secure_id_test",
-      # which the workflow never created, so every Red Team test errored
-      # out at fixture setup with:
-      #   FATAL: database "meika_secure_id_test" does not exist
-      # This is a missing-database gap, not a migration-content issue —
-      # once the database exists, SQLAlchemy creates its own schema/tables
-      # from the ORM models, independent of the migrations/ directory.
-      # ────────────────────────────────────────────────────────────────────────
-      - name: Create pytest fixture database
+          DB_NAME=test_db python scripts/bootstrap_db.py
+      - name: Bootstrap and validate pytest database
+        env:
+          PGPASSWORD: test_pass
         run: |
-          PGPASSWORD=test_pass psql -h localhost -p 5432 -U test_user -d test_db -tc \
-            "SELECT 1 FROM pg_database WHERE datname = 'meika_secure_id_test'" | grep -q 1 || \
-          PGPASSWORD=test_pass createdb -h localhost -p 5432 -U test_user meika_secure_id_test
-          echo "meika_secure_id_test database ready"
-
-      # ────────────────────────────────────────────────────────────────────────
-      # 5. Start API Server
-      # ────────────────────────────────────────────────────────────────────────
+          if ! psql -h localhost -p 5432 -U test_user -d test_db -Atqc \
+            "SELECT 1 FROM pg_database WHERE datname = 'meika_secure_id_test'" | grep -qx 1; then
+            createdb -h localhost -p 5432 -U test_user meika_secure_id_test
+          fi
+          DB_NAME=meika_secure_id_test python scripts/bootstrap_db.py
+      - name: Bootstrap and validate evidence integration database
+        env:
+          PGPASSWORD: test_pass
+        run: |
+          if ! psql -h localhost -p 5432 -U test_user -d test_db -Atqc \
+            "SELECT 1 FROM pg_database WHERE datname = 'meika_evidence_test'" | grep -qx 1; then
+            createdb -h localhost -p 5432 -U test_user meika_evidence_test
+          fi
+          DB_NAME=meika_evidence_test python scripts/bootstrap_db.py
       - name: Start API Server
         run: |
           uvicorn app.main:app \
@@ -534,45 +521,13 @@ jobs:
           echo "Pynguin output:"
           ls -la fuzz_results/ 2>/dev/null || echo "No fuzz results"
 
-      # ────────────────────────────────────────────────────────────────────────
-      # NEW — app/conftest.py builds its OWN throwaway test database via
-      # SQLAlchemy's Base.metadata.create_all() — a separate code path from
-      # migrations/*.sql. It expects a database literally named
-      # "meika_secure_id_test", which never existed in this workflow
-      # ("FATAL: database \"meika_secure_id_test\" does not exist"). This
-      # is a workflow-level gap (the DB was simply never created), not a
-      # migration issue — created here.
-      #
-      # NOTE: once this database exists, create_all() may still hit the
-      # same "schema identity does not exist" problem if the SQLAlchemy
-      # models declare schema="identity" without the schema being created
-      # first. That would be the same root cause as the migrations bug —
-      # intentionally left untouched per instructions.
-      # ────────────────────────────────────────────────────────────────────────
-      - name: Create pytest fixture database (conftest.py)
-        run: |
-          PGPASSWORD=test_pass psql \
-            -h localhost -p 5432 -U test_user -d test_db \
-            -tc "SELECT 1 FROM pg_database WHERE datname = 'meika_secure_id_test'" \
-            | grep -q 1 || \
-          PGPASSWORD=test_pass psql \
-            -h localhost -p 5432 -U test_user -d test_db \
-            -c "CREATE DATABASE meika_secure_id_test;"
-
-      # ────────────────────────────────────────────────────────────────────────
-      # 10. Red Team Suite
-      #     Path confirmed: app/security/test_red_team_attacks.py (no
-      #     "tests/" subfolder — that was the actual bug keeping this
-      #     step permanently skipped in earlier runs).
-      # ────────────────────────────────────────────────────────────────────────
       - name: Red Team Suite
         run: |
           if [ -f app/security/test_red_team_attacks.py ]; then
             pytest app/security/test_red_team_attacks.py \
               -v \
               --tb=short \
-              --asyncio-mode=auto \
-              || true
+              --asyncio-mode=auto
           else
             echo "Red team test file not found — skipping"
           fi

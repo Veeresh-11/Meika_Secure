@@ -1,4 +1,4 @@
-CREATE TABLE identity.grants
+CREATE TABLE IF NOT EXISTS identity.grants
 (
     id UUID PRIMARY KEY,
 
@@ -34,14 +34,14 @@ CREATE TABLE identity.grants
     created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_grants_user
+CREATE INDEX IF NOT EXISTS idx_grants_user
 ON identity.grants(user_id);
 
-CREATE INDEX idx_grants_session
+CREATE INDEX IF NOT EXISTS idx_grants_session
 ON identity.grants(session_id);
 
-CREATE INDEX idx_grants_jti
+CREATE INDEX IF NOT EXISTS idx_grants_jti
 ON identity.grants(jwt_id);
 
-CREATE INDEX idx_grants_active
+CREATE INDEX IF NOT EXISTS idx_grants_active
 ON identity.grants(revoked, expires_at);

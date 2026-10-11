@@ -1,4 +1,4 @@
-CREATE TABLE identity.webauthn_challenges
+CREATE TABLE IF NOT EXISTS identity.webauthn_challenges
 (
     id UUID PRIMARY KEY,
 
@@ -16,7 +16,7 @@ CREATE TABLE identity.webauthn_challenges
     expires_at TIMESTAMP NOT NULL
 );
 
-CREATE TABLE identity.webauthn_credentials
+CREATE TABLE IF NOT EXISTS identity.webauthn_credentials
 (
     id UUID PRIMARY KEY,
 

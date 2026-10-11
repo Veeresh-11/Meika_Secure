@@ -1,4 +1,4 @@
--- 002_enforce_append_only.sql
+-- 003_enforce_append_only.sql
 -- Sprint 2 — Enforce append-only immutability
 
 -- Revoke dangerous privileges
