@@ -135,6 +135,7 @@ jobs:
       SIGNING_PRIVATE_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       ENVIRONMENT: test
       SECRET_KEY: test-secret-key-for-ci-only-not-production
+      JWT_SECRET_KEY: "ci-only-jwt-secret-key-at-least-32-chars"
       JWT_ISSUER: https://meika.test
       ALGORITHM: EdDSA
       PYTHONDONTWRITEBYTECODE: 1
@@ -309,13 +310,9 @@ jobs:
 
       # ────────────────────────────────────────────────────────────────────
       # NEW — same issue found and fixed in the deep-scan workflow:
-      # app/conftest.py builds its own throwaway test database via
-      # SQLAlchemy's Base.metadata.create_all() — a separate code path
-      # from migrations/*.sql. It expects a database literally named
-      # "meika_secure_id_test", which never existed here either
-      # ("FATAL: database \"meika_secure_id_test\" does not exist").
-      # This is a workflow-level gap (the DB was simply never created),
-      # not a migration issue — created here, same as deep-scan.yml.
+      # app/conftest.py connects to a separate database named
+      # "meika_secure_id_test". Create it if absent, then provision it
+      # through the authoritative migration chain in the next step.
       # ────────────────────────────────────────────────────────────────────
       - name: Create pytest fixture database (conftest.py)
         run: |
