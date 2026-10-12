@@ -66,6 +66,29 @@ class Table(str, Enum):
     TRANSPARENCY = "transparency_log"
     GOVERNANCE = "governance_policies"
 
+# SQL identifiers are selected from this closed, enum-keyed allowlist.
+# Keep complete statements static so untrusted input can never affect SQL structure.
+_TABLE_SQL = {
+    Table.VERIFICATION: {
+        "last_hash": "SELECT chain_hash FROM verification_ledger ORDER BY id DESC LIMIT 1",
+        "insert": "INSERT INTO verification_ledger (entry_json, entry_hash, prev_chain_hash, chain_hash, signatures) VALUES (?, ?, ?, ?, ?)",
+        "count": "SELECT COUNT(*) as c FROM verification_ledger",
+        "validate": "SELECT * FROM verification_ledger ORDER BY id ASC",
+    },
+    Table.TRANSPARENCY: {
+        "last_hash": "SELECT chain_hash FROM transparency_log ORDER BY id DESC LIMIT 1",
+        "insert": "INSERT INTO transparency_log (entry_json, entry_hash, prev_chain_hash, chain_hash, signatures) VALUES (?, ?, ?, ?, ?)",
+        "count": "SELECT COUNT(*) as c FROM transparency_log",
+        "validate": "SELECT * FROM transparency_log ORDER BY id ASC",
+    },
+    Table.GOVERNANCE: {
+        "last_hash": "SELECT chain_hash FROM governance_policies ORDER BY id DESC LIMIT 1",
+        "insert": "INSERT INTO governance_policies (entry_json, entry_hash, prev_chain_hash, chain_hash, signatures) VALUES (?, ?, ?, ?, ?)",
+        "count": "SELECT COUNT(*) as c FROM governance_policies",
+        "validate": "SELECT * FROM governance_policies ORDER BY id ASC",
+    },
+}
+
 
 # ---------------------------------------------------------
 # CRYPTO HELPERS
@@ -244,9 +267,7 @@ class SQLiteBackend:
 
     def _last_hash(self, table: Table):
         
-        row = self.conn.execute( 
-            f"SELECT chain_hash FROM {table.value} ORDER BY id DESC LIMIT 1"
-        ).fetchone()
+        row = self.conn.execute(_TABLE_SQL[table]["last_hash"]).fetchone()
         return row["chain_hash"] if row else None
 
     # -----------------------------------------------------
@@ -285,12 +306,8 @@ class SQLiteBackend:
 
         with self.conn:
            
-            self.conn.execute(  
-                f""" 
-                INSERT INTO {table.value}
-                (entry_json, entry_hash, prev_chain_hash, chain_hash, signatures)
-                VALUES (?, ?, ?, ?, ?)
-                """,
+            self.conn.execute(
+                _TABLE_SQL[table]["insert"],
                 (
                     json.dumps(entry),
                     entry_hash,
@@ -318,9 +335,7 @@ class SQLiteBackend:
     def _verify_anchor(self, table: Table):
 
         
-        count = self.conn.execute( 
-            f"SELECT COUNT(*) as c FROM {table.value}"
-        ).fetchone()["c"]
+        count = self.conn.execute(_TABLE_SQL[table]["count"]).fetchone()["c"]
 
         # ✅ Allow bootstrap if table empty
         if count == 0:
@@ -356,9 +371,7 @@ class SQLiteBackend:
     def _validate_startup(self):
         for table in Table:
             
-            rows = self.conn.execute( 
-                f"SELECT * FROM {table.value} ORDER BY id ASC"
-            ).fetchall()
+            rows = self.conn.execute(_TABLE_SQL[table]["validate"]).fetchall()
 
             prev = None
 
