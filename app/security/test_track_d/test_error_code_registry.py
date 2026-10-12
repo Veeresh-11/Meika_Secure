@@ -61,9 +61,9 @@ def test_no_runtime_logic_leakage():
         "from logging",
     ]
 
-    source = open(
-        "app/security/track_d/error_codes.py", "r", encoding="utf-8"
-    ).read()
+    from pathlib import Path
+
+    source = Path("app/security/track_d/error_codes.py").read_text(encoding="utf-8")
 
     for token in forbidden_imports:
         assert token not in source

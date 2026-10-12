@@ -7,7 +7,7 @@ This module exists to provide a stable import surface for the kernel
 and test suite. Actual policy logic lives in engine / evaluators.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from app.security.decision import SecurityDecision, DecisionOutcome
@@ -27,7 +27,7 @@ class PolicyEvaluator:
         return PolicyResult(
             outcome=DecisionOutcome.DENY,
             policy_version="default",
-            evaluated_at=datetime.utcnow(),
+            evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
             kind=ResultKind.POLICY,
             reason=DenyReason.POLICY_DENY.value,
         )
