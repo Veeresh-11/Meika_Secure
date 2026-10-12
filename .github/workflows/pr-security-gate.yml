@@ -194,16 +194,16 @@ jobs:
             pip install -r requirements-dev.txt
           fi
           pip install \
-            pytest==8.3.5 \
-            pytest-cov==6.2.1 \
-            pytest-asyncio==0.25.3 \
+            pytest==9.0.3 \
+            pytest-cov==7.1.0 \
+            pytest-asyncio==1.3.0 \
             pytest-mock==3.14.0 \
             psycopg2-binary==2.9.10 \
             redis==5.2.1 \
-            anyio==4.8.0 \
+            anyio==4.14.2 \
             httpx==0.28.1 \
-            pip-audit==2.9.0 \
-            "bandit[sarif]==1.8.6"
+            pip-audit==2.10.1 \
+            "bandit[sarif]==1.9.4"
       # DB-011 — authoritative migration/bootstrap path
       - name: Wait for DB
         run: |
@@ -338,7 +338,7 @@ jobs:
 
       # Dependency CVE audit — findings block the PR.
       - name: Dependency Audit
-        run: pip-audit --desc on
+        run: pip-audit -r requirements.txt --desc on
 
       # Bandit SAST
       - name: Bandit Scan
