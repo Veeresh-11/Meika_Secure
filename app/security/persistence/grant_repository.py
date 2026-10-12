@@ -1,7 +1,7 @@
 # app/security/persistence/grant_repository.py
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 
 from app.security.grants.models import Grant
@@ -49,7 +49,7 @@ class PersistentGrantRepository:
         Load only non-expired grants.
         Expired grants are ignored (never revived).
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         conn = get_connection()
         cur = conn.cursor()
