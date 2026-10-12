@@ -130,15 +130,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     permissions:
       contents: read
       security-events: write
@@ -180,6 +171,33 @@ jobs:
       - name: Checkout
         id: checkout
         uses: actions/checkout@v5
+
+      - name: Start Redis with explicit CI configuration
+        id: redis_ready
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/redis-ci.conf" <<'REDISCONF'
+          bind 0.0.0.0
+          protected-mode no
+          port 6379
+          save ""
+          appendonly no
+          loglevel notice
+          REDISCONF
+          docker run --detach --name meika-ci-redis \
+            --publish 127.0.0.1:6379:6379 \
+            --volume "$RUNNER_TEMP/redis-ci.conf:/usr/local/etc/redis/redis.conf:ro" \
+            redis:7-alpine redis-server /usr/local/etc/redis/redis.conf
+          for attempt in $(seq 1 30); do
+            if docker exec meika-ci-redis redis-cli ping | grep -q PONG; then
+              echo "Redis is ready with explicit configuration."
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs meika-ci-redis
+          echo "::error::Redis did not become ready."
+          exit 1
 
       - name: Setup Python
         id: setup_python
