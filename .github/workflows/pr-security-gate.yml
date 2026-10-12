@@ -468,7 +468,7 @@ jobs:
             --cov-fail-under=70 \
             -W error
       - name: Upload Coverage Report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage-report
@@ -506,7 +506,7 @@ jobs:
 
       - name: Upload Trivy Reports
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: trivy-report
           path: |
