@@ -45,7 +45,7 @@ def test_device_spoof():
 
 def test_header_injection():
     response = client.get(
-        "/api/v1/protected", headers={"X-Device-ID": "a\\nb"}
+        "/api/v1/protected", headers={"X-Device-ID": "a\nb"}
     )
     assert response.status_code in {400, 403}
 
