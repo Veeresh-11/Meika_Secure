@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from app.security.version import KERNEL_VERSION, KERNEL_BUILD_HASH
 
 
@@ -18,5 +18,5 @@ class TamperEvent:
             kernel_version=KERNEL_VERSION,
             kernel_build_hash=KERNEL_BUILD_HASH,
             reason=reason,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         )

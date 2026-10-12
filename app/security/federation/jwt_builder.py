@@ -2,7 +2,7 @@
 
 import hashlib
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 
 import jwt
@@ -54,7 +54,7 @@ class DeterministicJWTBuilder:
             Signed JWT token string
         """
         if issued_at is None:
-            issued_at = datetime.utcnow()
+            issued_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         iat = int(issued_at.timestamp())
         exp = int((issued_at + timedelta(seconds=ttl_seconds)).timestamp())

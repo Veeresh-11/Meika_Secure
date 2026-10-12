@@ -2,7 +2,7 @@
 
 import base64
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import (
@@ -35,7 +35,7 @@ class SigningKeyRegistry:
             algorithm="EdDSA",
             private_key=private_key,
             public_key=public_key,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
 
         self._keys[kid] = key
