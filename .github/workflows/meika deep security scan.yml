@@ -452,25 +452,33 @@ jobs:
         id: osv_scan
         continue-on-error: true
         run: |
-          curl -sSfL https://raw.githubusercontent.com/google/osv-scanner/main/scripts/install.sh \
-            | sh -s -- -b /usr/local/bin 2>/dev/null \
-            || go install github.com/google/osv-scanner/cmd/osv-scanner@latest 2>/dev/null \
-            || echo "OSV-Scanner install skipped (no supported installer available)"
-          if command -v osv-scanner > /dev/null 2>&1; then
-            osv-scanner --format json --output osv-report.json --recursive . || true
-            echo "---- OSV-SCANNER SUMMARY ----"
-            python3 -c "
+          # Pin the scanner version and use the documented Go module install path.
+          # A missing report is a hard failure in the security summary; never
+          # turn an unavailable scanner into a clean/empty result.
+          go install github.com/google/osv-scanner/cmd/osv-scanner@v1.9.2
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+          "$HOME/go/bin/osv-scanner" --format json --output osv-report.json --recursive . || scan_status=$?
+          if [ ! -s osv-report.json ]; then
+            echo "::error::OSV-Scanner did not produce osv-report.json"
+            exit 1
+          fi
+          echo "---- OSV-SCANNER SUMMARY ----"
+          python3 - <<'PY'
           import json
-          try:
-              d = json.load(open('osv-report.json'))
-              results = d.get('results', [])
-              total = sum(len(pkg.get('vulnerabilities', [])) for r in results for pkg in r.get('packages', []))
-              print(f'Total vulnerabilities found: {total}')
-          except Exception as e:
-              print(f'Could not parse osv-scanner report: {e}')
-          " 2>/dev/null || echo "No osv-scanner report generated"
-          else
-            echo "osv-scanner binary not available in this runner — skipping"
+          from pathlib import Path
+
+          report = json.loads(Path("osv-report.json").read_text(encoding="utf-8"))
+          results = report.get("results", [])
+          total = sum(
+              len(package.get("vulnerabilities", []))
+              for result in results if isinstance(result, dict)
+              for package in result.get("packages", []) if isinstance(package, dict)
+          )
+          print(f"Total vulnerabilities found: {total}")
+          PY
+          if [ "${scan_status:-0}" -ne 0 ]; then
+            echo "::error::OSV-Scanner reported findings or failed; review osv-report.json"
+            exit "${scan_status}"
           fi
 
       # ────────────────────────────────────────────────────────────────────────
