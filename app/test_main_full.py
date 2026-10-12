@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock
+from types import SimpleNamespace
 from fastapi.responses import JSONResponse
 
 import app.main as main_module
@@ -42,19 +43,24 @@ async def test_global_exception_handler():
     assert result.status_code == 400
 
 
-async def test_ci_security_bypass(monkeypatch):
+async def test_ci_security_bypass_flag_does_not_bypass_security(monkeypatch):
     monkeypatch.setenv("CI_SECURITY_BYPASS", "1")
 
-    request = AsyncMock()
-    request.url.path = "/private"
-    request.method = "GET"
+    request = SimpleNamespace(
+        url=SimpleNamespace(path="/private"),
+        method="GET",
+        headers={},
+        client=SimpleNamespace(host="127.0.0.1"),
+    )
 
-    async def call_next(req):
-        return "bypassed"
+    async def call_next(_request):
+        pytest.fail("Protected request without device identity must not reach the handler")
 
     result = await main_module.enforce_security(request, call_next)
 
-    assert result == "bypassed"
+    assert isinstance(result, JSONResponse)
+    assert result.status_code == 401
+    assert result.body == b'{"error":"Missing device identity"}'
 
 
 async def test_webauthn_non_post_branch(monkeypatch):
