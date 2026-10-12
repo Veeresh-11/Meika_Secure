@@ -541,6 +541,32 @@ def test_webauthn_register_finish_success(monkeypatch):
     assert body["credential_id"] == "cred-123"
     assert body["message"] == "WebAuthn credential successfully registered"
     
+def test_webauthn_register_finish_rejects_missing_challenge(monkeypatch):
+    monkeypatch.setattr(
+        auth.ChallengeService,
+        "get",
+        staticmethod(lambda **kwargs: None),
+    )
+
+    response = client.post(
+        "/auth/webauthn/register/finish",
+        json={
+            "email": "user@example.com",
+            "attestation": {
+                "challenge": "not-found",
+                "hardware_backed": True,
+                "attestation_verified": True,
+                "public_key": "public-key",
+                "type": "basic",
+                "credential_id": "cred-123",
+            },
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid or expired challenge"
+
+
 def test_webauthn_register_finish_attestation_failure(monkeypatch):
 
     challenge = SimpleNamespace(
