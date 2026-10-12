@@ -532,8 +532,6 @@ jobs:
       - name: Red Team Suite
         env:
           CI_SECURITY_BYPASS: "0"
-        env:
-          CI_SECURITY_BYPASS: "0"
         run: |
           if [ -f app/security/test_red_team_attacks.py ]; then
             pytest app/security/test_red_team_attacks.py \
