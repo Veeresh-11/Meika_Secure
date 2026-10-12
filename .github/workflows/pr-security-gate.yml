@@ -132,6 +132,9 @@ jobs:
       DB_USER: test_user
       DB_PASSWORD: test_pass
       DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/test_db
+      EVIDENCE_DSN: postgresql://test_user:test_pass@localhost:5432/test_db
+      POSTGRES_DSN: postgresql://test_user:test_pass@localhost:5432/test_db
+      POSTGRES_TEST_DSN: postgresql://test_user:test_pass@localhost:5432/test_db
       REDIS_URL: redis://localhost:6379/0
       SIGNING_PRIVATE_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       ENVIRONMENT: test
