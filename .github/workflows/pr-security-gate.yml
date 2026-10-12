@@ -422,7 +422,8 @@ jobs:
             --cov=app \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
-            --cov-fail-under=70
+            --cov-fail-under=70 \
+            -W error
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v5
         if: always()
