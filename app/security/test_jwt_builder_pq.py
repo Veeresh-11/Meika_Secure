@@ -148,13 +148,12 @@ class TestPQAlgorithmIntegration:
         # The algorithm name in header depends on PQ signer configuration
         assert header["alg"] in ["RS256", "DILITHIUM-3", "EdDSA"]
     
-    @pytest.mark.skip(reason="Mock JWT builder signature test - complex mock interactions")
-    @patch('app.security.federation.jwt_builder.PostQuantumSigner')
-    def test_jwt_calls_pq_signer_for_signature(self, mock_signer_class):
-        """Test: JWT builder calls PQ signer to create signature."""
+    def test_jwt_calls_pq_signer_for_signature(self):
+        """Test that the injected PQ signer produces the JWT signature."""
         mock_signer = MagicMock()
+        mock_signer.algorithm = "RS256"
         mock_signer.sign.return_value = "mock-signature-base64url"
-        
+
         builder = DeterministicJWTBuilder(pq_signer=mock_signer)
         issued_at_time = datetime.now(timezone.utc).replace(tzinfo=None)
         
