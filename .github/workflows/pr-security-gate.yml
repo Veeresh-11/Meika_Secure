@@ -178,6 +178,7 @@ jobs:
           egress-policy: audit
 
       - name: Checkout
+        id: checkout
         uses: actions/checkout@v5
 
       - name: Setup Python
