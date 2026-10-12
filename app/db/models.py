@@ -9,6 +9,7 @@ from sqlalchemy import (
     Index,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase
@@ -19,12 +20,31 @@ class Base(DeclarativeBase):
 
 
 # ==========================================================
+# Organization / Tenant
+# ==========================================================
+
+class Organization(Base):
+    __tablename__ = "organizations"
+    __table_args__ = {"schema": "identity"}
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="ACTIVE")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+# ==========================================================
 # User
 # ==========================================================
 
 class User(Base):
     __tablename__ = "users"
-    __table_args__ = {"schema": "identity"}
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "email", name="users_tenant_email_key"),
+        Index("ix_users_tenant_id", "tenant_id"),
+        {"schema": "identity"},
+    )
 
     id = Column(
         UUID(as_uuid=True),
@@ -32,9 +52,14 @@ class User(Base):
         default=uuid.uuid4,
     )
 
+    tenant_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("identity.organizations.id"),
+        nullable=False,
+    )
+
     email = Column(
         String,
-        unique=True,
         nullable=False,
     )
 
@@ -108,6 +133,7 @@ class Session(Base):
     __table_args__ = (
         Index("ix_sessions_user_id", "user_id"),
         Index("ix_sessions_device_id", "device_id"),
+        Index("ix_sessions_tenant_id", "tenant_id"),
         {"schema": "identity"},
     )
 
@@ -120,6 +146,12 @@ class Session(Base):
     user_id = Column(
         UUID(as_uuid=True),
         ForeignKey("identity.users.id"),
+        nullable=False,
+    )
+
+    tenant_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("identity.organizations.id"),
         nullable=False,
     )
 
@@ -157,12 +189,21 @@ class Session(Base):
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
-    __table_args__ = {"schema": "identity"}
+    __table_args__ = (
+        Index("ix_audit_logs_tenant_id", "tenant_id"),
+        {"schema": "identity"},
+    )
 
     id = Column(
         UUID(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
+    )
+
+    tenant_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("identity.organizations.id"),
+        nullable=False,
     )
 
     actor_type = Column(
