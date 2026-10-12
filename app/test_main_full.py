@@ -30,20 +30,18 @@ def test_health_endpoint():
     assert response.json() == {"status": "ok"}
 
 
-def test_global_exception_handler():
+async def test_global_exception_handler():
     response = main_module.app.exception_handlers[Exception](
         None,
         Exception("boom"),
     )
 
-    import asyncio
-
-    result = asyncio.run(response)
+    result = await response
 
     assert result.status_code == 400
 
 
-def test_ci_security_bypass(monkeypatch):
+async def test_ci_security_bypass(monkeypatch):
     monkeypatch.setenv("CI_SECURITY_BYPASS", "1")
 
     request = AsyncMock()
@@ -53,19 +51,15 @@ def test_ci_security_bypass(monkeypatch):
     async def call_next(req):
         return "bypassed"
 
-    import asyncio
-
-    result = asyncio.run(
-        main_module.enforce_security(
+    result = await main_module.enforce_security(
             request,
             call_next,
-        )
     )
 
     assert result == "bypassed"
 
 
-def test_webauthn_non_post_branch(monkeypatch):
+async def test_webauthn_non_post_branch(monkeypatch):
     monkeypatch.delenv("CI_SECURITY_BYPASS", raising=False)
 
     request = AsyncMock()
@@ -75,19 +69,15 @@ def test_webauthn_non_post_branch(monkeypatch):
     async def call_next(req):
         return "webauthn"
 
-    import asyncio
-
-    result = asyncio.run(
-        main_module.enforce_security(
+    result = await main_module.enforce_security(
             request,
             call_next,
-        )
     )
 
     assert result == "webauthn"
 
 
-def test_unsupported_method_branch(monkeypatch):
+async def test_unsupported_method_branch(monkeypatch):
     monkeypatch.delenv("CI_SECURITY_BYPASS", raising=False)
 
     request = AsyncMock()
@@ -97,19 +87,15 @@ def test_unsupported_method_branch(monkeypatch):
     async def call_next(req):
         return "unsupported"
 
-    import asyncio
-
-    result = asyncio.run(
-        main_module.enforce_security(
+    result = await main_module.enforce_security(
             request,
             call_next,
-        )
     )
 
     assert result == "unsupported"
 
 
-def test_success_path(monkeypatch):
+async def test_success_path(monkeypatch):
     monkeypatch.delenv("CI_SECURITY_BYPASS", raising=False)
 
     request = AsyncMock()
@@ -134,18 +120,13 @@ def test_success_path(monkeypatch):
     async def call_next(req):
         return "success"
 
-    import asyncio
-
-    result = asyncio.run(
-        main_module.enforce_security(
+    result = await main_module.enforce_security(
             request,
             call_next,
-        )
     )
 
     assert result == "success"
     
-import asyncio
 from unittest.mock import AsyncMock
 from fastapi.responses import JSONResponse
 
@@ -167,7 +148,7 @@ def test_resolve_device_context_real():
     assert result["ip_address"] == "127.0.0.1"
 
 
-def test_missing_device_identity(monkeypatch):
+async def test_missing_device_identity(monkeypatch):
     monkeypatch.delenv("CI_SECURITY_BYPASS", raising=False)
 
     request = AsyncMock()
@@ -183,18 +164,16 @@ def test_missing_device_identity(monkeypatch):
     async def call_next(req):
         return "should_not_happen"
 
-    response = asyncio.run(
-        main_module.enforce_security(
+    response = await main_module.enforce_security(
             request,
             call_next,
-        )
     )
 
     assert isinstance(response, JSONResponse)
     assert response.status_code == 401
 
 
-def test_security_middleware_exception(monkeypatch):
+async def test_security_middleware_exception(monkeypatch):
     monkeypatch.delenv("CI_SECURITY_BYPASS", raising=False)
 
     request = AsyncMock()
@@ -219,18 +198,16 @@ def test_security_middleware_exception(monkeypatch):
     async def call_next(req):
         return "never"
 
-    response = asyncio.run(
-        main_module.enforce_security(
+    response = await main_module.enforce_security(
             request,
             call_next,
-        )
     )
 
     assert isinstance(response, JSONResponse)
     assert response.status_code == 403
 
 
-def test_webauthn_post_path(monkeypatch):
+async def test_webauthn_post_path(monkeypatch):
     monkeypatch.delenv("CI_SECURITY_BYPASS", raising=False)
 
     request = AsyncMock()
@@ -255,11 +232,9 @@ def test_webauthn_post_path(monkeypatch):
     async def call_next(req):
         return "ok"
 
-    result = asyncio.run(
-        main_module.enforce_security(
+    result = await main_module.enforce_security(
             request,
             call_next,
-        )
     )
 
     assert result == "ok"
