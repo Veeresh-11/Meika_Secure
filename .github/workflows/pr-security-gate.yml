@@ -343,11 +343,21 @@ jobs:
 
       # Bandit SAST
       - name: Bandit Scan
+        id: bandit_scan
+        continue-on-error: true
         run: |
+          set +e
+          bandit -r app/ -ll -f txt
+          BANDIT_EXIT=$?
           bandit -r app/ -f sarif -o bandit.sarif -ll
+          SARIF_EXIT=$?
           if [ ! -f bandit.sarif ]; then
-            printf '{"version":"2.1.0","runs":[]}\n' > bandit.sarif
+            printf '{"version":"2.1.0","runs":[]}
+' > bandit.sarif
           fi
+          echo "Bandit text exit code: $BANDIT_EXIT"
+          echo "Bandit SARIF exit code: $SARIF_EXIT"
+          exit "$BANDIT_EXIT"
       - name: Upload Bandit SARIF
         run: |
           HAS=$(python3 -c "
@@ -469,3 +479,16 @@ jobs:
         uses: github/codeql-action/analyze@v4
         with:
           upload: true
+
+      # Run the final gate after all diagnostics so one scanner finding
+      # does not prevent the full test and security suite from executing.
+      # The finding still fails the job; it is never silently ignored.
+      - name: Enforce Bandit result after diagnostics
+        if: always()
+        env:
+          BANDIT_OUTCOME: ${{ steps.bandit_scan.outcome }}
+        run: |
+          if [ "$BANDIT_OUTCOME" != "success" ]; then
+            echo "::error::Bandit reported security findings or failed to execute. Review the text findings above."
+            exit 1
+          fi
