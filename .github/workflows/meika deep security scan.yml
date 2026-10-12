@@ -151,7 +151,6 @@ jobs:
             anyio==4.14.2 \
             schemathesis==4.30.1 \
             hypothesis==6.138.15 \
-            pynguin==0.45.0 \
             cyclonedx-bom==7.5.0 \
             pip-audit==2.10.1 \
             bandit==1.9.4 \
@@ -523,23 +522,13 @@ jobs:
             echo "No bandit report generated"
           fi
 
-      # ────────────────────────────────────────────────────────────────────────
-      # 9. Logic Fuzzing (Pynguin)
-      # ────────────────────────────────────────────────────────────────────────
-      - name: Logic Fuzzing (Pynguin)
-        env:
-          PYNGUIN_DANGER_AWARE: "1"
+      # Run the repository's adversarial invariant tests as an explicit gate.
+      # Pynguin currently requires pytest <9, while the patched pytest 9.0.3
+      # is required to eliminate the OSV tmpdir vulnerability. Avoid installing
+      # a known-vulnerable test runner just for an optional, non-blocking step.
+      - name: Adversarial invariant tests
         run: |
-          mkdir -p fuzz_results
-          pynguin \
-            --project-path . \
-            --output-path ./fuzz_results \
-            --module-name app.security.pipeline \
-            --maximum-search-time 60 \
-            --seed 42 \
-            || true
-          echo "Pynguin output:"
-          ls -la fuzz_results/ 2>/dev/null || echo "No fuzz results"
+          pytest app/security/test_break_attempts/ -v --tb=short
 
       # ────────────────────────────────────────────────────────────────────────
       # NEW — Container image scan (Trivy). Standard in mature security
