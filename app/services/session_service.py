@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session as DBSession
 
-from app.db.models import Session
+from app.db.models import Session, User
 
 
 class SessionService:
@@ -25,10 +25,15 @@ class SessionService:
         expires_at=None,
     ) -> Session:
 
+        user = db.query(User).filter(User.id == user_id).first()
+        if user is None:
+            raise ValueError("Cannot create a session for an unknown user")
+
         now = datetime.utcnow()
 
         session = Session(
             user_id=user_id,
+            tenant_id=user.tenant_id,
             device_id=device_id,
             issued_at=now,
             expires_at=expires_at
