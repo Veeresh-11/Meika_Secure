@@ -3,7 +3,7 @@ import pytest
 pytestmark = pytest.mark.track_a
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
 
@@ -51,7 +51,7 @@ def test_cloned_device_token_denied():
         device_id=snapshot.device_id,
         device=snapshot,
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
     )
 

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dataclasses import replace
 import pytest
 
@@ -24,7 +24,7 @@ def ctx():
         device=None,
         device_id=None,
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
         grant=None,
     )
@@ -35,7 +35,7 @@ def test_expired_grant():
     pipeline = SecurityPipeline()
 
     g = Grant(
-        expires_at=datetime.utcnow() - timedelta(hours=1),
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=1),
         intent="authentication.attempt",
     )
 
@@ -50,7 +50,7 @@ def test_scope_mismatch():
     pipeline = SecurityPipeline()
 
     g = Grant(
-        expires_at=datetime.utcnow() + timedelta(hours=1),
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1),
         intent="admin.delete",
     )
 

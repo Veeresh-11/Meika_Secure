@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -29,7 +29,7 @@ def ctx():
         device=None,
         device_id=None,
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
         grant=None,
     )
@@ -45,7 +45,7 @@ def valid_context():
         device=None,
         device_id=None,
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
         grant=None,
     )
@@ -70,7 +70,7 @@ def test_safe_mode_blocks_allow():
             outcome=DecisionOutcome.ALLOW,
             reason=DenyReason.DEFAULT_DENY,
             policy_version=KERNEL_VERSION,
-            evaluated_at=datetime.utcnow(),
+            evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
             obligations={},
         )
 
@@ -131,7 +131,7 @@ def test_policy_version_mismatch():
             outcome=DecisionOutcome.DENY,
             reason=DenyReason.DEFAULT_DENY,
             policy_version="BAD_VERSION",
-            evaluated_at=datetime.utcnow(),
+            evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
             obligations={},
         )
 
@@ -165,7 +165,7 @@ def test_evidence_attribute_error_path():
         outcome=DecisionOutcome.ALLOW,
         reason=DenyReason.DEFAULT_DENY,
         policy_version=KERNEL_VERSION,
-        evaluated_at=datetime.utcnow(),
+        evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         obligations={},
     )
 
@@ -194,7 +194,7 @@ def test_evidence_commit_failure():
         outcome=DecisionOutcome.ALLOW,
         reason=DenyReason.DEFAULT_DENY,
         policy_version=KERNEL_VERSION,
-        evaluated_at=datetime.utcnow(),
+        evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         obligations={},
     )
 
@@ -227,7 +227,7 @@ def test_evidence_metrics_failure():
         outcome=DecisionOutcome.ALLOW,
         reason=DenyReason.DEFAULT_DENY,
         policy_version=KERNEL_VERSION,
-        evaluated_at=datetime.utcnow(),
+        evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         obligations={},
     )
 
@@ -273,7 +273,7 @@ def test_authorization_receipt_attached():
         outcome=DecisionOutcome.ALLOW,
         reason=DenyReason.DEFAULT_DENY,
         policy_version=KERNEL_VERSION,
-        evaluated_at=datetime.utcnow(),
+        evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         obligations={},
     )
 
@@ -319,7 +319,7 @@ def test_authorization_receipt_failure_ignored():
         outcome=DecisionOutcome.ALLOW,
         reason=DenyReason.DEFAULT_DENY,
         policy_version=KERNEL_VERSION,
-        evaluated_at=datetime.utcnow(),
+        evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         obligations={},
     )
 
@@ -443,7 +443,7 @@ def test_safe_mode_returns_deny():
         outcome=DecisionOutcome.DENY,
         reason=DenyReason.POLICY_DENY,
         policy_version=KERNEL_VERSION,
-        evaluated_at=datetime.utcnow(),
+        evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         obligations={"evidence": {}},
     )
 
@@ -463,7 +463,7 @@ def test_kernel_returns_non_allow():
         outcome=DecisionOutcome.DENY,
         reason=DenyReason.POLICY_DENY,
         policy_version=KERNEL_VERSION,
-        evaluated_at=datetime.utcnow(),
+        evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         obligations={"evidence": {}},
     )
 
@@ -483,7 +483,7 @@ def test_evidence_append_none_receipt():
         outcome=DecisionOutcome.ALLOW,
         reason="ALLOW",
         policy_version=KERNEL_VERSION,
-        evaluated_at=datetime.utcnow(),
+        evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         obligations={},
     )
 

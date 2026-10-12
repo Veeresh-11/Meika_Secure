@@ -4,7 +4,7 @@ import pytest
 # Sprint 4 pipeline + grants integration (disabled)
 # -------------------------------------------------
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.security.context import SecurityContext
 from app.security.device_snapshot import DeviceSnapshot
@@ -35,7 +35,7 @@ def test_pipeline_with_grant_allows_request():
             outcome=DecisionOutcome.ALLOW,
             reason="test-policy",
             policy_version="test",
-            evaluated_at=datetime.utcnow(),
+            evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
 
     policy = load_policy("policies/authentication_policy.yaml")
@@ -67,7 +67,7 @@ def test_pipeline_with_grant_allows_request():
         device_id=device.device_id,
         device=snapshot,
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
     )
 
