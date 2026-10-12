@@ -64,6 +64,8 @@ def test_cleanup():
 def test_create():
 
     db = MagicMock()
+    user = MagicMock(tenant_id="tenant-1")
+    db.query.return_value.filter.return_value.first.return_value = user
 
     record = MagicMock()
 
@@ -86,6 +88,7 @@ def test_create():
 
     model.assert_called_once_with(
         user_id="user-1",
+        tenant_id="tenant-1",
         challenge="challenge-123",
         purpose="register",
     )
