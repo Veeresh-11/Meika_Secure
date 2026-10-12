@@ -40,12 +40,6 @@ class WebAuthnChallenge(Base):
         nullable=False,
     )
 
-    tenant_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("identity.organizations.id"),
-        nullable=False,
-    )
-
     challenge = Column(
         String,
         nullable=False,
@@ -90,6 +84,12 @@ class WebAuthnCredential(Base):
     user_id = Column(
         UUID(as_uuid=True),
         ForeignKey("identity.users.id"),
+        nullable=False,
+    )
+
+    tenant_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("identity.organizations.id"),
         nullable=False,
     )
 
