@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.security.grants.models import create_grant
 
@@ -39,7 +39,7 @@ def test_grant_expired():
         justification="test",
     )
 
-    future = datetime.utcnow() + timedelta(hours=1)
+    future = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1)
 
     assert grant.is_expired(future) is True
 
