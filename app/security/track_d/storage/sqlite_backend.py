@@ -245,7 +245,7 @@ class SQLiteBackend:
     def _last_hash(self, table: Table):
         
         row = self.conn.execute( 
-            f"SELECT chain_hash FROM {table.value} ORDER BY id DESC LIMIT 1"# nosec B608
+            f"SELECT chain_hash FROM {table.value} ORDER BY id DESC LIMIT 1"
         ).fetchone()
         return row["chain_hash"] if row else None
 
@@ -290,7 +290,7 @@ class SQLiteBackend:
                 INSERT INTO {table.value}
                 (entry_json, entry_hash, prev_chain_hash, chain_hash, signatures)
                 VALUES (?, ?, ?, ?, ?)
-                """,# nosec B608
+                """,
                 (
                     json.dumps(entry),
                     entry_hash,
@@ -319,7 +319,7 @@ class SQLiteBackend:
 
         
         count = self.conn.execute( 
-            f"SELECT COUNT(*) as c FROM {table.value}"# nosec B608
+            f"SELECT COUNT(*) as c FROM {table.value}"
         ).fetchone()["c"]
 
         # ✅ Allow bootstrap if table empty
@@ -357,7 +357,7 @@ class SQLiteBackend:
         for table in Table:
             
             rows = self.conn.execute( 
-                f"SELECT * FROM {table.value} ORDER BY id ASC"# nosec B608
+                f"SELECT * FROM {table.value} ORDER BY id ASC"
             ).fetchall()
 
             prev = None
