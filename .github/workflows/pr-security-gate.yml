@@ -522,6 +522,8 @@ jobs:
       # in the deep-scan workflow.
       # ────────────────────────────────────────────────────────────────────
       - name: Red Team Tests
+        env:
+          CI_SECURITY_BYPASS: "0"
         id: red_team_tests
         if: always()
         run: |
