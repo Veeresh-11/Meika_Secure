@@ -1,6 +1,6 @@
 # app/security/test_evidence_orchestrator_full.py
 
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -21,7 +21,7 @@ def make_decision(outcome):
         outcome=outcome,
         reason="test",
         policy_version="v1",
-        evaluated_at=datetime.utcnow(),
+        evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         obligations=None,
         evidence_hash=None,
     )

@@ -3,7 +3,7 @@ from app.security.evidence.engine import build_evidence_record
 from app.security.evidence.verify import verify_chain
 from app.security.context import SecurityContext
 from app.security.decision import SecurityDecision, DecisionOutcome
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def test_chain_integrity_verification():
@@ -17,7 +17,7 @@ def test_chain_integrity_verification():
         device_id=None,
         device=None,
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
         grant=None,
     )
@@ -28,7 +28,7 @@ def test_chain_integrity_verification():
             outcome=DecisionOutcome.ALLOW,
             reason="ok",
             policy_version="test",
-            evaluated_at=datetime.utcnow(),
+            evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
 
         record = build_evidence_record(

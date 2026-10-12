@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import patch
 
 import pytest
@@ -16,7 +16,7 @@ def test_factory_create():
         outcome=DecisionOutcome.ALLOW,
         reason="ok",
         policy_version="v1",
-        evaluated_at=datetime.utcnow(),
+        evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         obligations={"a": 1},
         evidence_hash="hash1",
     )
@@ -31,7 +31,7 @@ def test_to_dict():
         outcome=DecisionOutcome.DENY,
         reason="deny",
         policy_version="v1",
-        evaluated_at=datetime.utcnow(),
+        evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         obligations={"x": 1},
         evidence_hash="hash2",
     )
@@ -64,7 +64,7 @@ def test_to_deterministic_dict():
         outcome=DecisionOutcome.RESTRICT,
         reason="restricted",
         policy_version="v1",
-        evaluated_at=datetime.utcnow(),
+        evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         obligations={"a": 1},
     )
 
@@ -94,5 +94,5 @@ def test_direct_construction_blocked():
                 outcome=DecisionOutcome.ALLOW,
                 reason="x",
                 policy_version="v1",
-                evaluated_at=datetime.utcnow(),
+                evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
             )
