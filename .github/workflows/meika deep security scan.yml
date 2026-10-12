@@ -530,6 +530,8 @@ jobs:
           ls -la fuzz_results/ 2>/dev/null || echo "No fuzz results"
 
       - name: Red Team Suite
+        env:
+          CI_SECURITY_BYPASS: "0"
         run: |
           if [ -f app/security/test_red_team_attacks.py ]; then
             pytest app/security/test_red_team_attacks.py \
