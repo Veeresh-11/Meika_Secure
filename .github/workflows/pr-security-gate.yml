@@ -593,9 +593,12 @@ jobs:
           CODEQL: ${{ needs.pr-gate.outputs.codeql }}
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --location \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            "$GH_API_URL/repos/$GH_REPOSITORY/actions/runs/$GH_RUN_ID/logs" \
-            --output "$RUNNER_TEMP/pr-gate-logs.zip"
+          # Aggregate workflow logs are not available until the workflow ends.
+          # Fetch the completed pr-gate job's logs while this scoring job runs.
+          PR_GATE_JOB_ID="$(gh api "repos/$GH_REPOSITORY/actions/runs/$GH_RUN_ID/jobs?per_page=100" --jq '.jobs[] | select(.name == "pr-gate" and .conclusion == "success") | .id')"
+          if [ -z "$PR_GATE_JOB_ID" ]; then
+            echo "::error::Could not identify the completed pr-gate job."
+            exit 1
+          fi
+          gh api "repos/$GH_REPOSITORY/actions/jobs/$PR_GATE_JOB_ID/logs" > "$RUNNER_TEMP/pr-gate-logs.zip"
           python .github/scripts/score_pr_gate.py "$RUNNER_TEMP/pr-gate-logs.zip"
