@@ -19,17 +19,17 @@ jobs:
   # without waiting on the full 20+ minute pr-gate job below.
   # ──────────────────────────────────────────────────────────────────────────
   secret-scan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
     steps:
       - name: Checkout (full history for accurate diff scanning)
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Gitleaks Secret Scan
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_COMMENTS: "true"
@@ -44,7 +44,7 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────────
   dependency-review:
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -52,9 +52,9 @@ jobs:
     steps:
       - name: Checkout
         id: checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Dependency Review
-        uses: actions/dependency-review-action@v4
+        uses: actions/dependency-review-action@v5
         with:
           fail-on-severity: high
           comment-summary-in-pr: always
@@ -71,7 +71,7 @@ jobs:
   # ──────────────────────────────────────────────────────────────────────────
   scorecard:
     if: github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       security-events: write
@@ -79,7 +79,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           persist-credentials: false
       - name: Run OSSF Scorecard
@@ -94,7 +94,7 @@ jobs:
           sarif_file: scorecard-results.sarif
 
   pr-gate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     outputs:
       checkout: ${{ steps.checkout.outcome }}
@@ -174,7 +174,7 @@ jobs:
 
       - name: Checkout
         id: checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Start Redis with explicit CI configuration
         id: redis_ready
@@ -579,7 +579,7 @@ jobs:
     name: PR Gate Quality Score (100 points per check)
     if: always() && github.event_name == 'pull_request'
     needs: [secret-scan, dependency-review, pr-gate]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
       GIT_CONFIG_COUNT: "1"
@@ -591,7 +591,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout scoring script
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Calculate and enforce quality score
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
