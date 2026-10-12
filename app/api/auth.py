@@ -53,20 +53,20 @@ def get_db():
 # Models
 # --------------------
 class RegisterRequest(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(..., json_schema_extra={"pattern": r"^(?!.*@[^@]*\.(?:test|example|invalid|localhost|local)$).+$"})
     password: str = Field(..., min_length=10)
     display_name: str | None = None
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(..., json_schema_extra={"pattern": r"^(?!.*@[^@]*\.(?:test|example|invalid|localhost|local)$).+$"})
     password: str = Field(..., min_length=10)
     device_id: str = Field(..., min_length=3)
     device_signals: dict = Field(default_factory=dict)
 
 
 class WebAuthnRegisterStartRequest(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(..., json_schema_extra={"pattern": r"^(?!.*@[^@]*\.(?:test|example|invalid|localhost|local)$).+$"})
     device_name: str = Field(
         ...,
         min_length=1,
@@ -110,7 +110,7 @@ class AttestationPayload(BaseModel):
 
 
 class WebAuthnRegisterFinishRequest(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(..., json_schema_extra={"pattern": r"^(?!.*@[^@]*\.(?:test|example|invalid|localhost|local)$).+$"})
     attestation: AttestationPayload
 
     model_config = ConfigDict(extra="forbid")
@@ -121,7 +121,7 @@ class WebAuthnRegisterFinishRequest(BaseModel):
 # ---------------------------------------------------------
 
 class WebAuthnAuthenticateStartRequest(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(..., json_schema_extra={"pattern": r"^(?!.*@[^@]*\.(?:test|example|invalid|localhost|local)$).+$"})
 
     model_config = ConfigDict(extra="forbid")
 
@@ -146,7 +146,7 @@ class AssertionPayload(BaseModel):
 
 
 class WebAuthnAuthenticateFinishRequest(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(..., json_schema_extra={"pattern": r"^(?!.*@[^@]*\.(?:test|example|invalid|localhost|local)$).+$"})
 
     credential_id: str = Field(
         ...,
@@ -364,6 +364,7 @@ def login(
     responses={
         200: {"description": "Registration session created"},
         400: {"description": "Malformed request"},
+        404: {"description": "User not found"},
         409: {"description": "User already exists"},
     },
 )
@@ -570,6 +571,7 @@ def webauthn_register_finish(
         200: {"description": "Authentication challenge generated"},
         400: {"description": "Malformed request body"},
         401: {"description": "User not found or no credentials"},
+        404: {"description": "User not found"},
         422: {"description": "Validation error"},
     },
 )
