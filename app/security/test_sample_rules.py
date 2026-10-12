@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 from app.security.simulation.sample_rules import (
@@ -10,7 +10,7 @@ def test_no_grant_returns_none():
 
     ctx = SimpleNamespace(
         grant=None,
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     assert warn_grant_near_expiry(ctx, None) is None
@@ -18,7 +18,7 @@ def test_no_grant_returns_none():
 
 def test_grant_not_near_expiry_returns_none():
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     grant = SimpleNamespace(
         expires_at=now + timedelta(minutes=10)
@@ -34,7 +34,7 @@ def test_grant_not_near_expiry_returns_none():
 
 def test_grant_near_expiry_returns_warning():
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     grant = SimpleNamespace(
         expires_at=now + timedelta(seconds=120)

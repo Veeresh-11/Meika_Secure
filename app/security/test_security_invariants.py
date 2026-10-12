@@ -2,7 +2,7 @@
 
 import pytest
 pytestmark = pytest.mark.track_a
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.security.context import SecurityContext
 from app.security.device_snapshot import DeviceSnapshot
@@ -28,7 +28,7 @@ def test_security_context_is_immutable():
         binding_valid=True,
         clone_confirmed=False,
         replay_detected=False,
-        last_attested_at=datetime.utcnow(),
+        last_attested_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     posture = DevicePostureContext(
@@ -60,7 +60,7 @@ def test_security_context_is_immutable():
         device_id=snapshot.device_id,
         device=snapshot,          # ✅ snapshot only
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
     )
 

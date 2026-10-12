@@ -1,5 +1,5 @@
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import jwt
 import pytest
@@ -41,7 +41,7 @@ def test_valid_device_bound_token():
 
     token = make_token(
         dkh,
-        datetime.utcnow() + timedelta(minutes=5),
+        datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=5),
     )
 
     payload = enforce_device_bound_token(
@@ -60,7 +60,7 @@ def test_expired_token():
 
     token = make_token(
         dkh,
-        datetime.utcnow() - timedelta(minutes=5),
+        datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=5),
     )
 
     with pytest.raises(SecurityError, match="Token expired"):
@@ -83,7 +83,7 @@ def test_wrong_device_binding():
 
     token = make_token(
         "wrong-device-hash",
-        datetime.utcnow() + timedelta(minutes=5),
+        datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=5),
     )
 
     with pytest.raises(

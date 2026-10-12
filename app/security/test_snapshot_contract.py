@@ -2,7 +2,7 @@
 
 import pytest
 pytestmark = pytest.mark.track_a
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.security.context import SecurityContext
 from app.security.device_snapshot import DeviceSnapshot
@@ -35,7 +35,7 @@ def test_raw_device_is_rejected():
             device_id=device.device_id,
             device=device,  # ❌ raw device must be rejected
             risk_signals={},
-            request_time=datetime.utcnow(),
+            request_time=datetime.now(timezone.utc).replace(tzinfo=None),
             metadata={},
         )
 
@@ -61,7 +61,7 @@ def test_device_snapshot_is_accepted():
         device_id=snapshot.device_id,
         device=snapshot,  # ✅ snapshot allowed
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
     )
 
