@@ -243,6 +243,18 @@ jobs:
           echo "API server is up."
           curl -s http://127.0.0.1:8000/openapi.json | python3 -m json.tool | head -20
 
+      # Run the security negative-path tests immediately after API readiness,
+      # before lengthy network scanners, so auth bypass regressions fail fast.
+      - name: Red Team Suite
+        id: red_team_tests
+        env:
+          CI_SECURITY_BYPASS: "0"
+        run: |
+          pytest app/security/test_red_team_attacks.py \
+            -v \
+            --tb=short \
+            --asyncio-mode=auto
+
       # ────────────────────────────────────────────────────────────────────────
       # FIX 2 — OWASP ZAP: removed duplicate -J flag.
       # The action already injects its own -J report_json.json internally;
@@ -528,19 +540,6 @@ jobs:
             || true
           echo "Pynguin output:"
           ls -la fuzz_results/ 2>/dev/null || echo "No fuzz results"
-
-      - name: Red Team Suite
-        env:
-          CI_SECURITY_BYPASS: "0"
-        run: |
-          if [ -f app/security/test_red_team_attacks.py ]; then
-            pytest app/security/test_red_team_attacks.py \
-              -v \
-              --tb=short \
-              --asyncio-mode=auto
-          else
-            echo "Red team test file not found — skipping"
-          fi
 
       # ────────────────────────────────────────────────────────────────────────
       # NEW — Container image scan (Trivy). Standard in mature security
