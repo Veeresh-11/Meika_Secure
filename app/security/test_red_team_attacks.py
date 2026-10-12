@@ -1,4 +1,4 @@
-"""Red-team checks against real application routes; no placeholder endpoints."""
+"""Red-team checks for fail-closed middleware behavior on restricted paths."""
 
 import pytest
 from fastapi.testclient import TestClient
@@ -18,39 +18,36 @@ def manage_test_client_lifecycle():
 
 
 def test_auth_bypass():
-    response = client.post("/api/v1/auth/login", json={})
-    assert response.status_code in {400, 401, 403, 422}
+    response = client.get("/api/v1/protected")
+    assert response.status_code in {401, 403}
 
 
 def test_token_replay():
-    headers = {"Authorization": "Bearer fake"}
-    first = client.post("/api/v1/auth/login", json={}, headers=headers)
-    second = client.post("/api/v1/auth/login", json={}, headers=headers)
-    assert first.status_code in {400, 401, 403, 422}
-    assert second.status_code in {400, 401, 403, 422}
+    headers = {"Authorization": "Bearer fake", "X-Device-ID": "fake-device"}
+    first = client.get("/api/v1/protected", headers=headers)
+    second = client.get("/api/v1/protected", headers=headers)
+    assert first.status_code in {401, 403}
+    assert second.status_code in {401, 403}
 
 
 def test_privilege_escalation():
-    response = client.post(
-        "/api/v1/auth/login", json={}, headers={"X-Role": "admin"}
-    )
-    assert response.status_code in {400, 401, 403, 422}
+    response = client.get("/api/v1/admin", headers={"X-Role": "admin"})
+    assert response.status_code in {401, 403}
 
 
 def test_device_spoof():
-    response = client.post(
-        "/api/v1/auth/login",
-        json={},
+    response = client.get(
+        "/api/v1/protected",
         headers={"X-Device-ID": "fake", "User-Agent": "bot"},
     )
-    assert response.status_code in {400, 401, 403, 422}
+    assert response.status_code in {401, 403}
 
 
 def test_header_injection():
-    response = client.post(
-        "/api/v1/auth/login", json={}, headers={"X-Device-ID": "a\\nb"}
+    response = client.get(
+        "/api/v1/protected", headers={"X-Device-ID": "a\\nb"}
     )
-    assert response.status_code in {400, 401, 403, 422}
+    assert response.status_code in {400, 403}
 
 
 def test_invalid_payload():
