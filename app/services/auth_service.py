@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
 
 from app.db.models import User, Session as UserSession, AuditLog
@@ -74,8 +74,8 @@ class AuthService:
 
         session = UserSession(
             user_id=user.id,
-            issued_at=datetime.utcnow(),
-            expires_at=datetime.utcnow() + timedelta(hours=1),
+            issued_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1),
             revoked=False,
         )
 

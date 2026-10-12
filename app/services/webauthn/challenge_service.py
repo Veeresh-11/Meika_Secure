@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -62,7 +62,7 @@ class ChallengeService:
         if challenge.used:
             raise ValueError("Challenge already used")
 
-        if challenge.expires_at < datetime.utcnow():
+        if challenge.expires_at < datetime.now(timezone.utc).replace(tzinfo=None):
             raise ValueError("Challenge expired")
 
     @staticmethod
@@ -81,7 +81,7 @@ class ChallengeService:
     ):
 
         db.query(WebAuthnChallenge).filter(
-            WebAuthnChallenge.expires_at < datetime.utcnow()
+            WebAuthnChallenge.expires_at < datetime.now(timezone.utc).replace(tzinfo=None)
         ).delete()
 
         db.commit()

@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from app.db.models import Credential, User
 from app.security.password import hash_password, verify_password
-from datetime import datetime
+from datetime import datetime, timezone
 from app.db.webauthn_models import WebAuthnCredential
 
 class CredentialService:
@@ -95,7 +95,7 @@ class CredentialService:
             return False
 
         if verify_password(credential.secret_ref, password):
-            credential.last_used_at = datetime.utcnow()
+            credential.last_used_at = datetime.now(timezone.utc).replace(tzinfo=None)
             db.commit()
             return True
 
@@ -121,7 +121,7 @@ class CredentialService:
         credential: WebAuthnCredential,
     ) -> WebAuthnCredential:
 
-        credential.last_used_at = datetime.utcnow()
+        credential.last_used_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         db.commit()
         db.refresh(credential)
