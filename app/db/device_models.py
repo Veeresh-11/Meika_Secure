@@ -28,6 +28,7 @@ class Device(Base):
 
     __table_args__ = (
         Index("ix_devices_user_id", "user_id"),
+        Index("ix_devices_tenant_id", "tenant_id"),
         Index("ix_devices_identifier", "device_identifier"),
         {"schema": "identity"},
     )
@@ -41,6 +42,12 @@ class Device(Base):
     user_id = Column(
         UUID(as_uuid=True),
         ForeignKey("identity.users.id"),
+        nullable=False,
+    )
+
+    tenant_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("identity.organizations.id"),
         nullable=False,
     )
 
