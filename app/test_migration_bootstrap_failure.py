@@ -5,6 +5,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import psycopg2
+from psycopg2 import sql as psycopg2_sql
 import pytest
 
 
@@ -225,13 +226,13 @@ def test_failed_migration_does_not_record_or_partially_apply(
             # Only migration 001 MUST be recorded.
             # ----------------------------------------------------
             cur.execute(
-                psycopg2.sql.SQL(
+                psycopg2_sql.SQL(
                     """
                     SELECT version
                     FROM {}.schema_migrations
                     ORDER BY version
                     """
-                ).format(psycopg2.sql.Identifier(schema))
+                ).format(psycopg2_sql.Identifier(schema))
             )
 
             applied_versions = [
