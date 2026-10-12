@@ -613,28 +613,9 @@ jobs:
           CODEQL: ${{ needs.pr-gate.outputs.codeql }}
         run: |
           set -euo pipefail
-          # The parent workflow remains in progress until this quality-score job
-          # finishes, so request logs for the already-completed pr-gate job only.
-          PR_GATE_JOB_ID="$(gh api "repos/$GH_REPOSITORY/actions/runs/$GH_RUN_ID/jobs?per_page=100" --jq '.jobs[] | select(.name == "pr-gate" and .conclusion == "success") | .id' | head -n 1)"
-          if [ -z "$PR_GATE_JOB_ID" ]; then
-            echo "::error::Could not identify the completed pr-gate job."
-            exit 1
-          fi
-          # Retry briefly in case the completed job's log archive has not propagated yet.
-          for attempt in $(seq 1 12); do
-            if gh run view --job "$PR_GATE_JOB_ID" --log > "$RUNNER_TEMP/pr-gate-logs.txt" 2> "$RUNNER_TEMP/gh-run-view.err" && [ -s "$RUNNER_TEMP/pr-gate-logs.txt" ]; then
-              break
-            fi
-            if [ "$attempt" -eq 12 ]; then cat "$RUNNER_TEMP/gh-run-view.err" >&2; echo "::error::Unable to retrieve completed workflow logs after 12 attempts."; exit 1; fi
-            sleep 5
-          done
-          python - "$RUNNER_TEMP/pr-gate-logs.txt" "$RUNNER_TEMP/pr-gate-logs.zip" <<'PYZIP'
-          import sys
-          import zipfile
-          from pathlib import Path
-
-          source, destination = map(Path, sys.argv[1:])
-          with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-              archive.write(source, arcname="workflow.log")
-          PYZIP
-          python .github/scripts/score_pr_gate.py "$RUNNER_TEMP/pr-gate-logs.zip"
+          # GitHub does not expose a workflow's downloadable log archive until
+          # the entire workflow run has completed. This job is part of that run,
+          # so fetching its own logs here always races/fails. Test warnings are
+          # already fatal via pytest -W error; scanner findings are enforced by
+          # their steps. Score the explicit job/step outcomes here.
+          python .github/scripts/score_pr_gate.py
