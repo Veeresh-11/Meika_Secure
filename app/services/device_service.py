@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.db.device_models import Device
+from app.db.models import User
 
 from app.security.device.constants import (
     DEVICE_STATE_ACTIVE,
@@ -58,10 +59,15 @@ class DeviceService:
         attestation_verified: bool = False,
     ) -> Device:
 
+        user = db.query(User).filter(User.id == user_id).first()
+        if user is None:
+            raise ValueError("Cannot register a device for an unknown user")
+
         now = datetime.utcnow()
 
         device = Device(
             user_id=user_id,
+            tenant_id=user.tenant_id,
             device_identifier=device_identifier,
             device_name=device_name,
             device_type=device_type,
