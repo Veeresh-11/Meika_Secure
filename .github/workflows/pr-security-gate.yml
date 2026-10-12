@@ -620,5 +620,5 @@ jobs:
             echo "::error::Could not identify the completed pr-gate job."
             exit 1
           fi
-          gh api "repos/$GH_REPOSITORY/actions/jobs/$PR_GATE_JOB_ID/logs" > "$RUNNER_TEMP/pr-gate-logs.zip"
+          gh --allow-escape-sequences api "repos/$GH_REPOSITORY/actions/jobs/$PR_GATE_JOB_ID/logs" > "$RUNNER_TEMP/pr-gate-logs.zip"
           python .github/scripts/score_pr_gate.py "$RUNNER_TEMP/pr-gate-logs.zip"
