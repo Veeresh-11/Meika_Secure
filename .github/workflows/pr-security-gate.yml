@@ -175,8 +175,7 @@ jobs:
             /usr/local/lib/android \
             /opt/ghc \
             /opt/hostedtoolcache/CodeQL \
-            /usr/local/share/boost \
-            "$AGENT_TOOLSDIRECTORY"
+            /usr/local/share/boost
           # Clean package caches without running autoremove, which can
           # block on runner package-manager state and is unnecessary here.
           sudo apt-get clean -qq
