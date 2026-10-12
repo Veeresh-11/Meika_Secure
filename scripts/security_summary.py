@@ -54,6 +54,21 @@ def main() -> int:
     counts: dict[str, int] = {}
     blockers: list[str] = []
 
+    # A report alone is not enough: scanners must also exit successfully.
+    scanner_outcomes = {
+        "OWASP ZAP": "ZAP_OUTCOME",
+        "Nuclei": "NUCLEI_OUTCOME",
+        "Schemathesis": "SCHEMATHESIS_OUTCOME",
+        "pip-audit": "PIP_AUDIT_OUTCOME",
+        "OSV-Scanner": "OSV_OUTCOME",
+        "Bandit": "BANDIT_OUTCOME",
+        "Trivy config": "TRIVY_CONFIG_OUTCOME",
+    }
+    for scanner, variable in scanner_outcomes.items():
+        outcome = os.environ.get(variable, "missing")
+        if outcome != "success":
+            blockers.append(f"{scanner} did not complete successfully (outcome={outcome})")
+
     zap = load_json("zap-report.json")
     sites = zap.get("site")
     if not isinstance(sites, list):
