@@ -1,6 +1,6 @@
 # app/security/test_jwt_builder_full.py
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.security.federation.jwt_builder import (
     DeterministicJWTBuilder,
@@ -62,7 +62,7 @@ def test_build_with_private_key_branch():
         evidence_hash="ev2",
         device_state_hash="dev2",
         policy_version="v1",
-        issued_at=datetime.utcnow(),
+        issued_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     assert isinstance(token, str)
@@ -99,7 +99,7 @@ def test_build_fallback_to_pq_when_jwt_encode_fails(
         evidence_hash="ev3",
         device_state_hash="dev3",
         policy_version="v1",
-        issued_at=datetime.utcnow(),
+        issued_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     assert token.count(".") == 2
@@ -125,7 +125,7 @@ def test_build_direct_pq_path():
         evidence_hash="ev4",
         device_state_hash="dev4",
         policy_version="v1",
-        issued_at=datetime.utcnow(),
+        issued_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     assert token.count(".") == 2

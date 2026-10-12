@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.security.pipeline import SecurityPipeline
 from app.security.context import SecurityContext
@@ -38,7 +38,7 @@ def test_deny_normalization():
         device=None,
         device_id=None,
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
         grant=None,
     )

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
 
@@ -30,7 +30,7 @@ def test_deny_without_evidence_rejected():
         device=None,
         device_id=None,
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
         grant=None,
     )

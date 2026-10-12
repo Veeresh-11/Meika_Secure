@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 from app.security.policy.evaluators.graph import (
@@ -12,7 +12,7 @@ def make_ctx(resource=None):
         principal_id="alice",
         intent="read",
         metadata={"resource": resource},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
 
