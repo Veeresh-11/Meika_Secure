@@ -1,4 +1,5 @@
 from pathlib import Path
+import tempfile
 from unittest.mock import patch, mock_open
 
 import pytest
@@ -22,7 +23,7 @@ def test_module_file_failure():
 def test_module_file_success():
 
     class Spec:
-        origin = "/tmp/test.py"
+        origin = str(Path(tempfile.gettempdir()) / "test.py")
 
     with patch(
         "importlib.util.find_spec",
@@ -32,7 +33,7 @@ def test_module_file_success():
             "anything"
         )
 
-    assert path == Path("/tmp/test.py")
+    assert path == Path(tempfile.gettempdir()) / "test.py"
 
 
 def test_compute_build_hash():

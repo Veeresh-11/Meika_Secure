@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 from unittest.mock import patch
+from pathlib import Path
+import tempfile
 
 import pytest
 
@@ -79,7 +81,7 @@ def test_direct_construction_blocked():
     fake_frame = type(
         "Frame",
         (),
-        {"filename": "/tmp/not_allowed.py"},
+        {"filename": str(Path(tempfile.gettempdir()) / "not_allowed.py")},
     )()
 
     with patch(

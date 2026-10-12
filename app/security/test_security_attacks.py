@@ -1,5 +1,6 @@
 import pytest
 import jwt
+import secrets
 import time
 
 from app.security.federation.service import FederationService
@@ -129,8 +130,7 @@ def test_missing_claims_rejected():
     del decoded["jti"]
 
     # We intentionally use a 'fake' hardcoded secret to generate a garbage token
-    TEST_ATTACK_SECRET = (
-    "0123456789abcdef0123456789abcdef")
+    TEST_ATTACK_SECRET = secrets.token_urlsafe(32)
 
     forged = jwt.encode(
      decoded,

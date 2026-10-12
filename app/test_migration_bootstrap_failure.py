@@ -225,11 +225,13 @@ def test_failed_migration_does_not_record_or_partially_apply(
             # Only migration 001 MUST be recorded.
             # ----------------------------------------------------
             cur.execute(
-                """
-                SELECT version
-                FROM "{}".schema_migrations
-                ORDER BY version
-                """.format(schema),
+                psycopg2.sql.SQL(
+                    """
+                    SELECT version
+                    FROM {}.schema_migrations
+                    ORDER BY version
+                    """
+                ).format(psycopg2.sql.Identifier(schema))
             )
 
             applied_versions = [

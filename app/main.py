@@ -41,7 +41,7 @@ def resolve_device_context(request: Request):
     return {
         "device_id": request.headers.get("X-Device-ID", "unknown"),
         "user_agent": request.headers.get("User-Agent"),
-        "ip_address": request.client.host if request.client else "0.0.0.0",
+        "ip_address": request.client.host if request.client else "unknown",
     }
 
 

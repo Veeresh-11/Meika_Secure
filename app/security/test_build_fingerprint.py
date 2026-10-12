@@ -1,4 +1,5 @@
 from pathlib import Path
+import tempfile
 from types import SimpleNamespace
 from unittest.mock import mock_open, patch
 
@@ -13,7 +14,7 @@ from app.security.build_fingerprint import (
 def test_module_file_success():
 
     fake_spec = SimpleNamespace(
-        origin="/tmp/test.py",
+        origin=str(Path(tempfile.gettempdir()) / "test.py"),
     )
 
     with patch(
@@ -24,7 +25,7 @@ def test_module_file_success():
             "app.security.test",
         )
 
-    assert path == Path("/tmp/test.py")
+    assert path == Path(tempfile.gettempdir()) / "test.py"
 
 
 def test_module_file_not_found():
