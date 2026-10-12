@@ -1,6 +1,5 @@
 # app/api/test_auth_webauthn.py
 
-from fastapi.testclient import TestClient
 from app.main import app
 
 import pytest
@@ -9,7 +8,6 @@ pytestmark = pytest.mark.skip(
     reason="Superseded by app/api/test_auth.py after Production WebAuthn persistence migration."
 )
 
-client = TestClient(app)
 
 
 class TestWebAuthnRegisterStart:
