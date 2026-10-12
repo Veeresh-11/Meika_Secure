@@ -1,6 +1,6 @@
 import pytest
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from dataclasses import replace
 from app.security.context import SecurityContext
 from app.security.policy.loader import load_policy
@@ -29,7 +29,7 @@ ctx = SecurityContext(
     device_id=None,
     device=None,
     risk_signals={},
-    request_time=datetime.utcnow(),
+    request_time=datetime.now(timezone.utc).replace(tzinfo=None),
     metadata={},
 )
 

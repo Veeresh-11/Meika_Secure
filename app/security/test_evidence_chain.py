@@ -5,7 +5,7 @@ pytestmark = [
     pytest.mark.evidence,
 ]
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.security.device_snapshot import DeviceSnapshot
 from app.security.context import SecurityContext
@@ -48,7 +48,7 @@ ctx = SecurityContext(
     device_id=device.device_id,
     device=snapshot,
     risk_signals={},
-    request_time=datetime.utcnow(),
+    request_time=datetime.now(timezone.utc).replace(tzinfo=None),
     metadata={},
 )
 
@@ -58,7 +58,7 @@ for i in range(3):
         outcome=DecisionOutcome.ALLOW,
         reason=f"test-{i}",
         policy_version="v1",
-        evaluated_at=datetime.utcnow(),
+        evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
     writer.write_decision(ctx, decision)
 

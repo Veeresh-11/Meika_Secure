@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 from app.security.receipts.generator import (
@@ -16,7 +16,7 @@ class FakeContext:
 
     principal_id = "user-1"
     intent = "read.file"
-    request_time = datetime.utcnow()
+    request_time = datetime.now(timezone.utc).replace(tzinfo=None)
 
     metadata = {
         "resource": "document-123"
@@ -33,7 +33,7 @@ class FakeContextNoResource:
 
     principal_id = "user-2"
     intent = "write.file"
-    request_time = datetime.utcnow()
+    request_time = datetime.now(timezone.utc).replace(tzinfo=None)
 
     metadata = {}
 

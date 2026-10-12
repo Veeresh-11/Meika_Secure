@@ -9,7 +9,7 @@ from app.security.errors import SecurityPipelineError
 from app.security.webauthn.attestation import (
     AttestationVerificationError,
 )
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 from app.security.webauthn.assertion import verify_assertion
 
@@ -706,8 +706,8 @@ def test_webauthn_authenticate_finish_success(monkeypatch):
         hardware_backed=True,
         attestation_verified=True,
         attestation_type="basic",
-        created_at=datetime.utcnow(),
-        last_used_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        last_used_at=datetime.now(timezone.utc).replace(tzinfo=None),
         revoked=False,
     )
 

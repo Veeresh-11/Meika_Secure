@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.security.device.context import (
     DeviceContext,
@@ -30,7 +30,7 @@ def build_device(
         binding_valid=binding_valid,
         clone_confirmed=clone_confirmed,
         replay_detected=replay_detected,
-        last_attested_at=datetime.utcnow(),
+        last_attested_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     posture = DevicePostureContext(
