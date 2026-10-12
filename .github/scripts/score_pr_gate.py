@@ -122,7 +122,7 @@ def main() -> int:
     if final_score != MAX_SCORE or len(warnings) != 0 or any(points != 100 for _, _, points in scores):
         print("::error::PR gate quality score is below 100% or warning events remain.")
         return 1
-    print("All 19 checks scored 100/100. Total 1900/1900, with zero warning events.")
+    print(f"All {len(CHECKS)} checks scored 100/100. Total {MAX_SCORE}/{MAX_SCORE}, with zero warning events.")
     return 0
 
 
