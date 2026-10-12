@@ -6,7 +6,7 @@ with the shared Base.metadata.
 from app.db.models import Base
 
 # Core models
-from app.db.models import User, Credential, Session, AuditLog
+from app.db.models import Organization, User, Credential, Session, AuditLog
 
 # Device
 from app.db.device_models import Device
@@ -22,6 +22,7 @@ from app.db.webauthn_models import (
 
 __all__ = [
     "Base",
+    "Organization",
     "User",
     "Credential",
     "Session",
