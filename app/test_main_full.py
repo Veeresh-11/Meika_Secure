@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock
+from fastapi.responses import JSONResponse
 
 import app.main as main_module
 
@@ -51,10 +52,7 @@ async def test_ci_security_bypass(monkeypatch):
     async def call_next(req):
         return "bypassed"
 
-    result = await main_module.enforce_security(
-            request,
-            call_next,
-    )
+    result = await main_module.enforce_security(request, call_next)
 
     assert result == "bypassed"
 
@@ -69,10 +67,7 @@ async def test_webauthn_non_post_branch(monkeypatch):
     async def call_next(req):
         return "webauthn"
 
-    result = await main_module.enforce_security(
-            request,
-            call_next,
-    )
+    result = await main_module.enforce_security(request, call_next)
 
     assert result == "webauthn"
 
@@ -87,10 +82,7 @@ async def test_unsupported_method_branch(monkeypatch):
     async def call_next(req):
         return "unsupported"
 
-    result = await main_module.enforce_security(
-            request,
-            call_next,
-    )
+    result = await main_module.enforce_security(request, call_next)
 
     assert result == "unsupported"
 
@@ -120,16 +112,10 @@ async def test_success_path(monkeypatch):
     async def call_next(req):
         return "success"
 
-    result = await main_module.enforce_security(
-            request,
-            call_next,
-    )
+    result = await main_module.enforce_security(request, call_next)
 
     assert result == "success"
     
-from unittest.mock import AsyncMock
-from fastapi.responses import JSONResponse
-
 
 def test_resolve_device_context_real():
     request = AsyncMock()
@@ -164,10 +150,7 @@ async def test_missing_device_identity(monkeypatch):
     async def call_next(req):
         return "should_not_happen"
 
-    response = await main_module.enforce_security(
-            request,
-            call_next,
-    )
+    response = await main_module.enforce_security(request, call_next)
 
     assert isinstance(response, JSONResponse)
     assert response.status_code == 401
@@ -198,10 +181,7 @@ async def test_security_middleware_exception(monkeypatch):
     async def call_next(req):
         return "never"
 
-    response = await main_module.enforce_security(
-            request,
-            call_next,
-    )
+    response = await main_module.enforce_security(request, call_next)
 
     assert isinstance(response, JSONResponse)
     assert response.status_code == 403
@@ -232,9 +212,6 @@ async def test_webauthn_post_path(monkeypatch):
     async def call_next(req):
         return "ok"
 
-    result = await main_module.enforce_security(
-            request,
-            call_next,
-    )
+    result = await main_module.enforce_security(request, call_next)
 
     assert result == "ok"
