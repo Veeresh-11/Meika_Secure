@@ -471,7 +471,7 @@ jobs:
           # turn an unavailable scanner into a clean/empty result.
           go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.3.3
           echo "$HOME/go/bin" >> "$GITHUB_PATH"
-          "$HOME/go/bin/osv-scanner" scan source --recursive --format json --output-file osv-report.json . || scan_status=$?
+          "$HOME/go/bin/osv-scanner" scan source --recursive --format json . > osv-report.json || scan_status=$?
           if [ ! -s osv-report.json ]; then
             echo "::error::OSV-Scanner did not produce osv-report.json"
             exit 1
@@ -502,8 +502,10 @@ jobs:
                           print(f"VULNERABLE: {name}=={version} {advisory} aliases={aliases}")
           print(f"Total vulnerabilities found: {total}")
           PY
-          if [ "${scan_status:-0}" -ne 0 ]; then
-            echo "::error::OSV-Scanner reported findings or failed; review osv-report.json"
+          # Exit code 1 means findings; the validated JSON is evaluated by the gate.
+          # Higher exit codes indicate scanner execution failure.
+          if [ "${scan_status:-0}" -gt 1 ]; then
+            echo "::error::OSV-Scanner failed to complete; review scanner output"
             exit "${scan_status}"
           fi
 
