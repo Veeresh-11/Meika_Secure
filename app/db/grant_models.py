@@ -35,6 +35,7 @@ class Grant(Base):
         Index("ix_grants_device_id", "device_id"),
         Index("ix_grants_session_id", "session_id"),
         Index("ix_grants_jwt_id", "jwt_id"),
+        Index("ix_grants_tenant_id", "tenant_id"),
         {"schema": "identity"}
     )
 
@@ -51,6 +52,12 @@ class Grant(Base):
     user_id = Column(
         UUID(as_uuid=True),
         ForeignKey("identity.users.id"),
+        nullable=False,
+    )
+
+    tenant_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("identity.organizations.id"),
         nullable=False,
     )
 
