@@ -136,6 +136,9 @@ jobs:
       security-events: write
 
     env:
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: init.defaultBranch
+      GIT_CONFIG_VALUE_0: main
       PYTHONPATH: .
       DB_HOST: localhost
       DB_PORT: 5432
@@ -578,6 +581,10 @@ jobs:
     needs: [secret-scan, dependency-review, pr-gate]
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: init.defaultBranch
+      GIT_CONFIG_VALUE_0: main
     permissions:
       actions: read
       contents: read
