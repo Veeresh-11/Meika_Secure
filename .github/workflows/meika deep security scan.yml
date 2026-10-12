@@ -18,7 +18,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'schedule' ||
       github.event.workflow_run.conclusion == 'success'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60   # ZAP + Nuclei + Schemathesis + pip-audit + bandit all take time
 
     # ── FIX 1: PostgreSQL service — API server crashes without DB ─────────────
@@ -95,7 +95,7 @@ jobs:
       # 1. Checkout
       # ────────────────────────────────────────────────────────────────────────
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       # ────────────────────────────────────────────────────────────────────────
       # 2. Python
