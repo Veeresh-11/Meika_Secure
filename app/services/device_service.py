@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -63,7 +63,7 @@ class DeviceService:
         if user is None:
             raise ValueError("Cannot register a device for an unknown user")
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         device = Device(
             user_id=user_id,
@@ -122,8 +122,8 @@ class DeviceService:
         device: Device,
     ) -> Device:
 
-        device.last_seen = datetime.utcnow()
-        device.updated_at = datetime.utcnow()
+        device.last_seen = datetime.now(timezone.utc).replace(tzinfo=None)
+        device.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         db.commit()
         db.refresh(device)
@@ -144,7 +144,7 @@ class DeviceService:
             )
 
         device.trust_level = trust_level
-        device.updated_at = datetime.utcnow()
+        device.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         db.commit()
         db.refresh(device)
@@ -165,7 +165,7 @@ class DeviceService:
             )
 
         device.state = state
-        device.updated_at = datetime.utcnow()
+        device.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         db.commit()
         db.refresh(device)
@@ -180,7 +180,7 @@ class DeviceService:
     ) -> Device:
 
         device.state = DEVICE_STATE_REVOKED
-        device.updated_at = datetime.utcnow()
+        device.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         db.commit()
         db.refresh(device)

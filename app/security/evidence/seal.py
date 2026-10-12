@@ -1,7 +1,7 @@
 # app/security/evidence/seal.py
 
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import hashlib
 
@@ -36,7 +36,7 @@ def create_seal_snapshot(records: list[EvidenceRecord]) -> dict:
     snapshot = {
         "root_hash": root_hash,
         "record_count": len(records),
-        "sealed_at": datetime.utcnow().isoformat(),
+        "sealed_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
     }
 
     # Deterministic seal hash

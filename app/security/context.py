@@ -18,7 +18,7 @@ authorization decisions in Track-A.
 """
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Optional
 
 from app.security.device_snapshot import DeviceSnapshot
@@ -71,7 +71,7 @@ class SecurityContext:
             device_id=None,
             device=None,
             risk_signals={},
-            request_time=datetime.utcnow(),
+            request_time=datetime.now(timezone.utc).replace(tzinfo=None),
             metadata={},
             grant=None,
         )
@@ -120,7 +120,7 @@ class SecurityContext:
             device_id="test-device",
             device=snapshot,
             risk_signals={},
-            request_time=datetime.utcnow(),
+            request_time=datetime.now(timezone.utc).replace(tzinfo=None),
             metadata={},
             grant=None,
         )
