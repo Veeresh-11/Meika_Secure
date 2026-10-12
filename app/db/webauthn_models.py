@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 
 from sqlalchemy import (
@@ -59,12 +59,12 @@ class WebAuthnChallenge(Base):
 
     created_at = Column(
         DateTime,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     expires_at = Column(
         DateTime,
-        default=lambda: datetime.utcnow() + timedelta(minutes=5),
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=5),
     )
 
 
@@ -138,10 +138,10 @@ class WebAuthnCredential(Base):
 
     created_at = Column(
         DateTime,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     last_used_at = Column(
         DateTime,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
     )

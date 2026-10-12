@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 
 from sqlalchemy import (
@@ -140,19 +140,19 @@ class Grant(Base):
     created_at = Column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     issued_at = Column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     expires_at = Column(
         DateTime,
         nullable=False,
-        default=lambda: datetime.utcnow() + timedelta(hours=1),
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1),
     )
 
     last_used_at = Column(
