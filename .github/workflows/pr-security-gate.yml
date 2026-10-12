@@ -641,4 +641,3 @@ jobs:
           zip_path.write_bytes(body)
           PYLOG
           python .github/scripts/score_pr_gate.py "$RUNNER_TEMP/pr-gate-logs.zip"
-          python .github/scripts/score_pr_gate.py "$RUNNER_TEMP/pr-gate-logs.zip"
