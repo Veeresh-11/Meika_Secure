@@ -548,3 +548,51 @@ jobs:
             fi
           done
           exit "$failed"
+
+
+  quality-score:
+    name: PR Gate Quality Score (100 points per check)
+    if: always() && github.event_name == 'pull_request'
+    needs: [secret-scan, dependency-review, pr-gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout scoring script
+        uses: actions/checkout@v5
+      - name: Calculate and enforce quality score
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_API_URL: ${{ github.api_url }}
+          GH_REPOSITORY: ${{ github.repository }}
+          GH_RUN_ID: ${{ github.run_id }}
+          SECRET_SCAN: ${{ needs.secret-scan.result }}
+          DEPENDENCY_REVIEW: ${{ needs.dependency-review.result }}
+          CHECKOUT: ${{ needs.pr-gate.outputs.checkout }}
+          SETUP_PYTHON: ${{ needs.pr-gate.outputs.setup_python }}
+          CODEQL_INIT: ${{ needs.pr-gate.outputs.codeql_init }}
+          DEPENDENCIES: ${{ needs.pr-gate.outputs.dependencies }}
+          POSTGRES_READY: ${{ needs.pr-gate.outputs.postgres_ready }}
+          DB_BOOTSTRAP: ${{ needs.pr-gate.outputs.db_bootstrap }}
+          MIGRATION_CHAIN: ${{ needs.pr-gate.outputs.migration_chain }}
+          POSTGRES_VERSION: ${{ needs.pr-gate.outputs.postgres_version }}
+          TEST_DB_BOOTSTRAP: ${{ needs.pr-gate.outputs.test_db_bootstrap }}
+          DEPENDENCY_AUDIT: ${{ needs.pr-gate.outputs.dependency_audit }}
+          BANDIT: ${{ needs.pr-gate.outputs.bandit }}
+          SEMGREP: ${{ needs.pr-gate.outputs.semgrep }}
+          TESTS: ${{ needs.pr-gate.outputs.tests }}
+          TRIVY_FS: ${{ needs.pr-gate.outputs.trivy_fs }}
+          TRIVY_CONFIG: ${{ needs.pr-gate.outputs.trivy_config }}
+          RED_TEAM: ${{ needs.pr-gate.outputs.red_team }}
+          CODEQL: ${{ needs.pr-gate.outputs.codeql }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "$GH_API_URL/repos/$GH_REPOSITORY/actions/runs/$GH_RUN_ID/logs" \
+            --output "$RUNNER_TEMP/pr-gate-logs.zip"
+          python .github/scripts/score_pr_gate.py "$RUNNER_TEMP/pr-gate-logs.zip"
