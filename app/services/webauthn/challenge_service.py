@@ -3,6 +3,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.db.webauthn_models import WebAuthnChallenge
+from app.db.models import User
 from app.security.webauthn.challenge import generate_challenge
 
 
@@ -16,10 +17,15 @@ class ChallengeService:
         purpose: str,
     ) -> WebAuthnChallenge:
 
+        user = db.query(User).filter(User.id == user_id).first()
+        if user is None:
+            raise ValueError("Cannot create a challenge for an unknown user")
+
         challenge = generate_challenge()
 
         record = WebAuthnChallenge(
             user_id=user_id,
+            tenant_id=user.tenant_id,
             challenge=challenge,
             purpose=purpose,
         )
