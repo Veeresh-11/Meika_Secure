@@ -644,18 +644,9 @@ jobs:
       # ────────────────────────────────────────────────────────────────────────
       # 12. Security Summary
       # ────────────────────────────────────────────────────────────────────────
-      - name: Security Summary
+      - name: Enforce deep security gate
         if: always()
-        run: |
-          python3 scripts/security_summary.py 2>/dev/null || {
-            echo "---- SECURITY SCAN SUMMARY ----"
-            echo "ZAP:          $([ -f zap-report.json ]  && echo 'report generated' || echo 'no report')"
-            echo "Nuclei:       $([ -f nuclei.json ]       && echo 'report generated' || echo 'no report')"
-            echo "Schemathesis: $([ -f schemathesis-report.txt ] && echo 'report generated' || echo 'no report')"
-            echo "Pip-audit:    $([ -f pip-audit-report.json ] && echo 'report generated' || echo 'no report')"
-            echo "Bandit:       $([ -f bandit-report.json ] && echo 'report generated' || echo 'no report')"
-            echo "SBOM:         $([ -f bom.json ]          && echo 'generated' || echo 'missing')"
-          }
+        run: python3 scripts/security_summary.py
 
       # ────────────────────────────────────────────────────────────────────────
       # 13. Upload ALL security artifacts
