@@ -90,7 +90,7 @@ class AttestationResponse(BaseModel):
 
 
 class AttestationPayload(BaseModel):
-    challenge: str = Field(..., min_length=1)
+    challenge: str = Field(..., min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+={0,2}$")
 
     hardware_backed: Literal[True]
 

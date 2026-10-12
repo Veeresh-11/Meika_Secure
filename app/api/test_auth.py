@@ -567,6 +567,35 @@ def test_webauthn_register_finish_rejects_missing_challenge(monkeypatch):
     assert response.json()["detail"] == "Invalid or expired challenge"
 
 
+def test_webauthn_register_finish_rejects_unsafe_challenge_characters(monkeypatch):
+    called = False
+
+    def unexpected_get(**kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("unsafe challenge must be rejected before database access")
+
+    monkeypatch.setattr(auth.ChallengeService, "get", staticmethod(unexpected_get))
+
+    response = client.post(
+        "/auth/webauthn/register/finish",
+        json={
+            "email": "user@example.com",
+            "attestation": {
+                "challenge": "bad\\u0000challenge",
+                "hardware_backed": True,
+                "attestation_verified": True,
+                "public_key": "public-key",
+                "type": "basic",
+                "credential_id": "cred-123",
+            },
+        },
+    )
+
+    assert response.status_code == 422
+    assert called is False
+
+
 def test_webauthn_register_finish_attestation_failure(monkeypatch):
 
     challenge = SimpleNamespace(
