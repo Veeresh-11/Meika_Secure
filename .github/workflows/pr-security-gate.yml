@@ -391,15 +391,14 @@ jobs:
       # Registry rulesets — no Semgrep App/Cloud account needed.
       # ────────────────────────────────────────────────────────────────────
       - name: Semgrep
-        uses: returntocorp/semgrep-action@v1
-        continue-on-error: true
-        with:
-          config: >-
-            p/security-audit
-            p/secrets
-            p/jwt
-            p/python
-            p/owasp-top-ten
+        run: |
+          python -m pip install --upgrade semgrep
+          semgrep scan --error \
+            --config p/security-audit \
+            --config p/secrets \
+            --config p/jwt \
+            --config p/python \
+            --config p/owasp-top-ten app/
 
       # ── TESTS + COVERAGE ───────────────────────────────────────────────────
       # EXIT CODE 1 ROOT CAUSE (confirmed from .coveragerc on disk):
