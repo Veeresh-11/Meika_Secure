@@ -18,6 +18,7 @@ CHECKS = [
     ("Secret scan", "SECRET_SCAN"),
     ("Dependency review", "DEPENDENCY_REVIEW"),
     ("Checkout", "CHECKOUT"),
+    ("Redis readiness", "REDIS_READY"),
     ("Python setup", "SETUP_PYTHON"),
     ("CodeQL initialization", "CODEQL_INIT"),
     ("Dependency installation", "DEPENDENCIES"),
