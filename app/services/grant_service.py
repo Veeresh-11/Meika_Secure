@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.db.grant_models import Grant
+from app.db.models import User
 
 
 class GrantService:
@@ -39,10 +40,15 @@ class GrantService:
         created_by: str = "webauthn",
     ) -> Grant:
 
+        user = db.query(User).filter(User.id == user_id).first()
+        if user is None:
+            raise ValueError("Cannot create a grant for an unknown user")
+
         now = datetime.utcnow()
 
         grant = Grant(
             user_id=user_id,
+            tenant_id=user.tenant_id,
             session_id=session_id,
             credential_id=credential_id,
             jwt_id=jwt_id,
