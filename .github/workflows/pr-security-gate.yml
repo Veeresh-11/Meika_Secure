@@ -614,13 +614,9 @@ jobs:
         run: |
           set -euo pipefail
           # Fetch the successful PR-gate job's downloadable logs using the GitHub REST API.
-          PR_GATE_JOB_ID="$(gh api "repos/$GH_REPOSITORY/actions/runs/$GH_RUN_ID/jobs?per_page=100" --jq '.jobs[] | select(.name == "pr-gate" and .conclusion == "success") | .id' | head -n 1)"
-          if [ -z "$PR_GATE_JOB_ID" ]; then
-            echo "::error::Could not identify the completed pr-gate job."
-            exit 1
-          fi
-          # Use the GitHub CLI's supported log retrieval path rather than parsing
-          # the REST endpoint's short-lived redirect response ourselves.
+          # The job list can expose matrix/display names differently across
+          # GitHub API versions. We already depend on pr-gate and have its
+          # outcomes above, so fetch the complete run log directly.
           gh run view "$GH_RUN_ID" --log > "$RUNNER_TEMP/pr-gate-logs.txt"
           python - "$RUNNER_TEMP/pr-gate-logs.txt" "$RUNNER_TEMP/pr-gate-logs.zip" <<'PYZIP'
           import sys
