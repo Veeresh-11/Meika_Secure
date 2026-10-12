@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Score the PR gate using step outcomes and warnings from the run logs.
 
-Each of the 19 defined checks starts at 100 points. Failed, cancelled, or
+Each defined check starts at 100 points. Failed, cancelled, or
 skipped required checks receive zero. Warning penalties are deducted from the
 total score by severity. Deliberate database errors are not counted as CI
 warnings; tests must prove those negative cases are expected.
