@@ -1,4 +1,3 @@
-import os
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
@@ -65,12 +64,6 @@ async def global_exception_handler(request: Request, exc: Exception):
 async def enforce_security(request: Request, call_next):
     path = request.url.path
     method = request.method.upper()
-
-    # ----------------------------------
-    # CI bypass
-    # ----------------------------------
-    if os.getenv("CI_SECURITY_BYPASS") == "1":
-        return await call_next(request)
 
     # ----------------------------------
     # Let FastAPI handle unsupported methods
