@@ -170,14 +170,9 @@ jobs:
       # Free disk space — prevents CodeQL "disk space constraints" failure
       - name: Free disk space for CodeQL
         run: |
-          sudo rm -rf \
-            /usr/share/dotnet \
-            /usr/local/lib/android \
-            /opt/ghc \
-            /opt/hostedtoolcache/CodeQL \
-            /usr/local/share/boost
-          # Clean package caches without running autoremove, which can
-          # block on runner package-manager state and is unnecessary here.
+          # Remove only the cached CodeQL bundle. Preserve the Python toolcache
+          # selected by setup-python and avoid expensive recursive runner cleanup.
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
           sudo apt-get clean -qq
           df -h /
       - name: Init CodeQL
