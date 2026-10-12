@@ -336,32 +336,14 @@ jobs:
         run: |
           python scripts/bootstrap_db.py
 
-      # Dependency CVE audit — informational, never blocks
+      # Dependency CVE audit — findings block the PR.
       - name: Dependency Audit
-        continue-on-error: true
-        run: |
-          pip-audit --desc on --format=json --output=audit-results.json || true
-          echo "=== AUDIT SUMMARY ==="
-          python3 -c "
-          import json
-          try:
-              data = json.load(open('audit-results.json'))
-              vulns = [d for d in data.get('dependencies', []) if d.get('vulns')]
-              if not vulns:
-                  print('No vulnerabilities found.')
-              else:
-                  print(f'Vulnerabilities in {len(vulns)} package(s):')
-                  for pkg in vulns:
-                      for v in pkg['vulns']:
-                          fix = v.get('fix_versions', ['no fix yet'])
-                          print(f'  [{v[\"id\"]}] {pkg[\"name\"]}=={pkg[\"version\"]} → fix: {fix}')
-          except Exception as e:
-              print(f'Could not parse audit JSON: {e}')
-          " || true
+        run: pip-audit --desc on
+
       # Bandit SAST
       - name: Bandit Scan
         run: |
-          bandit -r app/ -f sarif -o bandit.sarif -ll || true
+          bandit -r app/ -f sarif -o bandit.sarif -ll
           if [ ! -f bandit.sarif ]; then
             printf '{"version":"2.1.0","runs":[]}\n' > bandit.sarif
           fi
@@ -437,7 +419,6 @@ jobs:
       # Trivy filesystem vulnerability scan
       - name: Trivy Scan
         uses: aquasecurity/trivy-action@master
-        continue-on-error: true
         with:
           scan-type: fs
           scan-ref: .
@@ -449,7 +430,6 @@ jobs:
       # permission issues, etc.) — same addition as deep-scan.yml.
       - name: Trivy Config/IaC Scan
         uses: aquasecurity/trivy-action@master
-        continue-on-error: true
         with:
           scan-type: config
           scan-ref: .
