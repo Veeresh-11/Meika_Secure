@@ -627,6 +627,11 @@ jobs:
           import urllib.request
           from pathlib import Path
 
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, request, response, code, message, headers, new_url):
+                  return None
+
+          api_opener = urllib.request.build_opener(NoRedirect)
           api_url, repository, job_id, output_path = sys.argv[1:]
           endpoint = f"{api_url.rstrip('/')}/repos/{repository}/actions/jobs/{job_id}/logs"
           api_request = urllib.request.Request(
@@ -644,7 +649,7 @@ jobs:
                   try:
                       # GitHub normally responds with a 302 to short-lived object storage.
                       # Never forward GH_TOKEN to the redirected storage host.
-                      with urllib.request.urlopen(api_request, timeout=30) as response:
+                      with api_opener.open(api_request, timeout=30) as response:
                           body = response.read()
                           content_type = response.headers.get("Content-Type", "").lower()
                   except urllib.error.HTTPError as redirect:
