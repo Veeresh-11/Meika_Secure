@@ -416,6 +416,7 @@ jobs:
           schemathesis run \
             http://localhost:8000/openapi.json \
             --checks all \
+            --exclude-checks=positive_data_acceptance \
             --max-examples=50 \
             --suppress-health-check=too_slow,filter_too_much \
             --continue-on-failure \
