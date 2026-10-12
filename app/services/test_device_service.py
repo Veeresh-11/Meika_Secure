@@ -1,30 +1,27 @@
 import uuid
+from unittest.mock import MagicMock
 
 import pytest
-from unittest.mock import MagicMock, patch
 
+from app.conftest import TEST_TENANT_ID
 from app.db.models import User
 from app.services.device_service import DeviceService
 
 from app.security.device.constants import (
     DEVICE_STATE_REVOKED,
+    DEVICE_STATE_SUSPENDED,
     TRUST_HIGH,
 )
-
-from app.security.device.constants import (
-    DEVICE_STATE_ACTIVE,
-    DEVICE_STATE_SUSPENDED,
-    DEVICE_STATE_QUARANTINED,
-    DEVICE_STATE_REVOKED,)
 
 
 def create_test_user(db_session) -> User:
     """
-    Create a valid user for device tests.
+    Create a valid tenant-scoped user for device tests.
     """
 
     user = User(
         id=uuid.uuid4(),
+        tenant_id=TEST_TENANT_ID,
         email=f"{uuid.uuid4()}@example.com",
         display_name="Test User",
         status="active",
@@ -191,34 +188,39 @@ def test_invalid_trust(db_session):
             device=device,
             trust_level="INVALID",
         )
-        
-def test_update_trust_invalid():
-    db = MagicMock()
 
+
+def test_update_trust_invalid():
+
+    db = MagicMock()
     device = MagicMock()
 
     with pytest.raises(ValueError):
+
         DeviceService.update_trust(
             db=db,
             device=device,
             trust_level="INVALID",
         )
-        
-def test_update_state_invalid():
-    db = MagicMock()
 
+
+def test_update_state_invalid():
+
+    db = MagicMock()
     device = MagicMock()
 
     with pytest.raises(ValueError):
+
         DeviceService.update_state(
             db=db,
             device=device,
             state="INVALID",
         )
-        
-def test_update_state():
-    db = MagicMock()
 
+
+def test_update_state():
+
+    db = MagicMock()
     device = MagicMock()
 
     DeviceService.update_state(
@@ -231,10 +233,11 @@ def test_update_state():
 
     db.commit.assert_called_once()
     db.refresh.assert_called_once()
-    
-def test_update_trust():
-    db = MagicMock()
 
+
+def test_update_trust():
+
+    db = MagicMock()
     device = MagicMock()
 
     DeviceService.update_trust(
@@ -247,10 +250,11 @@ def test_update_trust():
 
     db.commit.assert_called_once()
     db.refresh.assert_called_once()
-    
-def test_revoke_device():
-    db = MagicMock()
 
+
+def test_revoke_device():
+
+    db = MagicMock()
     device = MagicMock()
 
     DeviceService.revoke(
@@ -263,4 +267,3 @@ def test_revoke_device():
 
     db.commit.assert_called_once()
     db.refresh.assert_called_once()
-    

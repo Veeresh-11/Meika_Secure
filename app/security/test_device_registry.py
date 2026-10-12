@@ -1,13 +1,14 @@
 from app.db.models import User
 from app.security.device.registry import DeviceRegistry
-
+from app.conftest import TEST_TENANT_ID
 
 def create_user(db_session):
 
     user = User(
+        tenant_id=TEST_TENANT_ID,
         email="registry@example.com",
         display_name="Registry Test",
-        status="ACTIVE",
+        status="active",
     )
 
     db_session.add(user)
