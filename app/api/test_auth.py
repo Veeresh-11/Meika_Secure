@@ -22,6 +22,13 @@ app.include_router(auth.router)
 
 client = TestClient(app)
 
+@pytest.fixture(scope="module", autouse=True)
+def manage_test_client_lifecycle():
+    """Close the shared TestClient transport and its event loop after this module."""
+    with client:
+        yield
+
+
 
 # ---------------------------------------------------------
 # Helpers

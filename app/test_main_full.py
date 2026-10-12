@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock
 
@@ -5,6 +6,13 @@ import app.main as main_module
 
 
 client = TestClient(main_module.app)
+
+@pytest.fixture(scope="module", autouse=True)
+def manage_test_client_lifecycle():
+    """Close the shared TestClient transport and its event loop after this module."""
+    with client:
+        yield
+
 
 
 def test_root_endpoint():
