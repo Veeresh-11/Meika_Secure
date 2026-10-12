@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import Mock
 
 from app.security.evidence.store import InMemoryEvidenceStore
@@ -19,7 +19,7 @@ def test_anchor_receipt_recorded_in_ledger():
         device_id=None,
         device=None,
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
         grant=None,
     )
@@ -28,7 +28,7 @@ def test_anchor_receipt_recorded_in_ledger():
         outcome=DecisionOutcome.ALLOW,
         reason="ok",
         policy_version="test",
-        evaluated_at=datetime.utcnow(),
+        evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     record = build_evidence_record(
