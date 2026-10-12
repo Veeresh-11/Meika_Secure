@@ -613,31 +613,55 @@ jobs:
           CODEQL: ${{ needs.pr-gate.outputs.codeql }}
         run: |
           set -euo pipefail
-          # Aggregate workflow logs are not available until the workflow ends.
-          # Fetch the completed pr-gate job's logs while this scoring job runs.
-          PR_GATE_JOB_ID="$(gh api "repos/$GH_REPOSITORY/actions/runs/$GH_RUN_ID/jobs?per_page=100" --jq '.jobs[] | select(.name == "pr-gate" and .conclusion == "success") | .id')"
+          # Fetch the successful PR-gate job's downloadable logs using the GitHub REST API.
+          PR_GATE_JOB_ID="$(gh api "repos/$GH_REPOSITORY/actions/runs/$GH_RUN_ID/jobs?per_page=100" --jq '.jobs[] | select(.name == "pr-gate" and .conclusion == "success") | .id' | head -n 1)"
           if [ -z "$PR_GATE_JOB_ID" ]; then
             echo "::error::Could not identify the completed pr-gate job."
             exit 1
           fi
-          gh api --include "repos/$GH_REPOSITORY/actions/jobs/$PR_GATE_JOB_ID/logs" > "$RUNNER_TEMP/pr-gate-response.txt"
-          python - "$RUNNER_TEMP/pr-gate-response.txt" "$RUNNER_TEMP/pr-gate-logs.zip" <<'PYLOG'
+          python - "$GH_API_URL" "$GH_REPOSITORY" "$PR_GATE_JOB_ID" "$RUNNER_TEMP/pr-gate-logs.zip" <<'PYLOG'
+          import json
+          import os
           import sys
+          import time
+          import urllib.error
+          import urllib.request
           from pathlib import Path
 
-          response_path, zip_path = map(Path, sys.argv[1:])
-          raw = response_path.read_bytes()
-          separator = b"\r\n\r\n"
-          header_end = raw.find(separator)
-          if header_end < 0:
-              raise SystemExit("GitHub log API response has no HTTP header separator")
-          headers = raw[:header_end].decode("latin-1", errors="replace")
-          body = raw[header_end + len(separator):]
-          status_line = headers.splitlines()[0] if headers else ""
-          if " 200 " not in f" {status_line} ":
-              raise SystemExit(f"GitHub log API request failed: {status_line}")
-          if not body.startswith(bytes((80, 75, 3, 4))):
-              raise SystemExit("GitHub job logs response was not a ZIP archive")
-          zip_path.write_bytes(body)
+          api_url, repository, job_id, output_path = sys.argv[1:]
+          token = os.environ["GH_TOKEN"]
+          endpoint = f"{api_url.rstrip('/')}/repos/{repository}/actions/jobs/{job_id}/logs"
+          request = urllib.request.Request(
+              endpoint,
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {token}",
+                  "X-GitHub-Api-Version": "2022-11-28",
+                  "User-Agent": "Meika-PR-Quality-Score",
+              },
+          )
+          last_error = None
+          for attempt in range(5):
+              try:
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      body = response.read()
+                      content_type = response.headers.get("Content-Type", "").lower()
+                  if not body.startswith(bytes((80, 75, 3, 4))):
+                      raise RuntimeError(
+                          f"GitHub logs endpoint did not return a ZIP archive "
+                          f"(Content-Type={content_type or 'unspecified'})"
+                      )
+                  Path(output_path).write_bytes(body)
+                  break
+              except urllib.error.HTTPError as exc:
+                  last_error = f"HTTP {exc.code}: {exc.reason}"
+                  if exc.code not in (202, 404, 429, 500, 502, 503, 504):
+                      raise RuntimeError(f"GitHub logs download failed: {last_error}") from exc
+              except (urllib.error.URLError, TimeoutError) as exc:
+                  last_error = str(exc)
+              if attempt < 4:
+                  time.sleep(2 * (attempt + 1))
+          else:
+              raise RuntimeError(f"GitHub logs were not ready after retries: {last_error}")
           PYLOG
           python .github/scripts/score_pr_gate.py "$RUNNER_TEMP/pr-gate-logs.zip"
