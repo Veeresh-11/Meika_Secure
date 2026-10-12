@@ -617,7 +617,14 @@ jobs:
           # The job list can expose matrix/display names differently across
           # GitHub API versions. We already depend on pr-gate and have its
           # outcomes above, so fetch the complete run log directly.
-          gh run view "$GH_RUN_ID" --log > "$RUNNER_TEMP/pr-gate-logs.txt"
+          # Retry transient GitHub Actions log-availability lag after pr-gate completes.
+          for attempt in $(seq 1 12); do
+            if gh run view "$GH_RUN_ID" --log > "$RUNNER_TEMP/pr-gate-logs.txt" 2> "$RUNNER_TEMP/gh-run-view.err" && [ -s "$RUNNER_TEMP/pr-gate-logs.txt" ]; then
+              break
+            fi
+            if [ "$attempt" -eq 12 ]; then cat "$RUNNER_TEMP/gh-run-view.err" >&2; echo "::error::Unable to retrieve completed workflow logs after 12 attempts."; exit 1; fi
+            sleep 5
+          done
           python - "$RUNNER_TEMP/pr-gate-logs.txt" "$RUNNER_TEMP/pr-gate-logs.zip" <<'PYZIP'
           import sys
           import zipfile
