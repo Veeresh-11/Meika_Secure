@@ -306,6 +306,7 @@ jobs:
       # entirely and rename the action's default output ourselves instead.
       # ────────────────────────────────────────────────────────────────────────
       - name: OWASP ZAP Scan
+        id: zap_scan
         uses: zaproxy/action-full-scan@v0.12.0
         continue-on-error: true
         with:
@@ -366,6 +367,7 @@ jobs:
       # `-es` served no purpose here, so it's dropped entirely.
       # ────────────────────────────────────────────────────────────────────────
       - name: Nuclei Scan
+        id: nuclei_scan
         uses: projectdiscovery/nuclei-action@v2
         continue-on-error: true
         with:
@@ -444,6 +446,7 @@ jobs:
       # shell redirection — that can't be broken by a future flag rename.
       # ────────────────────────────────────────────────────────────────────────
       - name: API Fuzzing (Schemathesis)
+        id: schemathesis_scan
         continue-on-error: true
         run: |
           echo "---- SCHEMATHESIS RESULTS ----"
@@ -461,6 +464,7 @@ jobs:
       # Was already being installed but never actually run — pure waste.
       # ────────────────────────────────────────────────────────────────────────
       - name: Dependency Vulnerability Audit (pip-audit)
+        id: pip_audit_scan
         continue-on-error: true
         run: |
           pip-audit -r requirements.txt --desc -f json -o pip-audit-report.json
@@ -493,6 +497,7 @@ jobs:
       # every language in the repo matters, not just Python.
       # ────────────────────────────────────────────────────────────────────────
       - name: OSV-Scanner (secondary SCA)
+        id: osv_scan
         continue-on-error: true
         run: |
           curl -sSfL https://raw.githubusercontent.com/google/osv-scanner/main/scripts/install.sh \
@@ -523,6 +528,7 @@ jobs:
       # Was already being installed but never actually run — pure waste.
       # ────────────────────────────────────────────────────────────────────────
       - name: Static Analysis (bandit)
+        id: bandit_scan
         continue-on-error: true
         run: |
           bandit -r app/ -f json -o bandit-report.json || true
@@ -615,6 +621,7 @@ jobs:
       # exists in the repo, not just a Dockerfile.
       # ────────────────────────────────────────────────────────────────────────
       - name: Trivy Config/IaC Scan
+        id: trivy_config_scan
         uses: aquasecurity/trivy-action@master
         continue-on-error: true
         with:
@@ -646,6 +653,14 @@ jobs:
       # ────────────────────────────────────────────────────────────────────────
       - name: Enforce deep security gate
         if: always()
+        env:
+          ZAP_OUTCOME: ${{ steps.zap_scan.outcome }}
+          NUCLEI_OUTCOME: ${{ steps.nuclei_scan.outcome }}
+          SCHEMATHESIS_OUTCOME: ${{ steps.schemathesis_scan.outcome }}
+          PIP_AUDIT_OUTCOME: ${{ steps.pip_audit_scan.outcome }}
+          OSV_OUTCOME: ${{ steps.osv_scan.outcome }}
+          BANDIT_OUTCOME: ${{ steps.bandit_scan.outcome }}
+          TRIVY_CONFIG_OUTCOME: ${{ steps.trivy_config_scan.outcome }}
         run: python3 scripts/security_summary.py
 
       # ────────────────────────────────────────────────────────────────────────
