@@ -617,9 +617,9 @@ jobs:
           # The job list can expose matrix/display names differently across
           # GitHub API versions. We already depend on pr-gate and have its
           # outcomes above, so fetch the complete run log directly.
-          # Retry transient GitHub Actions log-availability lag after pr-gate completes.
+          # Retrieve only the completed pr-gate job, not the parent workflow run (which remains open until this job finishes). Retry brief job-log propagation lag.
           for attempt in $(seq 1 12); do
-            if gh run view "$GH_RUN_ID" --log > "$RUNNER_TEMP/pr-gate-logs.txt" 2> "$RUNNER_TEMP/gh-run-view.err" && [ -s "$RUNNER_TEMP/pr-gate-logs.txt" ]; then
+            if gh run view "$GH_RUN_ID" --job "$PR_GATE_JOB_ID" --log > "$RUNNER_TEMP/pr-gate-logs.txt" 2> "$RUNNER_TEMP/gh-run-view.err" && [ -s "$RUNNER_TEMP/pr-gate-logs.txt" ]; then
               break
             fi
             if [ "$attempt" -eq 12 ]; then cat "$RUNNER_TEMP/gh-run-view.err" >&2; echo "::error::Unable to retrieve completed workflow logs after 12 attempts."; exit 1; fi
