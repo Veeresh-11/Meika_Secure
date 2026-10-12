@@ -65,7 +65,7 @@ def test_module_file_missing_origin():
 def test_compute_build_hash():
 
     fake_spec = SimpleNamespace(
-        origin="/tmp/test.py",
+        origin=str(Path(tempfile.gettempdir()) / "test.py"),
     )
 
     with patch(

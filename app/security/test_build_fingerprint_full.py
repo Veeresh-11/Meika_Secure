@@ -41,7 +41,7 @@ def test_compute_build_hash():
     fake_data = b"abc"
 
     class Spec:
-        origin = "/tmp/test.py"
+        origin = str(Path(tempfile.gettempdir()) / "test.py")
 
     with patch(
         "importlib.util.find_spec",

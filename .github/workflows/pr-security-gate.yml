@@ -388,7 +388,7 @@ jobs:
         run: |
           docker run --rm \
             -v "$PWD:/src" \
-            semgrep/semgrep:1.180.0 scan --error \
+            semgrep/semgrep:1.180.0 --error \
               --config p/security-audit \
               --config p/secrets \
               --config p/jwt \
