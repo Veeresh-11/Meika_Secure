@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -14,7 +14,7 @@ def test_validate_missing():
 def test_validate_used():
     challenge = MagicMock(
         used=True,
-        expires_at=datetime.utcnow() + timedelta(minutes=5),
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=5),
     )
 
     with pytest.raises(ValueError, match="already used"):
@@ -24,7 +24,7 @@ def test_validate_used():
 def test_validate_expired():
     challenge = MagicMock(
         used=False,
-        expires_at=datetime.utcnow() - timedelta(minutes=1),
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=1),
     )
 
     with pytest.raises(ValueError, match="expired"):
@@ -34,7 +34,7 @@ def test_validate_expired():
 def test_validate_success():
     challenge = MagicMock(
         used=False,
-        expires_at=datetime.utcnow() + timedelta(minutes=5),
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=5),
     )
 
     ChallengeService.validate(challenge)

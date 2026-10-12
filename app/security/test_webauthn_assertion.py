@@ -1,5 +1,5 @@
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.security.webauthn.assertion import verify_assertion
 from app.security.webauthn.models import WebAuthnCredential
@@ -13,8 +13,8 @@ def make_credential():
         hardware_backed=True,
         attestation_verified=True,
         attestation_type="fido2",
-        created_at=datetime.utcnow(),
-        last_used_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        last_used_at=datetime.now(timezone.utc).replace(tzinfo=None),
         revoked=False,
     )
 

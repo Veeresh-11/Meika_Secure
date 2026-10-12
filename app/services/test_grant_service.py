@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock
 from app.services.grant_service import GrantService
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 def test_create_grant():
@@ -126,7 +126,7 @@ def test_validate_none():
 def test_validate_revoked():
     grant = MagicMock(
         revoked=True,
-        expires_at=datetime.utcnow() + timedelta(hours=1),
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1),
         guardian_state="ACTIVE",
         risk_level="LOW",
     )
@@ -138,7 +138,7 @@ def test_validate_revoked():
 def test_validate_expired():
     grant = MagicMock(
         revoked=False,
-        expires_at=datetime.utcnow() - timedelta(seconds=1),
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=1),
         guardian_state="ACTIVE",
         risk_level="LOW",
     )
@@ -150,7 +150,7 @@ def test_validate_expired():
 def test_validate_terminated():
     grant = MagicMock(
         revoked=False,
-        expires_at=datetime.utcnow() + timedelta(hours=1),
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1),
         guardian_state="TERMINATED",
         risk_level="LOW",
     )
@@ -162,7 +162,7 @@ def test_validate_terminated():
 def test_validate_containment():
     grant = MagicMock(
         revoked=False,
-        expires_at=datetime.utcnow() + timedelta(hours=1),
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1),
         guardian_state="CONTAINMENT",
         risk_level="LOW",
     )
@@ -174,7 +174,7 @@ def test_validate_containment():
 def test_validate_critical():
     grant = MagicMock(
         revoked=False,
-        expires_at=datetime.utcnow() + timedelta(hours=1),
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1),
         guardian_state="ACTIVE",
         risk_level="CRITICAL",
     )
@@ -186,7 +186,7 @@ def test_validate_critical():
 def test_validate_success():
     grant = MagicMock(
         revoked=False,
-        expires_at=datetime.utcnow() + timedelta(hours=1),
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1),
         guardian_state="ACTIVE",
         risk_level="LOW",
     )
@@ -226,7 +226,7 @@ def test_refresh():
 
     grant = MagicMock(
         revoked=False,
-        expires_at=datetime.utcnow() + timedelta(hours=1),
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1),
         guardian_state="ACTIVE",
         risk_level="LOW",
     )
