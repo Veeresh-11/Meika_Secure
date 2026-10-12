@@ -25,7 +25,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout (full history for accurate diff scanning)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Gitleaks Secret Scan
@@ -51,7 +51,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Dependency Review
         uses: actions/dependency-review-action@v4
         with:
@@ -78,7 +78,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
       - name: Run OSSF Scorecard
@@ -156,10 +156,10 @@ jobs:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -423,7 +423,7 @@ jobs:
             --cov-report=xml:coverage.xml \
             --cov-fail-under=70
       - name: Upload Coverage Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: always()
         with:
           name: coverage-report
@@ -454,7 +454,7 @@ jobs:
           output: trivy-config.sarif
 
       - name: Upload Trivy Reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: trivy-report
           path: |
