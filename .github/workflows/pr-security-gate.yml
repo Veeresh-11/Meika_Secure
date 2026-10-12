@@ -459,7 +459,7 @@ jobs:
             python3 -m pytest \
               app/security/test_red_team_attacks.py \
               -v --tb=short \
-              -p no:cacheprovider || true
+              -p no:cacheprovider
           else
             echo "Red team test file not found — skipping"
           fi
