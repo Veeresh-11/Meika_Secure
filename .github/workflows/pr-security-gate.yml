@@ -98,6 +98,7 @@ jobs:
     timeout-minutes: 30
     outputs:
       checkout: ${{ steps.checkout.outcome }}
+      redis_ready: ${{ steps.redis_ready.outcome }}
       setup_python: ${{ steps.setup_python.outcome }}
       codeql_init: ${{ steps.codeql_init.outcome }}
       dependencies: ${{ steps.install_dependencies.outcome }}
@@ -593,6 +594,7 @@ jobs:
           SECRET_SCAN: ${{ needs.secret-scan.result }}
           DEPENDENCY_REVIEW: ${{ needs.dependency-review.result }}
           CHECKOUT: ${{ needs.pr-gate.outputs.checkout }}
+          REDIS_READY: ${{ needs.pr-gate.outputs.redis_ready }}
           SETUP_PYTHON: ${{ needs.pr-gate.outputs.setup_python }}
           CODEQL_INIT: ${{ needs.pr-gate.outputs.codeql_init }}
           DEPENDENCIES: ${{ needs.pr-gate.outputs.dependencies }}
