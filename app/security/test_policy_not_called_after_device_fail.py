@@ -3,7 +3,7 @@ from app.security.bootstrap import build_pipeline
 from app.security.test_helpers.device_builder import build_device
 from app.security.test_helpers.device_snapshot_builder import snapshot_from_device
 from app.security.context import SecurityContext
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 
@@ -23,7 +23,7 @@ def build_bad_device_context():
         device_id=snapshot.device_id,
         device=snapshot,
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
     )
 

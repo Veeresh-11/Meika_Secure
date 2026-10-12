@@ -1,5 +1,5 @@
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 pytestmark = pytest.mark.track_a
 from app.security.pipeline import SecurityPipeline
 from app.security.context import SecurityContext
@@ -34,7 +34,7 @@ def test_policy_never_runs_after_clone(mocker):
         device_id="device-x",
         device=snapshot,
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
     )
 

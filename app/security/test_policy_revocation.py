@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import pytest
 
 from app.security.pipeline import SecurityPipeline
@@ -16,7 +16,7 @@ def test_revoked_policy_denied():
             outcome=DecisionOutcome.ALLOW,
             reason="ok",
             policy_version="1.0.0",
-            evaluated_at=datetime.utcnow(),
+            evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         ),
         revocation_registry=registry,
     )
@@ -29,7 +29,7 @@ def test_revoked_policy_denied():
         device_id=None,
         device=None,
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
         grant=None,
     )

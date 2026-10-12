@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.security.policy.engine import PolicyEngine
 
@@ -9,7 +9,7 @@ def ctx():
         principal_id="alice",
         authenticated=True,
         intent="read",
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={"resource": "file1"},
         device=None,
     )
@@ -107,7 +107,7 @@ def test_compromised_false_continues():
         principal_id="alice",
         authenticated=True,
         intent="read",
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
         device=SimpleNamespace(
             clone_confirmed=False,
@@ -136,7 +136,7 @@ def test_graph_present_without_resource():
         principal_id="alice",
         authenticated=True,
         intent="read",
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},      # no resource
         device=None,
     )
@@ -167,7 +167,7 @@ def test_graph_allows():
         principal_id="alice",
         authenticated=True,
         intent="read",
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={
             "resource": "file1",
         },

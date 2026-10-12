@@ -6,7 +6,7 @@ conditions with AND/OR logic and supports 8 condition types.
 """
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from app.security.policy.engine import PolicyEngine
 from app.security.policy.models import PolicyDocument, PolicyRule, PolicyEffect
 from app.security.context import SecurityContext
@@ -25,7 +25,7 @@ def create_test_context(
 ):
     """Create a test SecurityContext with sensible defaults."""
     if request_time is None:
-        request_time = datetime.utcnow()
+        request_time = datetime.now(timezone.utc).replace(tzinfo=None)
     
     if metadata is None:
         metadata = {}
@@ -264,13 +264,13 @@ def test_policy_matcher_time_of_day():
     engine = PolicyEngine(policy)
     
     # During business hours (10 AM) - should allow
-    business_time = datetime.utcnow().replace(hour=10, minute=0, second=0)
+    business_time = datetime.now(timezone.utc).replace(tzinfo=None).replace(hour=10, minute=0, second=0)
     ctx = create_test_context(request_time=business_time)
     result = engine.evaluate(ctx)
     assert result.outcome == DecisionOutcome.ALLOW
     
     # Outside business hours (11 PM) - should deny
-    night_time = datetime.utcnow().replace(hour=23, minute=0, second=0)
+    night_time = datetime.now(timezone.utc).replace(tzinfo=None).replace(hour=23, minute=0, second=0)
     ctx = create_test_context(request_time=night_time)
     result = engine.evaluate(ctx)
     assert result.outcome == DecisionOutcome.DENY
