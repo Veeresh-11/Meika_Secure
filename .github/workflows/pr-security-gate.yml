@@ -619,69 +619,16 @@ jobs:
             echo "::error::Could not identify the completed pr-gate job."
             exit 1
           fi
-          python - "$GH_API_URL" "$GH_REPOSITORY" "$PR_GATE_JOB_ID" "$RUNNER_TEMP/pr-gate-logs.zip" <<'PYLOG'
-          import os
+          # Use the GitHub CLI's supported log retrieval path rather than parsing
+          # the REST endpoint's short-lived redirect response ourselves.
+          gh run view "$GH_RUN_ID" --log > "$RUNNER_TEMP/pr-gate-logs.txt"
+          python - "$RUNNER_TEMP/pr-gate-logs.txt" "$RUNNER_TEMP/pr-gate-logs.zip" <<'PYZIP'
           import sys
-          import time
-          import urllib.error
-          import urllib.request
+          import zipfile
           from pathlib import Path
 
-          class NoRedirect(urllib.request.HTTPRedirectHandler):
-              def redirect_request(self, request, response, code, message, headers, new_url):
-                  return None
-
-          api_opener = urllib.request.build_opener(NoRedirect)
-          api_url, repository, job_id, output_path = sys.argv[1:]
-          endpoint = f"{api_url.rstrip('/')}/repos/{repository}/actions/jobs/{job_id}/logs"
-          api_request = urllib.request.Request(
-              endpoint,
-              headers={
-                  "Accept": "application/vnd.github+json",
-                  "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
-                  "X-GitHub-Api-Version": "2022-11-28",
-                  "User-Agent": "Meika-PR-Quality-Score",
-              },
-          )
-          last_error = None
-          for attempt in range(5):
-              try:
-                  try:
-                      # GitHub normally responds with a 302 to short-lived object storage.
-                      # Never forward GH_TOKEN to the redirected storage host.
-                      with api_opener.open(api_request, timeout=30) as response:
-                          body = response.read()
-                          content_type = response.headers.get("Content-Type", "").lower()
-                  except urllib.error.HTTPError as redirect:
-                      if redirect.code not in (301, 302, 303, 307, 308):
-                          raise
-                      location = redirect.headers.get("Location")
-                      if not location:
-                          raise RuntimeError("GitHub log redirect did not include a Location header")
-                      download_request = urllib.request.Request(
-                          location,
-                          headers={"User-Agent": "Meika-PR-Quality-Score"},
-                      )
-                      with urllib.request.urlopen(download_request, timeout=60) as response:
-                          body = response.read()
-                          content_type = response.headers.get("Content-Type", "").lower()
-
-                  if not body.startswith(bytes((80, 75, 3, 4))):
-                      raise RuntimeError(
-                          f"GitHub logs endpoint did not return a ZIP archive "
-                          f"(Content-Type={content_type or 'unspecified'})"
-                      )
-                  Path(output_path).write_bytes(body)
-                  break
-              except urllib.error.HTTPError as exc:
-                  last_error = f"HTTP {exc.code}: {exc.reason}"
-                  if exc.code not in (202, 404, 429, 500, 502, 503, 504):
-                      raise RuntimeError(f"GitHub logs download failed: {last_error}") from exc
-              except (urllib.error.URLError, TimeoutError) as exc:
-                  last_error = str(exc)
-              if attempt < 4:
-                  time.sleep(2 * (attempt + 1))
-          else:
-              raise RuntimeError(f"GitHub logs were not ready after retries: {last_error}")
-          PYLOG
+          source, destination = map(Path, sys.argv[1:])
+          with zipfile.ZipFile(destination, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+              archive.write(source, arcname="workflow.log")
+          PYZIP
           python .github/scripts/score_pr_gate.py "$RUNNER_TEMP/pr-gate-logs.zip"
