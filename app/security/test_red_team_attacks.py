@@ -1,7 +1,18 @@
+import pytest
 from fastapi.testclient import TestClient
 from app.main import app
 
 client = TestClient(app)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def manage_test_client_lifecycle():
+    """Release the shared client transport and its event loop after the tests."""
+    try:
+        with client:
+            yield
+    finally:
+        client.close()
 
 
 def test_auth_bypass():
