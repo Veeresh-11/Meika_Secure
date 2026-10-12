@@ -300,6 +300,7 @@ jobs:
               print("PASS: migration history exactly matches 000-017")
           finally:
               conn.close()
+          PY
 
       - name: PostgreSQL Version
         run: |
