@@ -177,8 +177,9 @@ jobs:
             /opt/hostedtoolcache/CodeQL \
             /usr/local/share/boost \
             "$AGENT_TOOLSDIRECTORY"
+          # Clean package caches without running autoremove, which can
+          # block on runner package-manager state and is unnecessary here.
           sudo apt-get clean -qq
-          sudo apt-get autoremove -y -qq
           df -h /
       - name: Init CodeQL
         uses: github/codeql-action/init@v4
