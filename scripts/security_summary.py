@@ -168,7 +168,14 @@ def main() -> int:
     if not schemathesis_path.is_file() or schemathesis_path.stat().st_size == 0:
         raise RuntimeError("Required Schemathesis report missing or empty")
     schemathesis = schemathesis_path.read_text(encoding="utf-8", errors="replace")
-    schema_failures = len(re.findall(r"(?im)^\s*FAILED\s+\S+|\b\d+\s+failed\b", schemathesis))
+    # Count unique failing cases, not repeated mentions in the report.
+    case_ids = set(re.findall(r"(?m)^\s*Test Case ID:\s*([A-Za-z0-9_-]+)", schemathesis))
+    if case_ids:
+        schema_failures = len(case_ids)
+    else:
+        final_summary = re.findall(r"(?m)^=+\s*(\d+)\s+failed\b", schemathesis)
+        failed_cases = re.findall(r"(?im)^\s*FAILED\s+\S+", schemathesis)
+        schema_failures = int(final_summary[-1]) if final_summary else len(set(failed_cases))
     counts["Schemathesis failures"] = schema_failures
     if schema_failures:
         blockers.append(f"Schemathesis test failures: {schema_failures}")
