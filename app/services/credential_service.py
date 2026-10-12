@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from app.db.models import Credential
+from app.db.models import Credential, User
 from app.security.password import hash_password, verify_password
 from datetime import datetime
 from app.db.webauthn_models import WebAuthnCredential
@@ -39,8 +39,13 @@ class CredentialService:
         attestation_type: str,
     ) -> WebAuthnCredential:
 
+        user = db.query(User).filter(User.id == user_id).first()
+        if user is None:
+            raise ValueError("Cannot create a WebAuthn credential for an unknown user")
+
         credential = WebAuthnCredential(
         user_id=user_id,
+        tenant_id=user.tenant_id,
         credential_id=credential_id,
         device_id=device_id,
         public_key=public_key,
