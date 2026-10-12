@@ -7,7 +7,6 @@
 -- definitions. This migration upgrades the existing schema without
 -- rewriting migration history.
 
-BEGIN;
 
 -- ==========================================================
 -- 1. Validate legacy values before converting constrained types
@@ -186,4 +185,3 @@ BEGIN
 END
 $$;
 
-COMMIT;
