@@ -307,7 +307,7 @@ jobs:
       # ────────────────────────────────────────────────────────────────────────
       - name: OWASP ZAP Scan
         id: zap_scan
-        uses: zaproxy/action-full-scan@v0.12.0
+        uses: zaproxy/action-full-scan@v0.13.0
         continue-on-error: true
         with:
           target: "http://127.0.0.1:8000"
@@ -368,12 +368,10 @@ jobs:
       # ────────────────────────────────────────────────────────────────────────
       - name: Nuclei Scan
         id: nuclei_scan
-        uses: projectdiscovery/nuclei-action@v2
+        uses: projectdiscovery/nuclei-action@v3.1.0
         continue-on-error: true
         with:
-          target: "http://127.0.0.1:8000"
-          json-export: nuclei.json
-          flags: -nh -timeout 10 -rate-limit 50
+          args: "-u http://127.0.0.1:8000 -jsonl-export nuclei.jsonl -nh -timeout 10 -rate-limit 50"
 
       # ────────────────────────────────────────────────────────────────────────
       # FIX 3d — this parser was reading nuclei.json (the structured/pretty
@@ -668,7 +666,7 @@ jobs:
       # ────────────────────────────────────────────────────────────────────────
       - name: Upload Security Results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: deep-security-results
           retention-days: 30
