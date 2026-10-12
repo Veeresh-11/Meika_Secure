@@ -352,8 +352,7 @@ jobs:
           bandit -r app/ -f sarif -o bandit.sarif -ll
           SARIF_EXIT=$?
           if [ ! -f bandit.sarif ]; then
-            printf '{"version":"2.1.0","runs":[]}
-' > bandit.sarif
+            printf '%s\n' '{"version":"2.1.0","runs":[]}' > bandit.sarif
           fi
           echo "Bandit text exit code: $BANDIT_EXIT"
           echo "Bandit SARIF exit code: $SARIF_EXIT"
