@@ -2,6 +2,9 @@ name: Meika Deep Security Scan
 
 # ─── Triggers ────────────────────────────────────────────────────────────────
 on:
+  # Run against the actual PR commit. Do not use workflow_run to execute PR
+  # code in the privileged workflow_run context.
+  pull_request:
   workflow_run:
     workflows:
       - "Meika PR Security Gate"
@@ -15,9 +18,15 @@ jobs:
   deep-scan:
     # Only run if the gate workflow succeeded (or if triggered manually/scheduled)
     if: >
+      github.event_name == 'pull_request' ||
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'schedule' ||
-      github.event.workflow_run.conclusion == 'success'
+      (
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main'
+      )
     runs-on: ubuntu-24.04
     timeout-minutes: 60   # ZAP + Nuclei + Schemathesis + pip-audit + bandit all take time
 
@@ -47,8 +56,6 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      # ── Security bypass for deep scan ─────────────────────────────────────
-      CI_SECURITY_BYPASS: "1"
       PYTHONPATH: "."
 
       # ── DB (match service above) ──────────────────────────────────────────
@@ -66,7 +73,6 @@ jobs:
       REDIS_URL: "redis://localhost:6379/0"
 
       # ── App secrets (CI-only, not production) ─────────────────────────────
-      SIGNING_PRIVATE_KEY: "dummy_test_key_123"
       SECRET_KEY: "ci-test-secret-key-not-for-production"
       JWT_SECRET_KEY: "ci-only-jwt-secret-key-at-least-32-chars"
       JWT_ISSUER: "https://meika.test"
@@ -132,6 +138,22 @@ jobs:
             pip-audit==2.10.1 \
             bandit==1.9.4 \
             uvicorn==0.35.0
+
+      # Use a fresh ephemeral Ed25519 key for this CI run. Never disable the signer.
+      - name: Generate ephemeral CI signing key
+        run: |
+          python - <<'PYKEY' >> "$GITHUB_ENV"
+          from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+          from cryptography.hazmat.primitives import serialization
+
+          key = Ed25519PrivateKey.generate()
+          raw = key.private_bytes(
+              serialization.Encoding.Raw,
+              serialization.PrivateFormat.Raw,
+              serialization.NoEncryption(),
+          )
+          print(f"SIGNING_PRIVATE_KEY={raw.hex()}")
+          PYKEY
 
       # ────────────────────────────────────────────────────────────────────────
       # NEW — Auto-resolve compatible versions for CLI tools prone to
