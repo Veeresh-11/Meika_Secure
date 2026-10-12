@@ -46,8 +46,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      # ── Security bypass for deep scan ─────────────────────────────────────
-      CI_SECURITY_BYPASS: "1"
+      # Security enforcement remains enabled during adversarial scans.
       PYTHONPATH: "."
 
       # ── DB (match service above) ──────────────────────────────────────────
@@ -94,13 +93,13 @@ jobs:
       # 1. Checkout
       # ────────────────────────────────────────────────────────────────────────
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # ────────────────────────────────────────────────────────────────────────
       # 2. Python
       # ────────────────────────────────────────────────────────────────────────
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.11"
           cache: pip
@@ -623,7 +622,7 @@ jobs:
       # ────────────────────────────────────────────────────────────────────────
       - name: Upload Security Results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: deep-security-results
           retention-days: 30
