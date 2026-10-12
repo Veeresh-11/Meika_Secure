@@ -467,9 +467,9 @@ jobs:
           # Pin the scanner version and use the documented Go module install path.
           # A missing report is a hard failure in the security summary; never
           # turn an unavailable scanner into a clean/empty result.
-          go install github.com/google/osv-scanner/cmd/osv-scanner@v1.9.2
+          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.3.3
           echo "$HOME/go/bin" >> "$GITHUB_PATH"
-          "$HOME/go/bin/osv-scanner" --format json --output osv-report.json --recursive . || scan_status=$?
+          "$HOME/go/bin/osv-scanner" scan source --recursive --format json --output-file osv-report.json . || scan_status=$?
           if [ ! -s osv-report.json ]; then
             echo "::error::OSV-Scanner did not produce osv-report.json"
             exit 1
