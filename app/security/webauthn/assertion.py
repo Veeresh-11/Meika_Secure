@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from .models import WebAuthnCredential
 
 def verify_assertion(assertion: dict, cred: WebAuthnCredential):
@@ -11,4 +11,4 @@ def verify_assertion(assertion: dict, cred: WebAuthnCredential):
         raise ValueError("Clone detected (sign counter regression)")
 
     cred.sign_count = assertion["sign_count"]
-    cred.last_used_at = datetime.utcnow()
+    cred.last_used_at = datetime.now(timezone.utc).replace(tzinfo=None)

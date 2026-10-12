@@ -1,5 +1,5 @@
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import jwt
 import os
@@ -33,7 +33,7 @@ def issue_device_bound_token(
     ttl_minutes: int | None = None,
 ) -> str:
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     if ttl_minutes is None:
         exp = now + TokenConfig.ACCESS_TOKEN_TTL

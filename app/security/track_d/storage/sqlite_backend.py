@@ -18,7 +18,7 @@ import hashlib
 from pathlib import Path
 from typing import Dict, Any, List, Protocol
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timezone
 
 import requests
 import pytest
@@ -221,7 +221,7 @@ class SQLiteBackend:
         with self.conn:
             self.conn.execute(
                 "INSERT OR REPLACE INTO signer_registry VALUES (?, 'active', ?)",
-                (public_key, datetime.utcnow().isoformat()),
+                (public_key, datetime.now(timezone.utc).replace(tzinfo=None).isoformat()),
             )
 
     def revoke_signer(self, public_key: str):
