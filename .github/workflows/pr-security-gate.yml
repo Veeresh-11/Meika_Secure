@@ -622,7 +622,7 @@ jobs:
           fi
           # Retry briefly in case the completed job's log archive has not propagated yet.
           for attempt in $(seq 1 12); do
-            if gh run view "$GH_RUN_ID" --job "$PR_GATE_JOB_ID" --log > "$RUNNER_TEMP/pr-gate-logs.txt" 2> "$RUNNER_TEMP/gh-run-view.err" && [ -s "$RUNNER_TEMP/pr-gate-logs.txt" ]; then
+            if gh run view --job "$PR_GATE_JOB_ID" --log > "$RUNNER_TEMP/pr-gate-logs.txt" 2> "$RUNNER_TEMP/gh-run-view.err" && [ -s "$RUNNER_TEMP/pr-gate-logs.txt" ]; then
               break
             fi
             if [ "$attempt" -eq 12 ]; then cat "$RUNNER_TEMP/gh-run-view.err" >&2; echo "::error::Unable to retrieve completed workflow logs after 12 attempts."; exit 1; fi
