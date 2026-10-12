@@ -1,6 +1,6 @@
 import os
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 psycopg2 = pytest.importorskip("psycopg2")
@@ -42,7 +42,7 @@ def test_postgres_append_only_integrity():
         device_id=None,
         device=None,
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
         grant=None,
     )
@@ -55,7 +55,7 @@ def test_postgres_append_only_integrity():
             outcome=DecisionOutcome.ALLOW,
             reason="ok",
             policy_version="test",
-            evaluated_at=datetime.utcnow(),
+            evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
 
         record = build_evidence_record(
