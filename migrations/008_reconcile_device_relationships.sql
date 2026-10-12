@@ -1,4 +1,3 @@
-BEGIN;
 
 -- ============================================================
 -- 008: Reconcile device relationships
@@ -120,4 +119,3 @@ CREATE INDEX IF NOT EXISTS
 ON identity.grants(device_id);
 
 
-COMMIT;
