@@ -194,53 +194,8 @@ jobs:
       #
       # Capped at 8 fallback attempts per tool to bound worst-case runtime.
       # ────────────────────────────────────────────────────────────────────────
-      - name: Auto-resolve compatible dependency versions
-        continue-on-error: true
-        run: |
-          resolve_version() {
-            pkg="$1"
-            selftest="$2"
-            echo "== Resolving compatible version for $pkg =="
-
-            pip install --upgrade "$pkg" -q
-            current=$(pip show "$pkg" 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
-            if eval "$selftest" > /dev/null 2>&1; then
-              echo "$pkg==$current : OK (latest)"
-              return 0
-            fi
-            echo "$pkg==$current : self-test failed, searching older versions..."
-
-            versions=$(pip index versions "$pkg" 2>/dev/null \
-              | grep -oP '(?<=Available versions: ).*' \
-              | tr ',' '\n' | sed 's/ //g')
-
-            attempts=0
-            for v in $versions; do
-              [ "$v" = "$current" ] && continue
-              attempts=$((attempts + 1))
-              if [ "$attempts" -gt 8 ]; then
-                echo "$pkg : giving up after 8 fallback attempts, leaving $current installed"
-                return 1
-              fi
-              echo "  trying $pkg==$v ..."
-              pip install "$pkg==$v" -q 2>/dev/null
-              if eval "$selftest" > /dev/null 2>&1; then
-                echo "$pkg==$v : OK (fell back from $current)"
-                return 0
-              fi
-            done
-            echo "$pkg : no working version found in $attempts attempts, leaving $current installed"
-            return 1
-          }
-
-          resolve_version schemathesis 'schemathesis run --help | grep -q -- "--max-examples"'
-          resolve_version bandit 'bandit --help | grep -q -- "-r "'
-          resolve_version pip-audit 'pip-audit --help | grep -q -- "--desc"'
-          resolve_version cyclonedx-bom 'cyclonedx-py --help | grep -q -- "requirements"'
-
-          echo "== Final resolved versions =="
-          pip show schemathesis bandit pip-audit cyclonedx-bom 2>/dev/null | grep -E '^(Name|Version):'
-
+      # Tool versions are pinned above; do not silently replace them with
+      # whatever happens to be latest during a scan.
       # Bootstrap the database with ordered migrations and fail-fast validation.
       - name: Bootstrap and validate application database
         run: |
