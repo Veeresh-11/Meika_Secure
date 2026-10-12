@@ -613,11 +613,14 @@ jobs:
           CODEQL: ${{ needs.pr-gate.outputs.codeql }}
         run: |
           set -euo pipefail
-          # Fetch the successful PR-gate job's downloadable logs using the GitHub REST API.
-          # The job list can expose matrix/display names differently across
-          # GitHub API versions. We already depend on pr-gate and have its
-          # outcomes above, so fetch the complete run log directly.
-          # Retrieve only the completed pr-gate job, not the parent workflow run (which remains open until this job finishes). Retry brief job-log propagation lag.
+          # The parent workflow remains in progress until this quality-score job
+          # finishes, so request logs for the already-completed pr-gate job only.
+          PR_GATE_JOB_ID="$(gh api "repos/$GH_REPOSITORY/actions/runs/$GH_RUN_ID/jobs?per_page=100" --jq '.jobs[] | select(.name == "pr-gate" and .conclusion == "success") | .id' | head -n 1)"
+          if [ -z "$PR_GATE_JOB_ID" ]; then
+            echo "::error::Could not identify the completed pr-gate job."
+            exit 1
+          fi
+          # Retry briefly in case the completed job's log archive has not propagated yet.
           for attempt in $(seq 1 12); do
             if gh run view "$GH_RUN_ID" --job "$PR_GATE_JOB_ID" --log > "$RUNNER_TEMP/pr-gate-logs.txt" 2> "$RUNNER_TEMP/gh-run-view.err" && [ -s "$RUNNER_TEMP/pr-gate-logs.txt" ]; then
               break
