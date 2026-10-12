@@ -142,7 +142,7 @@ jobs:
           fi
           # Deep-scan specific packages
           pip install \
-            pytest==8.4.2 \
+            pytest==9.0.3 \
             pytest-asyncio==1.3.0 \
             pytest-mock==3.14.0 \
             psycopg2-binary==2.9.10 \
