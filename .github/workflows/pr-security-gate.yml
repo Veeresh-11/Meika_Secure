@@ -410,7 +410,7 @@ jobs:
           echo "=== Config sanity check ==="
           python3 -m pytest --co -q --no-header 2>&1 | head -10 || true
           echo "==========================="
-          python3 -m pytest \
+          PYTHONTRACEMALLOC=25 python3 -m pytest \
             --cov=app \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
