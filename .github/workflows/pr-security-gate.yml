@@ -620,5 +620,25 @@ jobs:
             echo "::error::Could not identify the completed pr-gate job."
             exit 1
           fi
-          gh --allow-escape-sequences api "repos/$GH_REPOSITORY/actions/jobs/$PR_GATE_JOB_ID/logs" > "$RUNNER_TEMP/pr-gate-logs.zip"
+          gh api --include "repos/$GH_REPOSITORY/actions/jobs/$PR_GATE_JOB_ID/logs" > "$RUNNER_TEMP/pr-gate-response.txt"
+          python - "$RUNNER_TEMP/pr-gate-response.txt" "$RUNNER_TEMP/pr-gate-logs.zip" <<'PYLOG'
+          import sys
+          from pathlib import Path
+
+          response_path, zip_path = map(Path, sys.argv[1:])
+          raw = response_path.read_bytes()
+          separator = b"\r\n\r\n"
+          header_end = raw.find(separator)
+          if header_end < 0:
+              raise SystemExit("GitHub log API response has no HTTP header separator")
+          headers = raw[:header_end].decode("latin-1", errors="replace")
+          body = raw[header_end + len(separator):]
+          status_line = headers.splitlines()[0] if headers else ""
+          if " 200 " not in f" {status_line} ":
+              raise SystemExit(f"GitHub log API request failed: {status_line}")
+          if not body.startswith(bytes((80, 75, 3, 4))):
+              raise SystemExit("GitHub job logs response was not a ZIP archive")
+          zip_path.write_bytes(body)
+          PYLOG
+          python .github/scripts/score_pr_gate.py "$RUNNER_TEMP/pr-gate-logs.zip"
           python .github/scripts/score_pr_gate.py "$RUNNER_TEMP/pr-gate-logs.zip"
