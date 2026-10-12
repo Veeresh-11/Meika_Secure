@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Body
 from sqlalchemy.orm import Session
 from pydantic import ( BaseModel, Field, EmailStr, ConfigDict, )
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from app.security.persistence import db
 from app.security.webauthn.attestation import (
     AttestationVerificationError,verify_attestation)
@@ -185,7 +185,7 @@ def register(payload: RegisterRequest = Body(...), db: Session = Depends(get_db)
             "email": payload.email,
             "event": "password_registration_deprecated",
             "severity": "WARNING",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         }
     )
 
@@ -241,7 +241,7 @@ def login(
             "device_id": payload.device_id,
             "event": "password_login_deprecated",
             "severity": "WARNING",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         }
     )
 
@@ -286,7 +286,7 @@ def login(
             binding_valid=True,
             clone_confirmed=False,
             replay_detected=False,
-            last_attested_at=datetime.utcnow(),
+            last_attested_at=datetime.now(timezone.utc).replace(tzinfo=None),
         ),
         posture=posture_ctx,
     )
@@ -324,7 +324,7 @@ def login(
      device_id=device_snapshot.device_id,
      device=device_snapshot,
      risk_signals={},
-     request_time=datetime.utcnow(),
+     request_time=datetime.now(timezone.utc).replace(tzinfo=None),
      metadata={},
     )
     # ---- Step 4: Zero Trust ----
