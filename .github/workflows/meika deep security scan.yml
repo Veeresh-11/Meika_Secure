@@ -142,7 +142,6 @@ jobs:
           fi
           # Deep-scan specific packages
           pip install \
-            pytest==9.0.3 \
             pytest==8.4.2 \
             pytest-asyncio==1.3.0 \
             pytest-mock==3.14.0 \
@@ -150,10 +149,10 @@ jobs:
             redis==5.2.1 \
             httpx==0.28.1 \
             anyio==4.14.2 \
-            schemathesis==4.10.2 \
+            schemathesis==4.30.1 \
             hypothesis==6.138.15 \
             pynguin==0.45.0 \
-            cyclonedx-bom==7.1.0 \
+            cyclonedx-bom==7.5.0 \
             pip-audit==2.10.1 \
             bandit==1.9.4 \
             uvicorn==0.35.0
