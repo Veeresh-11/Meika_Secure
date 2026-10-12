@@ -526,6 +526,9 @@ def webauthn_register_finish(
             "credential_id": credential_data.get("credential_id"),
             "message": "WebAuthn credential successfully registered"
         }
+    except HTTPException:
+        raise
+
     except AttestationVerificationError as e:
       logger.warning(
         f"WebAuthn attestation validation failed: {e}"
@@ -535,6 +538,16 @@ def webauthn_register_finish(
         status_code=422,
         detail=str(e),
         )
+
+    except ValueError as e:
+        logger.warning(
+            "WebAuthn registration challenge rejected",
+            extra={"event": "webauthn_register_challenge_rejected"},
+        )
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired challenge",
+        ) from e
 
     except Exception as e:
         logger.exception(
