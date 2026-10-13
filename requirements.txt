@@ -22,7 +22,7 @@ email-validator==2.2.0
 
 # Auth / crypto  ← MOST LIKELY pip-audit failures are here
 argon2-cffi==23.1.0          # passwords — must pin (CVEs in older versions)
-PyJWT==2.15.1                # tokens — must pin
+PyJWT==2.15.1                # tokens — approved JWT implementation; python-jose is intentionally excluded
 pynacl==1.6.2                # MUST pin — crypto library, high-risk if unpinned
 cryptography==50.0.2         # Fixes CVE-2024-26130, CVE-2023-49083
 
