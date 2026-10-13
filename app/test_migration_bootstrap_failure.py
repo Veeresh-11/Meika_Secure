@@ -267,6 +267,82 @@ def test_failed_migration_does_not_record_or_partially_apply(
             cleanup_conn.close()
 
 
+
+@pytest.mark.postgres
+def test_successful_migration_is_recorded_and_committed(
+    migration_runner,
+    tmp_path,
+    monkeypatch,
+):
+    dsn = os.getenv("POSTGRES_TEST_DSN") or os.getenv("DATABASE_URL")
+    if not dsn:
+        pytest.skip("PostgreSQL test DSN not configured")
+
+    psycopg2_dsn = dsn.replace(
+        "postgresql+psycopg://",
+        "postgresql://",
+        1,
+    )
+    schema = f"migration_success_{uuid4().hex}"
+    setup_conn = psycopg2.connect(psycopg2_dsn)
+    setup_conn.autocommit = True
+    try:
+        with setup_conn.cursor() as cur:
+            cur.execute(f'CREATE SCHEMA "{schema}"')
+    finally:
+        setup_conn.close()
+
+    migration = tmp_path / "001_success.sql"
+    migration.write_text(
+        f'''
+        CREATE TABLE "{schema}".committed_marker (
+            id INTEGER PRIMARY KEY
+        );
+        INSERT INTO "{schema}".committed_marker(id) VALUES (1);
+        ''',
+        encoding="utf-8",
+    )
+
+    def get_test_connection():
+        conn = psycopg2.connect(psycopg2_dsn)
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute(f'SET search_path TO "{schema}", public')
+        return conn
+
+    monkeypatch.setattr(migration_runner, "get_connection", get_test_connection)
+    monkeypatch.setattr(migration_runner, "ordered_migrations", lambda: [migration])
+
+    try:
+        migration_runner.apply()
+
+        verify_conn = psycopg2.connect(psycopg2_dsn)
+        try:
+            with verify_conn.cursor() as cur:
+                cur.execute(
+                    psycopg2_sql.SQL(
+                        "SELECT id FROM {}.committed_marker ORDER BY id"
+                    ).format(psycopg2_sql.Identifier(schema))
+                )
+                assert cur.fetchall() == [(1,)]
+
+                cur.execute(
+                    psycopg2_sql.SQL(
+                        "SELECT version FROM {}.schema_migrations ORDER BY version"
+                    ).format(psycopg2_sql.Identifier(schema))
+                )
+                assert [row[0] for row in cur.fetchall()] == ["001_success.sql"]
+        finally:
+            verify_conn.close()
+    finally:
+        cleanup_conn = psycopg2.connect(psycopg2_dsn)
+        cleanup_conn.autocommit = True
+        try:
+            with cleanup_conn.cursor() as cur:
+                cur.execute(f'DROP SCHEMA "{schema}" CASCADE')
+        finally:
+            cleanup_conn.close()
+
 def test_bootstrap_stops_before_schema_validation(monkeypatch):
     scripts_dir = Path(__file__).resolve().parent.parent / "scripts"
     monkeypatch.syspath_prepend(str(scripts_dir))
