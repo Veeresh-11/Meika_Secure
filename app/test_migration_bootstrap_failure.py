@@ -295,13 +295,16 @@ def test_successful_migration_is_recorded_and_committed(
         setup_conn.close()
 
     migration = tmp_path / "001_success.sql"
+    # The connection's search_path is scoped to this isolated schema,
+    # so keep the migration SQL identifier-static instead of interpolating
+    # a schema name into executable SQL.
     migration.write_text(
-        f'''
-        CREATE TABLE "{schema}".committed_marker (
+        """
+        CREATE TABLE committed_marker (
             id INTEGER PRIMARY KEY
         );
-        INSERT INTO "{schema}".committed_marker(id) VALUES (1);
-        ''',
+        INSERT INTO committed_marker(id) VALUES (1);
+        """,
         encoding="utf-8",
     )
 
