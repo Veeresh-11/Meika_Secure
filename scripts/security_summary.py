@@ -86,6 +86,32 @@ def main() -> int:
         if outcome != "success":
             blockers.append(f"{scanner} did not complete successfully (outcome={outcome})")
 
+    # Container image scanning is conditionally required only when the repo
+    # actually contains a Dockerfile. A missing Dockerfile is an explicit,
+    # reviewable non-applicability; a failed build or scan must never be
+    # mistaken for a clean image result.
+    dockerfile_check = os.environ.get("DOCKERFILE_CHECK_OUTCOME", "missing")
+    dockerfile_found = os.environ.get("DOCKERFILE_FOUND", "missing").lower()
+    if dockerfile_check != "success":
+        blockers.append(
+            f"Dockerfile detection did not complete successfully (outcome={dockerfile_check})"
+        )
+    elif dockerfile_found == "true":
+        for scanner, variable in (
+            ("Container image build", "IMAGE_BUILD_OUTCOME"),
+            ("Trivy container image scan", "IMAGE_SCAN_OUTCOME"),
+        ):
+            outcome = os.environ.get(variable, "missing")
+            if outcome != "success":
+                blockers.append(
+                    f"{scanner} did not complete successfully (outcome={outcome})"
+                )
+    elif dockerfile_found != "false":
+        blockers.append(
+            f"Dockerfile detection did not report an explicit true/false result "
+            f"(found={dockerfile_found})"
+        )
+
     zap = load_json_or_block("zap-report.json", blockers, {"site": []})
     sites = zap.get("site")
     if not isinstance(sites, list):

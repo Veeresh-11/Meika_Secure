@@ -636,11 +636,13 @@ jobs:
           fi
 
       - name: Build image for container scan
+        id: build_image
         if: steps.dockerfile_check.outputs.found == 'true'
         continue-on-error: true
         run: docker build -t meika-secure-id:scan .
 
       - name: Trivy Container Image Scan
+        id: trivy_image_scan
         if: steps.dockerfile_check.outputs.found == 'true'
         uses: aquasecurity/trivy-action@master
         continue-on-error: true
@@ -701,6 +703,10 @@ jobs:
           OSV_OUTCOME: ${{ steps.osv_scan.outcome }}
           BANDIT_OUTCOME: ${{ steps.bandit_scan.outcome }}
           TRIVY_CONFIG_OUTCOME: ${{ steps.trivy_config_scan.outcome }}
+          DOCKERFILE_CHECK_OUTCOME: ${{ steps.dockerfile_check.outcome }}
+          DOCKERFILE_FOUND: ${{ steps.dockerfile_check.outputs.found }}
+          IMAGE_BUILD_OUTCOME: ${{ steps.build_image.outcome }}
+          IMAGE_SCAN_OUTCOME: ${{ steps.trivy_image_scan.outcome }}
         run: python3 scripts/security_summary.py
 
       # ────────────────────────────────────────────────────────────────────────
