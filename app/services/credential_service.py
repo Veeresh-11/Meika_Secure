@@ -62,18 +62,23 @@ class CredentialService:
     
     @staticmethod
     def get_webauthn_credential(
-      db: Session,
-      credential_id: str,
+        db: Session,
+        *,
+        credential_id: str,
+        user_id,
+        tenant_id,
     ) -> WebAuthnCredential | None:
-
-     return (
-        db.query(WebAuthnCredential)
-        .filter(
-            WebAuthnCredential.credential_id == credential_id,
-            WebAuthnCredential.revoked.is_(False),
+        """Fetch an active credential only within its owning user and tenant."""
+        return (
+            db.query(WebAuthnCredential)
+            .filter(
+                WebAuthnCredential.credential_id == credential_id,
+                WebAuthnCredential.user_id == user_id,
+                WebAuthnCredential.tenant_id == tenant_id,
+                WebAuthnCredential.revoked.is_(False),
+            )
+            .first()
         )
-        .first()
-       )
 
     @staticmethod
     def verify_password_credential(

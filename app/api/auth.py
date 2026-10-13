@@ -682,19 +682,10 @@ def webauthn_authenticate_finish(
         # Load credential
         # --------------------------------------------------
 
-        credential_record = CredentialService.get_webauthn_credential(
-            db=db,
-            credential_id=payload.credential_id,
-        )
-
-        if credential_record is None:
-            raise HTTPException(
-                status_code=401,
-                detail="Credential not found",
-            )
-
         # --------------------------------------------------
-        # Load user
+        # Resolve the requested account before looking up its credential.
+        # A credential owned by another user or tenant must never be used
+        # to create a session, grant, or token for this account.
         # --------------------------------------------------
 
         user = AuthService.get_user_by_email(
@@ -706,6 +697,24 @@ def webauthn_authenticate_finish(
             raise HTTPException(
                 status_code=404,
                 detail="User not found",
+            )
+
+        credential_record = CredentialService.get_webauthn_credential(
+            db=db,
+            credential_id=payload.credential_id,
+            user_id=user.id,
+            tenant_id=user.tenant_id,
+        )
+
+        if (
+            credential_record is None
+            or credential_record.user_id != user.id
+            or credential_record.tenant_id != user.tenant_id
+        ):
+            # Do not disclose whether the credential belongs to another account.
+            raise HTTPException(
+                status_code=401,
+                detail="Credential not found",
             )
 
         # --------------------------------------------------

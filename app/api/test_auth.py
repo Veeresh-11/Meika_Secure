@@ -10,7 +10,7 @@ from app.security.webauthn.attestation import (
     AttestationVerificationError,
 )
 from datetime import datetime, timezone
-from unittest.mock import MagicMock
+from unittest.mock import ANY, \1
 from app.security.webauthn.assertion import verify_assertion
 
 # ---------------------------------------------------------
@@ -839,6 +839,8 @@ def test_webauthn_authenticate_finish_success(monkeypatch):
 
     credential_record = SimpleNamespace(
         id="cred-123",
+        user_id="user-123",
+        tenant_id="tenant-1",
         credential_id="credential-123",
         device_id="device-123",
         public_key="public-key",
@@ -881,6 +883,7 @@ def test_webauthn_authenticate_finish_success(monkeypatch):
 
     user = SimpleNamespace(
         id="user-123",
+        tenant_id="tenant-1",
     )
 
     monkeypatch.setattr(
@@ -1022,6 +1025,86 @@ def test_webauthn_authenticate_finish_success(monkeypatch):
     
     
     
+
+def test_webauthn_authenticate_finish_rejects_another_users_credential(monkeypatch):
+    credential_record = SimpleNamespace(
+        id="credential-other",
+        user_id="user-other",
+        tenant_id="tenant-other",
+        credential_id="credential-other",
+        device_id="device-other",
+        public_key="public-key",
+        sign_count=0,
+        hardware_backed=True,
+        attestation_verified=True,
+        attestation_type="basic",
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        last_used_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        revoked=False,
+    )
+    user = SimpleNamespace(id="user-requested", tenant_id="tenant-requested")
+
+    credential_lookup = MagicMock(return_value=credential_record)
+    monkeypatch.setattr(
+        auth.CredentialService,
+        "get_webauthn_credential",
+        staticmethod(credential_lookup),
+    )
+    monkeypatch.setattr(
+        auth.AuthService,
+        "get_user_by_email",
+        staticmethod(lambda *args, **kwargs: user),
+    )
+    verify_assertion = MagicMock()
+    update_sign_count = MagicMock()
+    touch_last_used = MagicMock()
+    session_create = MagicMock()
+    grant_create = MagicMock()
+    issue_token = MagicMock()
+    monkeypatch.setattr(auth, "verify_assertion", verify_assertion)
+    monkeypatch.setattr(auth.CredentialService, "update_sign_count", update_sign_count)
+    monkeypatch.setattr(auth.CredentialService, "touch_last_used", touch_last_used)
+    monkeypatch.setattr(auth.SessionService, "create", session_create)
+    monkeypatch.setattr(auth.GrantService, "create", grant_create)
+    monkeypatch.setattr(auth.TokenService, "issue_access_token", issue_token)
+
+    response = client.post(
+        "/auth/webauthn/authenticate/finish",
+        json={
+            "email": "requested@example.com",
+            "credential_id": "credential-other",
+            "assertion": {
+                "id": "credential-other",
+                "rawId": "credential-other",
+                "type": "public-key",
+                "response": {
+                    "response": {
+                        "clientDataJSON": "",
+                        "authenticatorData": "",
+                        "signature": "",
+                    }
+                },
+            },
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Credential not found"
+    credential_lookup.assert_called_once_with(
+        db=ANY,
+        credential_id="credential-other",
+        user_id="user-requested",
+        tenant_id="tenant-requested",
+    )
+    verify_assertion.assert_not_called()
+    update_sign_count.assert_not_called()
+    touch_last_used.assert_not_called()
+    session_create.assert_not_called()
+    grant_create.assert_not_called()
+    issue_token.assert_not_called()
+
+
+
 def test_webauthn_authenticate_finish_failure(monkeypatch):
 
     def fail(*args, **kwargs):
