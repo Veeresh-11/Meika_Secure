@@ -276,7 +276,7 @@ This directory contains a comprehensive analysis of Meika's current state vs. Ok
 - **Language**: Python 3.x
 - **Web**: FastAPI + Uvicorn
 - **Database**: PostgreSQL + SQLAlchemy ORM
-- **Cryptography**: PyNaCl (Ed25519), python-jose (JWT)
+- **Cryptography**: PyNaCl (Ed25519), PyJWT (JWT)
 - **Testing**: pytest + coverage
 - **Observability**: Structlog, OpenTelemetry
 
