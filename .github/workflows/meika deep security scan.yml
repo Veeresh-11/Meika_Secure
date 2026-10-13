@@ -257,7 +257,7 @@ jobs:
           uvicorn app.main:app \
             --host 0.0.0.0 \
             --port 8000 \
-            --log-level info \
+            --log-level error \
             > /tmp/uvicorn.log 2>&1 &
           echo "Waiting for API server to be ready..."
           timeout 90s bash -c '
@@ -593,7 +593,7 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
-          bandit -r app/ -f json -o bandit-report.json
+          bandit -r app/ -ll -f json -o bandit-report.json
           echo "---- BANDIT SUMMARY ----"
           if [ -f bandit-report.json ]; then
             python3 -c "
