@@ -75,19 +75,8 @@ jobs:
       PYTHONUNBUFFERED: "1"
 
     steps:
-      # ────────────────────────────────────────────────────────────────────────
-      # NEW — Harden-Runner (StepSecurity, free). Monitors and can block
-      # unexpected outbound network calls and detects tampered/compromised
-      # GitHub Actions during the run itself — supply-chain protection for
-      # the CI pipeline, not just the app. "audit" mode here only logs
-      # anomalies (safe default); switch to "block" once you've reviewed a
-      # few runs' worth of the egress report and are confident nothing
-      # legitimate gets blocked.
-      # ────────────────────────────────────────────────────────────────────────
-      - name: Harden Runner
-        uses: step-security/harden-runner@v2
-        with:
-          egress-policy: audit
+      # Harden Runner intentionally omitted: its Docker daemon restart invalidated
+      # the PostgreSQL service port in observed CI runs.
 
       # ────────────────────────────────────────────────────────────────────────
       # 1. Checkout
@@ -201,9 +190,19 @@ jobs:
       # whatever happens to be latest during a scan.
       # Bootstrap the database with ordered migrations and fail-fast validation.
       - name: Bootstrap and validate application database
+        timeout-minutes: 3
         run: |
-          until pg_isready -h localhost -p 5432 -U test_user -d test_db; do
-            echo "Waiting for postgres..."
+          for attempt in $(seq 1 60); do
+            if pg_isready -h localhost -p 5432 -U test_user -d test_db; then
+              break
+            fi
+            if [ "$attempt" -eq 60 ]; then
+              echo "::error::PostgreSQL service did not become reachable within 120 seconds."
+              docker ps -a
+              docker logs "$(docker ps -aq --filter ancestor=postgres:16 | head -1)" || true
+              exit 1
+            fi
+            echo "Waiting for postgres ($attempt/60)..."
             sleep 2
           done
           DB_NAME=test_db python scripts/bootstrap_db.py
@@ -682,7 +681,7 @@ jobs:
       # SonarQube is an external service and may not be reachable from GitHub-hosted
       # runners (for example, a server bound to localhost on a developer machine).
       # Detect availability explicitly; never report an unreachable server as a scan pass.
-      - name: Check SonarQube availability
+      - name: Check SonarQube scanner API availability
         id: sonar_preflight
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -694,24 +693,19 @@ jobs:
             echo "::notice::SonarQube scan skipped: SONAR_TOKEN or SONAR_HOST_URL is not configured."
             exit 0
           fi
-          status_url="${SONAR_HOST_URL%/}/api/system/status"
-          if curl --fail --silent --show-error --max-time 10 "$status_url" -o "$RUNNER_TEMP/sonar-status.json"; then
-            if python3 - "$RUNNER_TEMP/sonar-status.json" <<'PY'
-          import json, sys
-          with open(sys.argv[1], encoding="utf-8") as f:
-              data = json.load(f)
-          if data.get("status") != "UP":
-              raise SystemExit(f"SonarQube status is not UP: {data.get('status', 'unknown')}")
-          PY
-            then
-              echo "available=true" >> "$GITHUB_OUTPUT"
-              echo "SonarQube is reachable and reports UP."
-              exit 0
-            fi
+          # Probe the exact endpoint the scanner failed to query. Checking
+          # /api/system/status alone can pass while the analysis API is blocked.
+          version_url="${SONAR_HOST_URL%/}/api/v2/analysis/version"
+          if curl --fail --silent --show-error --max-time 10 \
+              --user "${SONAR_TOKEN}:" "$version_url" \
+              -o "$RUNNER_TEMP/sonar-analysis-version.txt" &&
+             [ -s "$RUNNER_TEMP/sonar-analysis-version.txt" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "SonarQube analysis API is reachable."
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::SonarQube scan skipped: analysis API endpoint is unreachable or unsupported. Verify server version, proxy routing, and token; this is not reported as a scan pass."
           fi
-          echo "available=false" >> "$GITHUB_OUTPUT"
-          echo "::notice::SonarQube scan skipped: configured server did not respond with status UP. Check SONAR_HOST_URL, network reachability, and server health."
-          exit 0
 
       - name: Checkout Repository
         uses: actions/checkout@v6
