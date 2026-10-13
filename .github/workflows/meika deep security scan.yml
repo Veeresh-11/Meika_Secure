@@ -479,6 +479,7 @@ jobs:
         id: schemathesis_scan
         continue-on-error: true
         run: |
+          set -euo pipefail
           echo "---- SCHEMATHESIS RESULTS ----"
           schemathesis run \
             http://localhost:8000/openapi.json \
@@ -489,7 +490,7 @@ jobs:
             --max-examples=50 \
             --suppress-health-check=too_slow,filter_too_much \
             --continue-on-failure \
-            2>&1 | tee schemathesis-report.txt || true
+            2>&1 | tee schemathesis-report.txt
 
       # WebAuthn registration finish is excluded from generic schema fuzzing because it
       # requires a live challenge and cryptographically valid attestation; dedicated
@@ -589,7 +590,8 @@ jobs:
         id: bandit_scan
         continue-on-error: true
         run: |
-          bandit -r app/ -f json -o bandit-report.json || true
+          set -euo pipefail
+          bandit -r app/ -f json -o bandit-report.json
           echo "---- BANDIT SUMMARY ----"
           if [ -f bandit-report.json ]; then
             python3 -c "
