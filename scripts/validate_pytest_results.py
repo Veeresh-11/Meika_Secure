@@ -23,10 +23,11 @@ EXPECTED_REASON = (
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        print("Usage: validate_pytest_results.py <junit-xml>", file=sys.stderr)
+    if len(sys.argv) not in (2, 3) or (len(sys.argv) == 3 and sys.argv[2] != "--no-skips"):
+        print("Usage: validate_pytest_results.py <junit-xml> [--no-skips]", file=sys.stderr)
         return 2
 
+    no_skips = len(sys.argv) == 3
     path = Path(sys.argv[1])
     if not path.is_file() or path.stat().st_size == 0:
         print(f"FAIL: required pytest JUnit report missing or empty: {path}")
@@ -63,16 +64,24 @@ def main() -> int:
             )
 
     actual = Counter(classname for classname, _, _ in skipped)
-    for module, expected_count in EXPECTED.items():
-        if actual[module] != expected_count:
-            unexpected.append(
-                f"{module}: expected exactly {expected_count} approved skips, "
-                f"observed {actual[module]}"
+    if no_skips:
+        if skipped:
+            unexpected.extend(
+                f"{classname}::{name}: skip forbidden in this required security suite "
+                f"(reason={reason!r})"
+                for classname, name, reason in skipped
             )
+    else:
+        for module, expected_count in EXPECTED.items():
+            if actual[module] != expected_count:
+                unexpected.append(
+                    f"{module}: expected exactly {expected_count} approved skips, "
+                    f"observed {actual[module]}"
+                )
 
-    unexpected_modules = set(actual) - set(EXPECTED)
-    if unexpected_modules:
-        unexpected.append(f"unapproved skipped modules: {sorted(unexpected_modules)}")
+        unexpected_modules = set(actual) - set(EXPECTED)
+        if unexpected_modules:
+            unexpected.append(f"unapproved skipped modules: {sorted(unexpected_modules)}")
 
     print(f"Pytest cases reported: {len(cases)}")
     print(f"Skipped cases reported: {len(skipped)}")
@@ -84,15 +93,18 @@ def main() -> int:
             print(f" - {item}")
         return 1
 
-    expected_total = sum(EXPECTED.values())
+    expected_total = 0 if no_skips else sum(EXPECTED.values())
     if len(skipped) != expected_total:
         print(
-            f"FAIL: expected exactly {expected_total} explicitly approved skips; "
+            f"FAIL: expected exactly {expected_total} skips under the selected policy; "
             f"observed {len(skipped)}"
         )
         return 1
 
-    print("PASS: all skips match the exact reviewed allowlist; no unexpected skips.")
+    if no_skips:
+        print("PASS: required security suite has zero skipped tests.")
+    else:
+        print("PASS: all skips match the exact reviewed allowlist; no unexpected skips.")
     return 0
 
 

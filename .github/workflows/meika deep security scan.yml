@@ -283,7 +283,9 @@ jobs:
           pytest app/security/test_red_team_attacks.py \
             -v \
             --tb=short \
-            --asyncio-mode=auto
+            --asyncio-mode=auto \
+            --junitxml=red-team-results.xml
+          python scripts/validate_pytest_results.py red-team-results.xml --no-skips
 
       # ────────────────────────────────────────────────────────────────────────
       # FIX 2 — OWASP ZAP: removed duplicate -J flag.
@@ -617,7 +619,8 @@ jobs:
       # a known-vulnerable test runner just for an optional, non-blocking step.
       - name: Adversarial invariant tests
         run: |
-          pytest app/security/test_break_attempts/ -v --tb=short
+          pytest app/security/test_break_attempts/ -v --tb=short --junitxml=adversarial-results.xml
+          python scripts/validate_pytest_results.py adversarial-results.xml --no-skips
 
       # ────────────────────────────────────────────────────────────────────────
       # NEW — Container image scan (Trivy). Standard in mature security
