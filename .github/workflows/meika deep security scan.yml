@@ -619,9 +619,9 @@ jobs:
       - name: Trivy Container Image Scan
         if: steps.dockerfile_check.outputs.found == 'true'
         uses: aquasecurity/trivy-action@master
-          cache: false
         continue-on-error: true
         with:
+          cache: false
           image-ref: meika-secure-id:scan
           severity: HIGH,CRITICAL
           format: sarif
@@ -639,9 +639,9 @@ jobs:
       - name: Trivy Config/IaC Scan
         id: trivy_config_scan
         uses: aquasecurity/trivy-action@master
-          cache: false
         continue-on-error: true
         with:
+          cache: false
           scan-type: config
           scan-ref: .
           severity: HIGH,CRITICAL
