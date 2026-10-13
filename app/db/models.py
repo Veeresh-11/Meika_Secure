@@ -36,7 +36,7 @@ class Organization(Base):
 
 
 # ==========================================================
-# User
+# User — tenant-scoped identity record
 # ==========================================================
 
 class User(Base):
