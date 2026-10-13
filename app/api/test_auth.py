@@ -33,6 +33,81 @@ def manage_test_client_lifecycle():
 
 
 
+@pytest.mark.parametrize(
+    ("endpoint", "payload"),
+    [
+        ("/auth/webauthn/register/start", {"device_name": "test-device"}),
+        ("/auth/webauthn/register/start", {"email": "user@example.com"}),
+        ("/auth/webauthn/authenticate/start", {}),
+        (
+            "/auth/webauthn/register/finish",
+            {
+                "email": "user@example.com",
+                "attestation": {
+                    "challenge": "challenge123",
+                    "hardware_backed": True,
+                    "attestation_verified": True,
+                    "type": "tpm",
+                },
+            },
+        ),
+        (
+            "/auth/webauthn/register/finish",
+            {
+                "email": "user@example.com",
+                "attestation": {
+                    "challenge": "challenge123",
+                    "hardware_backed": False,
+                    "attestation_verified": True,
+                    "public_key": "public-key",
+                    "type": "tpm",
+                },
+            },
+        ),
+        (
+            "/auth/webauthn/register/finish",
+            {
+                "email": "user@example.com",
+                "attestation": {
+                    "challenge": "challenge123",
+                    "hardware_backed": True,
+                    "attestation_verified": False,
+                    "public_key": "public-key",
+                    "type": "tpm",
+                },
+            },
+        ),
+        (
+            "/auth/webauthn/authenticate/finish",
+            {
+                "email": "user@example.com",
+                "assertion": {
+                    "id": "credential-1",
+                    "rawId": "credential-1",
+                    "type": "public-key",
+                    "response": {"response": {}},
+                },
+            },
+        ),
+    ],
+    ids=[
+        "register-start-requires-email",
+        "register-start-requires-device-name",
+        "authenticate-start-requires-email",
+        "register-finish-requires-public-key",
+        "register-finish-requires-hardware-backed-true",
+        "register-finish-requires-verified-attestation",
+        "authenticate-finish-requires-credential-id",
+    ],
+)
+def test_webauthn_rejects_incomplete_or_untrusted_payloads(endpoint, payload):
+    """Request validation must reject missing fields and client-asserted trust."""
+    response = client.post(endpoint, json=payload)
+    assert response.status_code == 422
+
+
+
+
 # ---------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------
