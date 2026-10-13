@@ -229,7 +229,22 @@ jobs:
           DB_NAME=meika_evidence_test python scripts/bootstrap_db.py
       - name: Start API Server
         run: |
+          # Generate and export a fresh key in this shell so no job/step
+          # environment precedence can substitute a stale placeholder.
           python - <<'PYKEY'
+          from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+          from cryptography.hazmat.primitives import serialization
+          key = Ed25519PrivateKey.generate()
+          raw = key.private_bytes(
+              serialization.Encoding.Raw,
+              serialization.PrivateFormat.Raw,
+              serialization.NoEncryption(),
+          )
+          with open("/tmp/meika-ci-signing-key", "w", encoding="ascii") as handle:
+              handle.write(raw.hex())
+          PYKEY
+          export SIGNING_PRIVATE_KEY="$(cat /tmp/meika-ci-signing-key)"
+          python - <<'PYVALIDATE'
           import os
           key = os.environ.get("SIGNING_PRIVATE_KEY", "")
           if len(key) != 64:
@@ -238,7 +253,7 @@ jobs:
               bytes.fromhex(key)
           except ValueError:
               raise SystemExit("SIGNING_PRIVATE_KEY is not valid hexadecimal")
-          PYKEY
+          PYVALIDATE
           uvicorn app.main:app \
             --host 0.0.0.0 \
             --port 8000 \
