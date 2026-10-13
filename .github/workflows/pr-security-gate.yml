@@ -482,7 +482,10 @@ jobs:
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
             --cov-fail-under=70 \
+            --junitxml=pytest-results.xml \
+            -rs \
             -W error
+          python3 scripts/validate_pytest_results.py pytest-results.xml
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v7
         if: always()
@@ -551,7 +554,8 @@ jobs:
               -v --tb=short \
               -p no:cacheprovider
           else
-            echo "Red team test file not found — skipping"
+            echo "::error::Required red-team test file app/security/test_red_team_attacks.py is missing."
+            exit 1
           fi
       # CodeQL analysis
       - name: CodeQL Analyze
