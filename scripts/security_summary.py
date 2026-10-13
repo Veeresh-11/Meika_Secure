@@ -22,6 +22,23 @@ def load_json(path: str) -> Any:
         raise RuntimeError(f"Unable to parse security report {path}: {exc}") from exc
 
 
+def load_json_or_block(path: str, blockers: list[str], default: Any) -> Any:
+    """Load a report but preserve the full summary when it is missing or malformed."""
+    try:
+        return load_json(path)
+    except RuntimeError as exc:
+        blockers.append(str(exc))
+        return default
+
+
+def load_jsonl_or_block(path: str, blockers: list[str]) -> list[dict[str, Any]]:
+    """Load required JSONL while keeping report errors visible in the final gate."""
+    try:
+        return load_jsonl(path)
+    except RuntimeError as exc:
+        blockers.append(str(exc))
+        return []
+
 def load_jsonl(path: str) -> list[dict[str, Any]]:
     file_path = Path(path)
     if not file_path.is_file() or file_path.stat().st_size == 0:
@@ -69,10 +86,11 @@ def main() -> int:
         if outcome != "success":
             blockers.append(f"{scanner} did not complete successfully (outcome={outcome})")
 
-    zap = load_json("zap-report.json")
+    zap = load_json_or_block("zap-report.json", blockers, {"site": []})
     sites = zap.get("site")
     if not isinstance(sites, list):
-        raise RuntimeError("ZAP report has no valid 'site' array")
+        blockers.append("ZAP report has no valid 'site' array")
+        sites = []
     zap_alerts = [
         alert
         for site in sites
@@ -95,7 +113,7 @@ def main() -> int:
     if zap_medium:
         blockers.append(f"ZAP medium-risk alerts: {len(zap_medium)}")
 
-    nuclei = load_jsonl("nuclei.jsonl")
+    nuclei = load_jsonl_or_block("nuclei.jsonl", blockers)
     nuclei_critical_high = [
         item for item in nuclei
         if str(item.get("info", {}).get("severity", "")).lower()
@@ -105,7 +123,7 @@ def main() -> int:
     if nuclei_critical_high:
         blockers.append(f"Nuclei critical/high findings: {len(nuclei_critical_high)}")
 
-    pip_audit = load_json("pip-audit-report.json")
+    pip_audit = load_json_or_block("pip-audit-report.json", blockers, {"dependencies": []})
     pip_vulnerabilities = [
         (dependency.get("name", "unknown"), vuln.get("id", "unknown"))
         for dependency in pip_audit.get("dependencies", [])
@@ -117,7 +135,7 @@ def main() -> int:
     if pip_vulnerabilities:
         blockers.append(f"pip-audit known vulnerabilities: {len(pip_vulnerabilities)}")
 
-    osv = load_json("osv-report.json")
+    osv = load_json_or_block("osv-report.json", blockers, {"results": []})
     osv_vulnerabilities = [
         (package.get("package", {}).get("name", "unknown"), vuln.get("id", "unknown"))
         for result in osv.get("results", [])
@@ -131,10 +149,11 @@ def main() -> int:
     if osv_vulnerabilities:
         blockers.append(f"OSV known vulnerabilities: {len(osv_vulnerabilities)}")
 
-    bandit = load_json("bandit-report.json")
+    bandit = load_json_or_block("bandit-report.json", blockers, {"results": []})
     bandit_results = bandit.get("results")
     if not isinstance(bandit_results, list):
-        raise RuntimeError("Bandit report has no valid 'results' array")
+        blockers.append("Bandit report has no valid 'results' array")
+        bandit_results = []
     bandit_medium_high = [
         item for item in bandit_results
         if str(item.get("issue_severity", "")).upper() in {"MEDIUM", "HIGH"}
@@ -148,7 +167,7 @@ def main() -> int:
         trivy_paths.append("trivy-image.sarif")
     trivy_total = 0
     for path in trivy_paths:
-        sarif = load_json(path)
+        sarif = load_json_or_block(path, blockers, {"runs": []})
         runs = sarif.get("runs")
         if not isinstance(runs, list):
             raise RuntimeError(f"Trivy report has no valid 'runs' array: {path}")
@@ -166,8 +185,10 @@ def main() -> int:
 
     schemathesis_path = Path("schemathesis-report.txt")
     if not schemathesis_path.is_file() or schemathesis_path.stat().st_size == 0:
-        raise RuntimeError("Required Schemathesis report missing or empty")
-    schemathesis = schemathesis_path.read_text(encoding="utf-8", errors="replace")
+        blockers.append("Required Schemathesis report missing or empty")
+        schemathesis = ""
+    else:
+        schemathesis = schemathesis_path.read_text(encoding="utf-8", errors="replace")
     # Count unique failing cases, not repeated mentions in the report.
     case_ids = set(re.findall(r"(?m)^\s*Test Case ID:\s*([A-Za-z0-9_-]+)", schemathesis))
     if case_ids:
