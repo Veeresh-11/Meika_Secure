@@ -400,6 +400,7 @@ jobs:
       # Dependency CVE audit — findings block the PR.
       - name: Dependency Audit
         id: dependency_audit
+        continue-on-error: true
         run: pip-audit -r requirements.txt --desc on
 
       # Bandit SAST
@@ -571,6 +572,7 @@ jobs:
       - name: Enforce security gate after diagnostics
         if: always()
         env:
+          DEPENDENCY_AUDIT_OUTCOME: ${{ steps.dependency_audit.outcome }}
           BANDIT_OUTCOME: ${{ steps.bandit_scan.outcome }}
           SEMGREP_OUTCOME: ${{ steps.semgrep_scan.outcome }}
           TESTS_OUTCOME: ${{ steps.tests_coverage.outcome }}
@@ -581,6 +583,7 @@ jobs:
         run: |
           failed=0
           for item in \
+            "Dependency-audit:$DEPENDENCY_AUDIT_OUTCOME" \
             "Bandit:$BANDIT_OUTCOME" \
             "Semgrep:$SEMGREP_OUTCOME" \
             "Tests-and-coverage:$TESTS_OUTCOME" \
