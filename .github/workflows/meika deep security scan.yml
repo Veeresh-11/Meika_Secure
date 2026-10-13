@@ -285,7 +285,7 @@ jobs:
             --tb=short \
             --asyncio-mode=auto \
             --junitxml=red-team-results.xml
-          python scripts/validate_pytest_results.py red-team-results.xml --no-skips
+          python scripts/validate_pytest_results.py red-team-results.xml
 
       # ────────────────────────────────────────────────────────────────────────
       # FIX 2 — OWASP ZAP: removed duplicate -J flag.
