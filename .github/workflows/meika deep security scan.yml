@@ -286,8 +286,13 @@ jobs:
         continue-on-error: true
         run: |
           set -uo pipefail
+          zap_work="$RUNNER_TEMP/zap-work"
+          mkdir -p "$zap_work"
+          # ZAP runs as UID 1000; assign ownership of its isolated temp directory.
+          sudo chown 1000:1000 "$zap_work"
+          scan_status=0
           docker run --rm --network host \
-            --volume "$PWD:/zap/wrk/:rw" \
+            --volume "$zap_work:/zap/wrk/:rw" \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-full-scan.py \
               -t http://127.0.0.1:8000 \
@@ -295,14 +300,17 @@ jobs:
               -r zap-report.html \
               -I \
               -m 10 \
-              -T 5
-          scan_status=$?
+              -T 5 || scan_status=$?
+          for report in zap-report.json zap-report.html; do
+            if [ -s "$zap_work/$report" ]; then
+              cp "$zap_work/$report" "$PWD/$report"
+            fi
+          done
           if [ ! -s zap-report.json ]; then
-            echo "::error::ZAP did not produce a non-empty JSON report."
+            echo "::error::ZAP did not produce a non-empty JSON report; inspect ZAP output above."
             exit 1
           fi
           exit "$scan_status"
-
       - name: Normalize ZAP report names
         if: always()
         run: |
