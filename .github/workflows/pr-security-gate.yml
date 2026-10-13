@@ -467,8 +467,8 @@ jobs:
       # because Sprint 1 has placeholder WebAuthn, stub SIEM, no OIDC,
       # no admin — none of those lines are covered.
       #
-      # FIX: .coveragerc updated to fail_under = 70.
-      # The workflow passes --cov-fail-under=70 explicitly to override
+      # FIX: .coveragerc updated to fail_under = 85.
+      # The workflow passes --cov-fail-under=85 explicitly to override
       # .coveragerc's value as an additional safety net.
       # pytest.ini controls testpaths, asyncio_mode, markers — not the workflow.
       # ───────────────────────────────────────────────────────────────────────
@@ -482,7 +482,7 @@ jobs:
             --cov=app \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
-            --cov-fail-under=70 \
+            --cov-fail-under=85 \
             --junitxml=pytest-results.xml \
             -rs \
             -W error
