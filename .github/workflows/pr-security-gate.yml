@@ -498,6 +498,7 @@ jobs:
         continue-on-error: true
         uses: aquasecurity/trivy-action@master
         with:
+          cache: false
           scan-type: fs
           scan-ref: .
           severity: HIGH,CRITICAL
@@ -513,6 +514,7 @@ jobs:
         continue-on-error: true
         uses: aquasecurity/trivy-action@master
         with:
+          cache: false
           scan-type: config
           scan-ref: .
           severity: HIGH,CRITICAL
