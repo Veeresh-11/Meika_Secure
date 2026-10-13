@@ -244,6 +244,22 @@ jobs:
             httpx==0.28.1 \
             pip-audit==2.10.1 \
             "bandit[sarif]==1.9.4"
+      - name: Verify tenant ORM contract
+        run: |
+          python - <<'PY'
+          from app.db.models import Organization, User
+
+          assert "tenant_id" in User.__table__.columns, "User.tenant_id is missing"
+          tenant = User.__table__.columns["tenant_id"]
+          assert tenant.nullable is False, "User.tenant_id must be non-nullable"
+          assert any(
+              fk.target_fullname == "identity.organizations.id"
+              for fk in tenant.foreign_keys
+          ), "User.tenant_id must reference identity.organizations.id"
+          assert Organization.__table__.schema == "identity"
+          print("PASS: User tenant ownership matches the identity tenant model")
+          PY
+
       # DB-011 — authoritative migration/bootstrap path
       - name: Wait for DB
         id: wait_for_db
