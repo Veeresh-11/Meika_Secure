@@ -1,4 +1,6 @@
 import importlib
+import runpy
+import types
 import os
 import sys
 from pathlib import Path
@@ -387,3 +389,37 @@ def test_bootstrap_stops_before_schema_validation(monkeypatch):
         bootstrap_db.bootstrap()
 
     assert called["validate"] is False
+
+def test_bootstrap_cli_exits_nonzero_when_migration_fails(monkeypatch):
+    scripts_dir = Path(__file__).resolve().parent.parent / "scripts"
+
+    def fail_apply():
+        raise RuntimeError("migration failure")
+
+    class ReadyConnection:
+        def close(self):
+            pass
+
+    apply_module = types.ModuleType("apply_migrations")
+    apply_module.apply = fail_apply
+
+    db_utils_module = types.ModuleType("db_utils")
+    db_utils_module.get_connection = ReadyConnection
+
+    validate_module = types.ModuleType("validate_schema")
+    validate_module.validate = lambda: pytest.fail(
+        "schema validation must not run after migration failure"
+    )
+
+    monkeypatch.setitem(sys.modules, "apply_migrations", apply_module)
+    monkeypatch.setitem(sys.modules, "db_utils", db_utils_module)
+    monkeypatch.setitem(sys.modules, "validate_schema", validate_module)
+
+    with pytest.raises(SystemExit) as exc_info:
+        runpy.run_path(
+            str(scripts_dir / "bootstrap_db.py"),
+            run_name="__main__",
+        )
+
+    assert exc_info.value.code == 1
+
