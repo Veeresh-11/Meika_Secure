@@ -395,6 +395,7 @@ jobs:
               -u http://127.0.0.1:8000 \
               -jle /work/nuclei.jsonl \
               -nh \
+              -no-interactsh \
               -timeout 10 \
               -rate-limit 50
           scan_status=$?
