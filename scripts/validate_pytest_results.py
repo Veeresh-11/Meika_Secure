@@ -56,14 +56,26 @@ def main() -> int:
         if reason.startswith("Skipped: "):
             reason = reason[len("Skipped: "):]
         skipped.append((classname, name, reason))
-        if classname not in EXPECTED:
+        module = next(
+            (expected_module for expected_module in EXPECTED
+             if classname == expected_module or classname.startswith(expected_module + ".")),
+            None,
+        )
+        if module is None:
             unexpected.append(f"{classname}::{name}: skip not allowlisted")
         elif reason != EXPECTED_REASON:
             unexpected.append(
                 f"{classname}::{name}: unexpected skip reason {reason!r}"
             )
 
-    actual = Counter(classname for classname, _, _ in skipped)
+    actual = Counter(
+        next(
+            (expected_module for expected_module in EXPECTED
+             if classname == expected_module or classname.startswith(expected_module + ".")),
+            classname,
+        )
+        for classname, _, _ in skipped
+    )
     if no_skips:
         if skipped:
             unexpected.extend(
