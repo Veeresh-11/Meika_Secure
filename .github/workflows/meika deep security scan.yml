@@ -47,6 +47,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
+      # Security enforcement remains enabled during adversarial scans.
       PYTHONPATH: "."
 
       # ── DB (match service above) ──────────────────────────────────────────
