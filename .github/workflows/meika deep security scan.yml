@@ -228,11 +228,17 @@ jobs:
           fi
           DB_NAME=meika_evidence_test python scripts/bootstrap_db.py
       - name: Start API Server
-        env:
-          # Explicit step-level value prevents any stale job-level placeholder
-          # from overriding the freshly generated valid 32-byte Ed25519 key.
-          SIGNING_PRIVATE_KEY: ${{ steps.signing_key.outputs.signing_private_key }}
         run: |
+          python - <<'PYKEY'
+          import os
+          key = os.environ.get("SIGNING_PRIVATE_KEY", "")
+          if len(key) != 64:
+              raise SystemExit("SIGNING_PRIVATE_KEY must be exactly 32 bytes encoded as 64 hex characters")
+          try:
+              bytes.fromhex(key)
+          except ValueError:
+              raise SystemExit("SIGNING_PRIVATE_KEY is not valid hexadecimal")
+          PYKEY
           uvicorn app.main:app \
             --host 0.0.0.0 \
             --port 8000 \
