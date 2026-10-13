@@ -10,7 +10,7 @@ from app.security.webauthn.attestation import (
     AttestationVerificationError,
 )
 from datetime import datetime, timezone
-from unittest.mock import ANY, \1
+from unittest.mock import ANY, MagicMock, patch
 from app.security.webauthn.assertion import verify_assertion
 
 # ---------------------------------------------------------
