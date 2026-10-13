@@ -159,8 +159,10 @@ jobs:
 
       # Use a fresh ephemeral Ed25519 key for this CI run. Never disable the signer.
       - name: Generate ephemeral CI signing key
+        id: signing_key
         run: |
           python - <<'PYKEY' >> "$GITHUB_ENV"
+          import os
           from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
           from cryptography.hazmat.primitives import serialization
 
@@ -171,6 +173,7 @@ jobs:
               serialization.NoEncryption(),
           )
           print(f"SIGNING_PRIVATE_KEY={raw.hex()}")
+          print(f"signing_private_key={raw.hex()}", file=open(os.environ["GITHUB_OUTPUT"], "a"))
           PYKEY
 
       # ────────────────────────────────────────────────────────────────────────
@@ -223,6 +226,10 @@ jobs:
           fi
           DB_NAME=meika_evidence_test python scripts/bootstrap_db.py
       - name: Start API Server
+        env:
+          # Explicit step-level value prevents any stale job-level placeholder
+          # from overriding the freshly generated valid 32-byte Ed25519 key.
+          SIGNING_PRIVATE_KEY: ${{ steps.signing_key.outputs.signing_private_key }}
         run: |
           uvicorn app.main:app \
             --host 0.0.0.0 \
