@@ -679,16 +679,51 @@ jobs:
       #   env:
       #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       
+      # SonarQube is an external service and may not be reachable from GitHub-hosted
+      # runners (for example, a server bound to localhost on a developer machine).
+      # Detect availability explicitly; never report an unreachable server as a scan pass.
+      - name: Check SonarQube availability
+        id: sonar_preflight
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SONAR_TOKEN:-}" ] || [ -z "${SONAR_HOST_URL:-}" ]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::SonarQube scan skipped: SONAR_TOKEN or SONAR_HOST_URL is not configured."
+            exit 0
+          fi
+          status_url="${SONAR_HOST_URL%/}/api/system/status"
+          if curl --fail --silent --show-error --max-time 10 "$status_url" -o "$RUNNER_TEMP/sonar-status.json"; then
+            if python3 - "$RUNNER_TEMP/sonar-status.json" <<'PY'
+          import json, sys
+          with open(sys.argv[1], encoding="utf-8") as f:
+              data = json.load(f)
+          if data.get("status") != "UP":
+              raise SystemExit(f"SonarQube status is not UP: {data.get('status', 'unknown')}")
+          PY
+            then
+              echo "available=true" >> "$GITHUB_OUTPUT"
+              echo "SonarQube is reachable and reports UP."
+              exit 0
+            fi
+          fi
+          echo "available=false" >> "$GITHUB_OUTPUT"
+          echo "::notice::SonarQube scan skipped: configured server did not respond with status UP. Check SONAR_HOST_URL, network reachability, and server health."
+          exit 0
+
       - name: Checkout Repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@v6
         with:
-            fetch-depth: 0
+          fetch-depth: 0
 
       - name: SonarQube Scan
+        if: steps.sonar_preflight.outputs.available == 'true'
         uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995
         env:
-            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-            SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
       
       
 
