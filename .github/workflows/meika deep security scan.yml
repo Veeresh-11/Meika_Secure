@@ -277,7 +277,6 @@ jobs:
       # before lengthy network scanners, so auth bypass regressions fail fast.
       - name: Red Team Suite
         id: red_team_tests
-        continue-on-error: true
         env:
           CI_SECURITY_BYPASS: "0"
         run: |
@@ -621,7 +620,7 @@ jobs:
       - name: Adversarial invariant tests
         run: |
           pytest app/security/test_break_attempts/ -v --tb=short --junitxml=adversarial-results.xml
-          python scripts/validate_pytest_results.py adversarial-results.xml --no-skips
+          python scripts/validate_pytest_results.py adversarial-results.xml
 
       # ────────────────────────────────────────────────────────────────────────
       # NEW — Container image scan (Trivy). Standard in mature security
