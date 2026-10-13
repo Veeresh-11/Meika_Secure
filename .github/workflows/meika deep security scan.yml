@@ -49,6 +49,9 @@ jobs:
     env:
       # Security enforcement remains enabled during adversarial scans.
       PYTHONPATH: "."
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: "init.defaultBranch"
+      GIT_CONFIG_VALUE_0: "main"
 
       # ── DB (match service above) ──────────────────────────────────────────
       DB_HOST: "localhost"
@@ -279,13 +282,26 @@ jobs:
       # ────────────────────────────────────────────────────────────────────────
       - name: OWASP ZAP Scan
         id: zap_scan
-        uses: zaproxy/action-full-scan@v0.13.0
+        timeout-minutes: 25
         continue-on-error: true
-        with:
-          target: "http://127.0.0.1:8000"
-          cmd_options: "-I"
-          fail_action: false
-          allow_issue_writing: false
+        run: |
+          set -uo pipefail
+          docker run --rm --network host \
+            --volume "$PWD:/zap/wrk/:rw" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-full-scan.py \
+              -t http://127.0.0.1:8000 \
+              -J zap-report.json \
+              -r zap-report.html \
+              -I \
+              -m 10 \
+              -T 5
+          scan_status=$?
+          if [ ! -s zap-report.json ]; then
+            echo "::error::ZAP did not produce a non-empty JSON report."
+            exit 1
+          fi
+          exit "$scan_status"
 
       - name: Normalize ZAP report names
         if: always()
@@ -340,10 +356,24 @@ jobs:
       # ────────────────────────────────────────────────────────────────────────
       - name: Nuclei Scan
         id: nuclei_scan
-        uses: projectdiscovery/nuclei-action@v3.1.0
+        timeout-minutes: 15
         continue-on-error: true
-        with:
-          args: "-u http://127.0.0.1:8000 -jsonl-export nuclei.jsonl -nh -timeout 10 -rate-limit 50"
+        run: |
+          set -uo pipefail
+          docker run --rm --network host \
+            --volume "$PWD:/work:rw" \
+            projectdiscovery/nuclei:v3.4.10 \
+              -u http://127.0.0.1:8000 \
+              -jle /work/nuclei.jsonl \
+              -nh \
+              -timeout 10 \
+              -rate-limit 50
+          scan_status=$?
+          if [ ! -s nuclei.jsonl ]; then
+            echo "::error::Nuclei did not produce a non-empty JSONL report."
+            exit 1
+          fi
+          exit "$scan_status"
 
       # ────────────────────────────────────────────────────────────────────────
       # FIX 3d — this parser was reading nuclei.json (the structured/pretty
@@ -425,12 +455,15 @@ jobs:
             --checks all \
             --exclude-checks=positive_data_acceptance \
             --exclude-deprecated \
-            --exclude-path-regex '/api/v1/auth/webauthn/(register|authenticate)/start' \
+            --exclude-path-regex '/api/v1/auth/webauthn/(register|authenticate)/start|/api/v1/auth/webauthn/register/finish' \
             --max-examples=50 \
             --suppress-health-check=too_slow,filter_too_much \
             --continue-on-failure \
             2>&1 | tee schemathesis-report.txt || true
 
+      # WebAuthn registration finish is excluded from generic schema fuzzing because it
+      # requires a live challenge and cryptographically valid attestation; dedicated
+      # WebAuthn tests cover this flow. Generic fuzzing still exercises other auth routes.
       # ────────────────────────────────────────────────────────────────────────
       # NEW — Dependency Vulnerability Audit (pip-audit)
       # Checks pinned requirements.txt versions against known CVEs.
@@ -610,10 +643,9 @@ jobs:
       # ────────────────────────────────────────────────────────────────────────
       - name: Generate SBOM
         run: |
-          cyclonedx-py requirements \
+          cyclonedx-py environment \
             --of JSON \
-            -o bom.json \
-            requirements.txt
+            -o bom.json
           echo "SBOM generated:"
           python3 -c "
           import json
@@ -696,15 +728,16 @@ jobs:
           # Probe the exact endpoint the scanner failed to query. Checking
           # /api/system/status alone can pass while the analysis API is blocked.
           version_url="${SONAR_HOST_URL%/}/api/v2/analysis/version"
-          if curl --fail --silent --show-error --max-time 10 \
-              --user "${SONAR_TOKEN}:" "$version_url" \
-              -o "$RUNNER_TEMP/sonar-analysis-version.txt" &&
+          http_code="$(curl --silent --output "$RUNNER_TEMP/sonar-analysis-version.txt" \
+            --write-out '%{http_code}' --max-time 10 \
+            --user "${SONAR_TOKEN}:" "$version_url" || true)"
+          if [[ "$http_code" =~ ^2[0-9][0-9]$ ]] && \
              [ -s "$RUNNER_TEMP/sonar-analysis-version.txt" ]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
             echo "SonarQube analysis API is reachable."
           else
             echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::SonarQube scan skipped: analysis API endpoint is unreachable or unsupported. Verify server version, proxy routing, and token; this is not reported as a scan pass."
+            echo "::notice::SonarQube scan skipped: analysis API endpoint is unreachable or unsupported (HTTP ${http_code:-000}). Verify server version, proxy routing, and token; this is not reported as a scan pass."
           fi
 
       - name: Checkout Repository
