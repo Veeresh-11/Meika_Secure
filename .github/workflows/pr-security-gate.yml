@@ -607,7 +607,7 @@ jobs:
   quality-score:
     name: PR Gate Quality Score (100 points per check)
     if: always() && github.event_name == 'pull_request'
-    needs: [secret-scan, dependency-review, pr-gate]
+    needs: [secret-scan, dependency-review, pr-gate, workflow-hardening]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
@@ -628,6 +628,7 @@ jobs:
           GH_REPOSITORY: ${{ github.repository }}
           GH_RUN_ID: ${{ github.run_id }}
           SECRET_SCAN: ${{ needs.secret-scan.result }}
+          WORKFLOW_HARDENING: ${{ needs.workflow-hardening.result }}
           DEPENDENCY_REVIEW: ${{ needs.dependency-review.result }}
           CHECKOUT: ${{ needs.pr-gate.outputs.checkout }}
           REDIS_READY: ${{ needs.pr-gate.outputs.redis_ready }}
