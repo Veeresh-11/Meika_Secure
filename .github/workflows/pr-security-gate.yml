@@ -679,7 +679,7 @@ jobs:
             --output "$RUNNER_TEMP/$archive"
           echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/$archive" | sha256sum --check
           tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" actionlint
-          find .github/workflows -type f \\( -name "*.yml" -o -name "*.yaml" \\) -print0 | xargs -0 "$RUNNER_TEMP/actionlint" -color
+          find .github/workflows -type f \( -name "*.yml" -o -name "*.yaml" \) -print0 | xargs -0 "$RUNNER_TEMP/actionlint" -color
       - name: Audit workflows with zizmor
         uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
         with:
