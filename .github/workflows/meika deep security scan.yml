@@ -153,7 +153,7 @@ jobs:
       - name: Generate ephemeral CI signing key
         id: signing_key
         run: |
-          python - <<'PYKEY' >> "$GITHUB_ENV"
+          python - <<'PYKEY'
           import os
           from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
           from cryptography.hazmat.primitives import serialization
@@ -165,9 +165,10 @@ jobs:
               serialization.NoEncryption(),
           )
           print(f"::add-mask::{raw.hex()}")
-          print(f"SIGNING_PRIVATE_KEY={raw.hex()}")
-          print(f"::add-mask::{raw.hex()}")
-          print(f"signing_private_key={raw.hex()}", file=open(os.environ["GITHUB_OUTPUT"], "a"))
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
+              env_file.write(f"SIGNING_PRIVATE_KEY={raw.hex()}\\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output_file:
+              output_file.write(f"signing_private_key={raw.hex()}\\n")
           PYKEY
 
       # ────────────────────────────────────────────────────────────────────────
