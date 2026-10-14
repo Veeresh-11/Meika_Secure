@@ -428,6 +428,7 @@ jobs:
             --volume "$RUNNER_TEMP/nuclei-config:/root/.config/nuclei:rw" \
             projectdiscovery/nuclei:v3.11.1 \
               -validate \
+              -duc \
               -t /root/nuclei-templates/http/misconfiguration/ \
               -t /root/nuclei-templates/http/exposures/ \
               -tags misconfig,exposure \
@@ -443,6 +444,7 @@ jobs:
             --volume "$RUNNER_TEMP/nuclei-config:/root/.config/nuclei:rw" \
             projectdiscovery/nuclei:v3.11.1 \
               -u http://127.0.0.1:8000 \
+              -duc \
               -t /root/nuclei-templates/http/misconfiguration/ \
               -t /root/nuclei-templates/http/exposures/ \
               -tags misconfig,exposure \
