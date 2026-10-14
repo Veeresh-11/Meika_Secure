@@ -1,5 +1,8 @@
 name: Meika Deep Security Scan
 
+# Default-deny the workflow token; grant only what a job explicitly needs.
+permissions: {}
+
 # ─── Triggers ────────────────────────────────────────────────────────────────
 on:
   # Run against the actual PR commit. Do not use workflow_run to execute PR
@@ -29,6 +32,8 @@ jobs:
       )
     runs-on: ubuntu-24.04
     timeout-minutes: 60   # ZAP + Nuclei + Schemathesis + pip-audit + bandit all take time
+    permissions:
+      contents: read
 
     # ── FIX 1: PostgreSQL service — API server crashes without DB ─────────────
     services:
@@ -170,6 +175,8 @@ jobs:
             pip-audit==2.10.1 \
             bandit==1.9.4 \
             uvicorn==0.35.0
+          python -m pip check
+          python -m compileall -q app scripts
 
       # Use a fresh ephemeral Ed25519 key for this CI run. Never disable the signer.
       - name: Generate ephemeral CI signing key
@@ -326,6 +333,7 @@ jobs:
             -v \
             --tb=short \
             --asyncio-mode=auto \
+            -W error \
             --junitxml=red-team-results.xml
           python scripts/validate_pytest_results.py red-team-results.xml
 
@@ -706,7 +714,7 @@ jobs:
       - name: Adversarial invariant tests
         if: always()
         run: |
-          pytest app/security/test_break_attempts/ -v --tb=short --junitxml=adversarial-results.xml
+          pytest app/security/test_break_attempts/ -v --tb=short -W error --junitxml=adversarial-results.xml
           python scripts/validate_pytest_results.py adversarial-results.xml
 
       # ────────────────────────────────────────────────────────────────────────
