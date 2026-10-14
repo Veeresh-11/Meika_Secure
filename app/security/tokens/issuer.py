@@ -2,7 +2,6 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 
 import jwt
-import os
 from app.security.tokens.config import TokenConfig
 
 
@@ -10,10 +9,7 @@ from app.security.tokens.config import TokenConfig
 # Backward compatibility
 # ------------------------------------------------------------------
 
-SECRET = os.getenv(
-    "JWT_SECRET_KEY",
-    "meika-secure-id-development-secret-key-2026",
-)
+SECRET = TokenConfig.SECRET_KEY
 ALGO = TokenConfig.ALGORITHM
 
 def hash_public_key(public_key: bytes) -> str:
