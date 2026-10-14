@@ -32,15 +32,14 @@ def enforce_device_bound_token(
             },
         )
 
-        # Validate issuer only if present
-        if "iss" in payload:
-            if payload["iss"] != TokenConfig.ISSUER:
-                raise SecurityError("Invalid issuer")
+        # Issuer and audience are mandatory trust boundaries.
+        # Missing claims must fail closed; optional validation permits
+        # tokens from unintended issuers or for unintended services.
+        if payload.get("iss") != TokenConfig.ISSUER:
+            raise SecurityError("Invalid issuer")
 
-        # Validate audience only if present
-        if "aud" in payload:
-            if payload["aud"] != TokenConfig.AUDIENCE:
-                raise SecurityError("Invalid audience")
+        if payload.get("aud") != TokenConfig.AUDIENCE:
+            raise SecurityError("Invalid audience")
 
     except jwt.ExpiredSignatureError:
         raise SecurityError("Token expired")
