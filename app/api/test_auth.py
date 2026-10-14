@@ -1138,3 +1138,34 @@ def test_webauthn_authenticate_finish_failure(monkeypatch):
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Authentication failed"
+
+
+def test_webauthn_authenticate_finish_rejects_unknown_user(monkeypatch):
+    monkeypatch.setattr(
+        auth.AuthService,
+        "get_user_by_email",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+
+    response = client.post(
+        "/auth/webauthn/authenticate/finish",
+        json={
+            "email": "unknown@example.org",
+            "credential_id": "credential-unknown",
+            "assertion": {
+                "id": "credential-unknown",
+                "rawId": "credential-unknown",
+                "type": "public-key",
+                "response": {
+                    "response": {
+                        "clientDataJSON": "",
+                        "authenticatorData": "",
+                        "signature": "",
+                    }
+                },
+            },
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Authentication failed"
