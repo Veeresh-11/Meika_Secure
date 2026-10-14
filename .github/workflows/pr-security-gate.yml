@@ -285,7 +285,7 @@ jobs:
           )
           print(f"::add-mask::{raw.hex()}")
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
-              env_file.write(f"SIGNING_PRIVATE_KEY={raw.hex()}\\n")
+              env_file.write(f"SIGNING_PRIVATE_KEY={raw.hex()}\n")
           PYKEY
 
       - name: Bootstrap Database
