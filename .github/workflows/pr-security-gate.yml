@@ -184,6 +184,7 @@ jobs:
         id: redis_ready
         run: |
           set -euo pipefail
+          sudo sysctl -w vm.overcommit_memory=1
           cat > "$RUNNER_TEMP/redis-ci.conf" <<'REDISCONF'
           bind 0.0.0.0
           protected-mode no
