@@ -634,7 +634,7 @@ jobs:
           # Keep OSV's secondary source scan on runtime dependencies: its PyPI
           # resolver emits an upstream sdist metadata warning for pip-audit's
           # development-only parser dependency.
-          "$HOME/go/bin/osv-scanner" scan source --lockfile=./requirements.txt --format json . > osv-report.json 2> osv-scanner.log || scan_status=$?
+          "$HOME/go/bin/osv-scanner" scan source --lockfile=./requirements.txt --format json > osv-report.json 2> osv-scanner.log || scan_status=$?
           if [ -s osv-scanner.log ]; then
             cat osv-scanner.log
             if grep -Eiq "warning:|(^|[[:space:]])WARN([:[:space:]]|$)|failed to parse metadata" osv-scanner.log; then
