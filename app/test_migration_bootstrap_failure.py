@@ -49,7 +49,7 @@ def test_failed_migration_does_not_record_or_partially_apply(
 
     try:
         with setup_conn.cursor() as cur:
-            cur.execute(f'CREATE SCHEMA "{schema}"')
+            cur.execute(psycopg2_sql.SQL("CREATE SCHEMA {}").format(psycopg2_sql.Identifier(schema)))
     finally:
         setup_conn.close()
 
@@ -97,7 +97,7 @@ def test_failed_migration_does_not_record_or_partially_apply(
 
         with conn.cursor() as cur:
             cur.execute(
-                f'SET search_path TO "{schema}", public'
+                psycopg2_sql.SQL("SET search_path TO {}, public").format(psycopg2_sql.Identifier(schema))
             )
 
             cur.execute("SHOW search_path")
@@ -263,7 +263,7 @@ def test_failed_migration_does_not_record_or_partially_apply(
         try:
             with cleanup_conn.cursor() as cur:
                 cur.execute(
-                    f'DROP SCHEMA "{schema}" CASCADE'
+                    psycopg2_sql.SQL("DROP SCHEMA {} CASCADE").format(psycopg2_sql.Identifier(schema))
                 )
         finally:
             cleanup_conn.close()
@@ -290,7 +290,7 @@ def test_successful_migration_is_recorded_and_committed(
     setup_conn.autocommit = True
     try:
         with setup_conn.cursor() as cur:
-            cur.execute(f'CREATE SCHEMA "{schema}"')
+            cur.execute(psycopg2_sql.SQL("CREATE SCHEMA {}").format(psycopg2_sql.Identifier(schema)))
     finally:
         setup_conn.close()
 
@@ -312,7 +312,7 @@ def test_successful_migration_is_recorded_and_committed(
         conn = psycopg2.connect(psycopg2_dsn)
         conn.autocommit = True
         with conn.cursor() as cur:
-            cur.execute(f'SET search_path TO "{schema}", public')
+            cur.execute(psycopg2_sql.SQL("SET search_path TO {}, public").format(psycopg2_sql.Identifier(schema)))
         return conn
 
     monkeypatch.setattr(migration_runner, "get_connection", get_test_connection)
@@ -344,7 +344,7 @@ def test_successful_migration_is_recorded_and_committed(
         cleanup_conn.autocommit = True
         try:
             with cleanup_conn.cursor() as cur:
-                cur.execute(f'DROP SCHEMA "{schema}" CASCADE')
+                cur.execute(psycopg2_sql.SQL("DROP SCHEMA {} CASCADE").format(psycopg2_sql.Identifier(schema)))
         finally:
             cleanup_conn.close()
 

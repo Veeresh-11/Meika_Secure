@@ -222,9 +222,9 @@ class SQLiteBackend:
             );
         """)
 
-        for table in Table:
-            cur.execute(f"""
-                CREATE TABLE IF NOT EXISTS {table.value} (
+        schema_sql = {
+            Table.VERIFICATION: """
+                CREATE TABLE IF NOT EXISTS verification_ledger (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     entry_json TEXT NOT NULL,
                     entry_hash TEXT NOT NULL,
@@ -232,7 +232,30 @@ class SQLiteBackend:
                     chain_hash TEXT NOT NULL,
                     signatures TEXT NOT NULL
                 );
-            """)
+            """,
+            Table.TRANSPARENCY: """
+                CREATE TABLE IF NOT EXISTS transparency_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    entry_json TEXT NOT NULL,
+                    entry_hash TEXT NOT NULL,
+                    prev_chain_hash TEXT,
+                    chain_hash TEXT NOT NULL,
+                    signatures TEXT NOT NULL
+                );
+            """,
+            Table.GOVERNANCE: """
+                CREATE TABLE IF NOT EXISTS governance_policies (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    entry_json TEXT NOT NULL,
+                    entry_hash TEXT NOT NULL,
+                    prev_chain_hash TEXT,
+                    chain_hash TEXT NOT NULL,
+                    signatures TEXT NOT NULL
+                );
+            """,
+        }
+        for table in Table:
+            cur.execute(schema_sql[table])
 
         self.conn.commit()
 
