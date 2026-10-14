@@ -416,7 +416,7 @@ jobs:
               -t /root/nuclei-templates/http/misconfiguration/ \
               -t /root/nuclei-templates/http/exposures/ \
               -tags misconfig,exposure \
-              -vv 2>&1 | tee nuclei-template-validation.log || true
+              -vv 2>&1 | tee nuclei-template-validation.log
           # This target is a FastAPI identity API, not a generic scan of every
           # third-party product. Run the generic HTTP misconfiguration and
           # exposure checks here; dependency CVEs are independently covered by
@@ -431,7 +431,6 @@ jobs:
               -t /root/nuclei-templates/http/misconfiguration/ \
               -t /root/nuclei-templates/http/exposures/ \
               -tags misconfig,exposure \
-              -duc \
               -jle /work/nuclei.jsonl \
               -nh \
               -no-interactsh \
