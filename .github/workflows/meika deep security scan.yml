@@ -415,7 +415,7 @@ jobs:
           docker run --rm --network host \
             --volume "$PWD:/work:rw" \
             --volume "$PWD/nuclei-templates:/templates:ro" \
-            --volume "$RUNNER_TEMP/nuclei-config:/root/.config/nuclei:ro" \
+            --volume "$RUNNER_TEMP/nuclei-config:/root/.config/nuclei:rw" \
             projectdiscovery/nuclei:v3.11.1 \
               -u http://127.0.0.1:8000 \
               -t /templates/http/misconfiguration/ \
