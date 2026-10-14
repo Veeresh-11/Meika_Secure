@@ -79,6 +79,8 @@ def main() -> int:
         "pip-audit": "PIP_AUDIT_OUTCOME",
         "OSV-Scanner": "OSV_OUTCOME",
         "Bandit": "BANDIT_OUTCOME",
+        "Red-team suite": "RED_TEAM_OUTCOME",
+        "Adversarial invariant tests": "ADVERSARIAL_OUTCOME",
         "Trivy config": "TRIVY_CONFIG_OUTCOME",
     }
     for scanner, variable in scanner_outcomes.items():
