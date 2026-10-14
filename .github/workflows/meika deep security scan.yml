@@ -86,6 +86,28 @@ jobs:
       # ────────────────────────────────────────────────────────────────────────
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      # Validate the CI control plane before running any application scanner.
+      - name: Workflow syntax and security audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="actionlint_1.7.12_linux_amd64.tar.gz"
+          curl --fail --silent --show-error --location \
+            "https://github.com/rhysd/actionlint/releases/download/v1.7.12/$archive" \
+            --output "$RUNNER_TEMP/$archive"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/$archive" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -color .github/workflows
+      - name: zizmor workflow security audit
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          advanced-security: false
+          version: v1.29.0
+          min-severity: medium
+          fail-on-no-inputs: true
 
       - name: Start Redis with explicit CI configuration
         run: |
