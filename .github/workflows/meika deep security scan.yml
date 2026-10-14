@@ -418,7 +418,7 @@ jobs:
             echo "::error::Nuclei did not produce a non-empty JSONL report."
             exit 1
           fi
-          if grep -E '\\[WRN\\]|(^|[[:space:]])WARN([:[:space:]]|$)|warning:' nuclei-scan.log; then
+          if grep -E '\[WRN\]|(^|[[:space:]])WARN([:[:space:]]|$)|warning:' nuclei-scan.log; then
             echo "::error::Nuclei emitted warnings; fix the template/engine incompatibility instead of accepting a partial scan."
             exit 1
           fi
