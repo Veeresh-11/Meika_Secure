@@ -1,7 +1,6 @@
 import hashlib
 
 import jwt
-import os
 from app.security.errors import SecurityError
 from app.security.tokens.config import TokenConfig
 
@@ -9,10 +8,7 @@ from app.security.tokens.config import TokenConfig
 # Backward compatibility
 # ------------------------------------------------------------------
 
-SECRET = os.getenv(
-    "JWT_SECRET_KEY",
-    "meika-secure-id-development-secret-key-2026",
-)
+SECRET = TokenConfig.SECRET_KEY
 ALGO = TokenConfig.ALGORITHM
 
 
