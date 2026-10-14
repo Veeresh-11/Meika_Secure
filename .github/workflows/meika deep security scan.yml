@@ -845,7 +845,7 @@ jobs:
           version_url="${SONAR_HOST_URL%/}/api/v2/analysis/version"
           http_code="$(curl --silent --output "$RUNNER_TEMP/sonar-analysis-version.txt" \
             --write-out '%{http_code}' --max-time 10 \
-            --user "${SONAR_TOKEN}:" "$version_url" || true)"
+            --header "Authorization: Bearer ${SONAR_TOKEN}" "$version_url" || true)"
           if [[ "$http_code" =~ ^2[0-9][0-9]$ ]] && \
              [ -s "$RUNNER_TEMP/sonar-analysis-version.txt" ]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
