@@ -57,7 +57,7 @@ jobs:
       - name: Dependency Review
         uses: actions/dependency-review-action@v5
         with:
-          fail-on-severity: high
+          fail-on-severity: moderate
           comment-summary-in-pr: always
 
   # ──────────────────────────────────────────────────────────────────────────
@@ -245,6 +245,8 @@ jobs:
             httpx==0.28.1 \
             pip-audit==2.10.1 \
             "bandit[sarif]==1.9.4"
+          python -m pip check
+          python -m compileall -q app scripts
       - name: Verify tenant ORM contract
         run: |
           python - <<'PY'
