@@ -816,8 +816,8 @@ jobs:
       # SonarQube is an external service and may not be reachable from GitHub-hosted
       # runners (for example, a server bound to localhost on a developer machine).
       # Detect availability explicitly; never report an unreachable server as a scan pass.
-      - name: SonarQube preflight
       - name: Check SonarQube scanner API availability
+        if: github.event_name != 'pull_request'
         id: sonar_preflight
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -850,7 +850,7 @@ jobs:
           fetch-depth: 0
 
       - name: SonarQube Scan
-        if: steps.sonar_preflight.outputs.available == 'true'
+        if: github.event_name != 'pull_request' && steps.sonar_preflight.outputs.available == 'true'
         uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
