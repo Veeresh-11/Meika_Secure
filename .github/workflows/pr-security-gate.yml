@@ -282,6 +282,7 @@ jobs:
               serialization.PrivateFormat.Raw,
               serialization.NoEncryption(),
           )
+          print(f"::add-mask::{raw.hex()}")
           print(f"SIGNING_PRIVATE_KEY={raw.hex()}")
           PYKEY
 
