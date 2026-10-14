@@ -105,7 +105,14 @@ jobs:
             --output "$RUNNER_TEMP/$archive"
           echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/$archive" | sha256sum --check
           tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" actionlint
-          find .github/workflows -type f \( -name "*.yml" -o -name "*.yaml" \) -print0 | xargs -0 "$RUNNER_TEMP/actionlint" -color
+          set +e
+          "$RUNNER_TEMP/actionlint" -color .github/workflows/*.yml 2>&1 | tee "$RUNNER_TEMP/actionlint.log"
+          lint_status=${PIPESTATUS[0]}
+          set -e
+          if [ "$lint_status" -ne 0 ]; then
+            echo "::error::actionlint reported workflow problems; see the diagnostics above."
+            exit "$lint_status"
+          fi
       - name: zizmor workflow security audit
         uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
         with:
@@ -325,7 +332,7 @@ jobs:
       # before lengthy network scanners, so auth bypass regressions fail fast.
       - name: Red Team Suite
         id: red_team_tests
-        if: always()
+        if: ${{ always() && steps.api_server.outcome == 'success' }}
         env:
           CI_SECURITY_BYPASS: "0"
         run: |
@@ -712,7 +719,8 @@ jobs:
       # is required to eliminate the OSV tmpdir vulnerability. Avoid installing
       # a known-vulnerable test runner just for an optional, non-blocking step.
       - name: Adversarial invariant tests
-        if: always()
+        id: adversarial_tests
+        if: ${{ always() && steps.api_server.outcome == 'success' }}
         run: |
           pytest app/security/test_break_attempts/ -v --tb=short -W error --junitxml=adversarial-results.xml
           python scripts/validate_pytest_results.py adversarial-results.xml
@@ -805,6 +813,8 @@ jobs:
           PIP_AUDIT_OUTCOME: ${{ steps.pip_audit_scan.outcome }}
           OSV_OUTCOME: ${{ steps.osv_scan.outcome }}
           BANDIT_OUTCOME: ${{ steps.bandit_scan.outcome }}
+          RED_TEAM_OUTCOME: ${{ steps.red_team_tests.outcome }}
+          ADVERSARIAL_OUTCOME: ${{ steps.adversarial_tests.outcome }}
           TRIVY_CONFIG_OUTCOME: ${{ steps.trivy_config_scan.outcome }}
           DOCKERFILE_CHECK_OUTCOME: ${{ steps.dockerfile_check.outcome }}
           DOCKERFILE_FOUND: ${{ steps.dockerfile_check.outputs.found }}
