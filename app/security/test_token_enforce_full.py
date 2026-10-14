@@ -11,6 +11,7 @@ from app.security.tokens.enforce import (
 )
 from app.security.tokens.issuer import issue_device_bound_token
 from app.security.errors import SecurityError
+from app.security.tokens.config import TokenConfig
 
 
 DEVICE_KEY = b"device-public-key"
@@ -19,6 +20,8 @@ DEVICE_KEY = b"device-public-key"
 def make_token(dkh, exp=None):
 
     payload = {
+        "iss": TokenConfig.ISSUER,
+        "aud": TokenConfig.AUDIENCE,
         "sub": "user1",
         "dkh": dkh,
     }
@@ -160,3 +163,25 @@ def test_invalid_audience():
             bad,
             b"pk",
         )
+
+@pytest.mark.parametrize(
+    ("missing_claim", "expected_error"),
+    [
+        ("iss", "Invalid issuer"),
+        ("aud", "Invalid audience"),
+    ],
+)
+def test_missing_issuer_or_audience_is_rejected(missing_claim, expected_error):
+    payload = {
+        "iss": TokenConfig.ISSUER,
+        "aud": TokenConfig.AUDIENCE,
+        "sub": "user1",
+        "dkh": hashlib.sha256(DEVICE_KEY).hexdigest(),
+        "exp": datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=5),
+    }
+    payload.pop(missing_claim)
+    token = jwt.encode(payload, SECRET, algorithm=ALGO)
+
+    with pytest.raises(SecurityError, match=expected_error):
+        enforce_device_bound_token(token, DEVICE_KEY)
+
