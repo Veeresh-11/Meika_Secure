@@ -694,9 +694,11 @@ def webauthn_authenticate_finish(
         )
 
         if user is None:
+            # Use the same public response as invalid credentials to avoid
+            # account enumeration. This status is documented by the endpoint.
             raise HTTPException(
-                status_code=404,
-                detail="User not found",
+                status_code=401,
+                detail="Authentication failed",
             )
 
         credential_record = CredentialService.get_webauthn_credential(
