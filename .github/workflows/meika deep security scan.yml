@@ -418,8 +418,10 @@ jobs:
             echo "::error::Nuclei did not produce a non-empty JSONL report."
             exit 1
           fi
-          if sed -E 
-            echo "::error::Nuclei emitted warnings; fix the template/engine incompatibility instead of accepting a partial scan."
+          # Strip terminal colors before matching scanner warnings.
+          perl -pe 's/\e\[[0-9;]*[[:alpha:]]//g' nuclei-scan.log > nuclei-scan-clean.log
+          if grep -E '\[WRN\]|(^|[[:space:]])WARN([:[:space:]]|$)|warning:' nuclei-scan-clean.log; then
+            echo "::error::Nuclei emitted warnings; fix template/engine incompatibility instead of accepting a partial scan."
             exit 1
           fi
 
