@@ -137,7 +137,7 @@ jobs:
             --publish 127.0.0.1:6379:6379 \
             --volume "$RUNNER_TEMP/redis-ci.conf:/usr/local/etc/redis/redis.conf:ro" \
             redis:7-alpine redis-server /usr/local/etc/redis/redis.conf
-          for attempt in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if docker exec meika-deep-scan-redis redis-cli ping | grep -q PONG; then
               echo "Redis is ready with explicit configuration."
               exit 0
@@ -298,7 +298,8 @@ jobs:
           with open("/tmp/meika-ci-signing-key", "w", encoding="ascii") as handle:
               handle.write(raw.hex())
           PYKEY
-          export SIGNING_PRIVATE_KEY="$(cat /tmp/meika-ci-signing-key)"
+          SIGNING_PRIVATE_KEY="$(cat /tmp/meika-ci-signing-key)"
+          export SIGNING_PRIVATE_KEY
           python - <<'PYVALIDATE'
           import os
           key = os.environ.get("SIGNING_PRIVATE_KEY", "")
