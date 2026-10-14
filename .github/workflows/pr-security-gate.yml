@@ -1,5 +1,8 @@
 name: Meika PR Security Gate
 
+# Default-deny GITHUB_TOKEN; each job grants only its required permissions.
+permissions: {}
+
 on:
   pull_request:
   push:
