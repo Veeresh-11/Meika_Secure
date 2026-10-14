@@ -408,6 +408,7 @@ jobs:
             projectdiscovery/nuclei:v3.11.1 \
               -u http://127.0.0.1:8000 \
               -t /templates \
+              -tags cves,misconfig,exposure \
               -duc \
               -jle /work/nuclei.jsonl \
               -nh \
