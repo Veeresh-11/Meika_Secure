@@ -2,6 +2,7 @@
 # Keep versions explicit so scanners evaluate real versions, not unpinned 0.0.0 placeholders.
 black==26.3.1
 pytest==9.0.3
+httpx2==2.12.0
 pytest-mock==3.14.0
 pytest-cov==6.2.1
 bandit==1.9.4
