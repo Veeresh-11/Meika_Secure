@@ -12,6 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Supply-chain policy: pin every action reference to an immutable commit SHA.
   zizmor:
     name: Audit workflow supply-chain security
     runs-on: ubuntu-24.04
