@@ -164,7 +164,9 @@ jobs:
               serialization.PrivateFormat.Raw,
               serialization.NoEncryption(),
           )
+          print(f"::add-mask::{raw.hex()}")
           print(f"SIGNING_PRIVATE_KEY={raw.hex()}")
+          print(f"::add-mask::{raw.hex()}")
           print(f"signing_private_key={raw.hex()}", file=open(os.environ["GITHUB_OUTPUT"], "a"))
           PYKEY
 
@@ -402,6 +404,8 @@ jobs:
           echo "Nuclei engine: v3.11.1"
           echo "Nuclei templates: v10.5.0"
           git -C nuclei-templates rev-parse HEAD | tee nuclei-template-commit.txt
+          mkdir -p "$RUNNER_TEMP/nuclei-config"
+          : > "$RUNNER_TEMP/nuclei-config/.nuclei-ignore"
           # This target is a FastAPI identity API, not a generic scan of every
           # third-party product. Run the generic HTTP misconfiguration and
           # exposure checks here; dependency CVEs are independently covered by
@@ -410,6 +414,7 @@ jobs:
           docker run --rm --network host \
             --volume "$PWD:/work:rw" \
             --volume "$PWD/nuclei-templates:/templates:ro" \
+            --volume "$RUNNER_TEMP/nuclei-config:/root/.config/nuclei:ro" \
             projectdiscovery/nuclei:v3.11.1 \
               -u http://127.0.0.1:8000 \
               -t /templates/http/misconfiguration/ \
@@ -420,7 +425,8 @@ jobs:
               -nh \
               -no-interactsh \
               -timeout 10 \
-              -rate-limit 50 2>&1 | tee nuclei-scan.log
+              -rate-limit 50 \
+              -vv 2>&1 | tee nuclei-scan.log
           if [ ! -s nuclei.jsonl ]; then
             echo "::error::Nuclei did not produce a non-empty JSONL report."
             exit 1
