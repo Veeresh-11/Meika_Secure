@@ -196,7 +196,7 @@ jobs:
             --publish 127.0.0.1:6379:6379 \
             --volume "$RUNNER_TEMP/redis-ci.conf:/usr/local/etc/redis/redis.conf:ro" \
             redis:7-alpine redis-server /usr/local/etc/redis/redis.conf
-          for attempt in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if docker exec meika-ci-redis redis-cli ping | grep -q PONG; then
               echo "Redis is ready with explicit configuration."
               exit 0
@@ -436,7 +436,7 @@ jobs:
           results=[r for run in d.get('runs',[]) for r in run.get('results',[])]
           print('true' if results else 'false')
           " 2>/dev/null || echo "false")
-          echo "BANDIT_HAS=$HAS" >> $GITHUB_ENV
+          echo "BANDIT_HAS=$HAS" >> "$GITHUB_ENV"
       - name: Upload Bandit SARIF to CodeQL
         if: env.BANDIT_HAS == 'true'
         uses: github/codeql-action/upload-sarif@v4
