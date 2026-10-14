@@ -392,24 +392,36 @@ jobs:
         id: nuclei_scan
         if: ${{ always() && steps.api_server.outcome == 'success' }}
         timeout-minutes: 15
-        continue-on-error: true
         run: |
-          set -uo pipefail
+          set -euo pipefail
+          # Pin the scanner and template release together. The default template
+          # auto-update can mix new templates with an older engine and emit
+          # syntax/runtime warnings, making results non-reproducible.
+          git clone --quiet --depth 1 --branch v10.5.0 \
+            https://github.com/projectdiscovery/nuclei-templates.git nuclei-templates
+          echo "Nuclei engine: v3.11.1"
+          echo "Nuclei templates: v10.5.0"
+          git -C nuclei-templates rev-parse HEAD | tee nuclei-template-commit.txt
           docker run --rm --network host \
             --volume "$PWD:/work:rw" \
-            projectdiscovery/nuclei:v3.4.10 \
+            --volume "$PWD/nuclei-templates:/templates:ro" \
+            projectdiscovery/nuclei:v3.11.1 \
               -u http://127.0.0.1:8000 \
+              -t /templates \
+              -duc \
               -jle /work/nuclei.jsonl \
               -nh \
               -no-interactsh \
               -timeout 10 \
-              -rate-limit 50
-          scan_status=$?
+              -rate-limit 50 2>&1 | tee nuclei-scan.log
           if [ ! -s nuclei.jsonl ]; then
             echo "::error::Nuclei did not produce a non-empty JSONL report."
             exit 1
           fi
-          exit "$scan_status"
+          if grep -E '\\[WRN\\]|(^|[[:space:]])WARN([:[:space:]]|$)|warning:' nuclei-scan.log; then
+            echo "::error::Nuclei emitted warnings; fix the template/engine incompatibility instead of accepting a partial scan."
+            exit 1
+          fi
 
       # ────────────────────────────────────────────────────────────────────────
       # FIX 3d — this parser was reading nuclei.json (the structured/pretty
@@ -743,6 +755,8 @@ jobs:
             zap-report.json
             nuclei.json
             nuclei.jsonl
+            nuclei-scan.log
+            nuclei-template-commit.txt
             schemathesis-report.txt
             pip-audit-report.json
             osv-report.json
