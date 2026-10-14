@@ -401,7 +401,7 @@ jobs:
       - name: Dependency Audit
         id: dependency_audit
         continue-on-error: true
-        run: pip-audit -r requirements.txt --desc on
+        run: pip-audit -r requirements.txt -r requirements-dev.txt --desc on
 
       # Bandit SAST
       - name: Bandit Scan
