@@ -490,7 +490,7 @@ jobs:
         id: trivy_scan
         if: always()
         continue-on-error: true
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           cache: false
           scan-type: fs
@@ -506,7 +506,7 @@ jobs:
         id: trivy_config_scan
         if: always()
         continue-on-error: true
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           cache: false
           scan-type: config
