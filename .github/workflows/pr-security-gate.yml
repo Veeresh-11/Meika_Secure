@@ -649,3 +649,36 @@ jobs:
           # already fatal via pytest -W error; scanner findings are enforced by
           # their steps. Score the explicit job/step outcomes here.
           python .github/scripts/score_pr_gate.py
+
+  # Independently lint and security-audit the CI definitions themselves.
+  # This job is deliberately separate from application tests so workflow
+  # weaknesses are visible as a required PR check.
+  workflow-hardening:
+    name: Workflow Security (actionlint + zizmor)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Install and verify actionlint
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="actionlint_1.7.12_linux_amd64.tar.gz"
+          curl --fail --silent --show-error --location \
+            "https://github.com/rhysd/actionlint/releases/download/v1.7.12/$archive" \
+            --output "$RUNNER_TEMP/$archive"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/$archive" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -color .github/workflows
+      - name: Audit workflows with zizmor
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          advanced-security: false
+          version: v1.29.0
+          min-severity: medium
+          fail-on-no-inputs: true
