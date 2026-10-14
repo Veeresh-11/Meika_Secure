@@ -409,14 +409,14 @@ jobs:
           cp nuclei-templates/.nuclei-ignore "$RUNNER_TEMP/nuclei-config/.nuclei-ignore"
           # Validate the selected upstream template subset and retain diagnostics.
           docker run --rm \
-            --volume "$PWD/nuclei-templates:/templates:ro" \
+            --volume "$PWD/nuclei-templates:/root/nuclei-templates:ro" \
             --volume "$RUNNER_TEMP/nuclei-config:/root/.config/nuclei:rw" \
             projectdiscovery/nuclei:v3.11.1 \
               -validate \
-              -t /templates/http/misconfiguration/ \
-              -t /templates/http/exposures/ \
+              -t /root/nuclei-templates/http/misconfiguration/ \
+              -t /root/nuclei-templates/http/exposures/ \
               -tags misconfig,exposure \
-              -duc -vv 2>&1 | tee nuclei-template-validation.log || true
+              -vv 2>&1 | tee nuclei-template-validation.log || true
           # This target is a FastAPI identity API, not a generic scan of every
           # third-party product. Run the generic HTTP misconfiguration and
           # exposure checks here; dependency CVEs are independently covered by
@@ -424,12 +424,12 @@ jobs:
           # irrelevant product templates and produces runtime-error noise.
           docker run --rm --network host \
             --volume "$PWD:/work:rw" \
-            --volume "$PWD/nuclei-templates:/templates:ro" \
+            --volume "$PWD/nuclei-templates:/root/nuclei-templates:ro" \
             --volume "$RUNNER_TEMP/nuclei-config:/root/.config/nuclei:rw" \
             projectdiscovery/nuclei:v3.11.1 \
               -u http://127.0.0.1:8000 \
-              -t /templates/http/misconfiguration/ \
-              -t /templates/http/exposures/ \
+              -t /root/nuclei-templates/http/misconfiguration/ \
+              -t /root/nuclei-templates/http/exposures/ \
               -tags misconfig,exposure \
               -duc \
               -jle /work/nuclei.jsonl \
