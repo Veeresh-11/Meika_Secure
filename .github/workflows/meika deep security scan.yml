@@ -490,6 +490,9 @@ jobs:
             --exclude-deprecated \
             --exclude-path-regex '/api/v1/auth/webauthn/(register|authenticate)/start|/api/v1/auth/webauthn/register/finish' \
             --max-examples=50 \
+            --seed=20261014 \
+            --generation-deterministic \
+            --generation-database=:memory: \
             --suppress-health-check=too_slow,filter_too_much \
             --continue-on-failure \
             2>&1 | tee schemathesis-report.txt
