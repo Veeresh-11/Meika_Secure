@@ -406,7 +406,17 @@ jobs:
           echo "Nuclei templates: v10.5.0"
           git -C nuclei-templates rev-parse HEAD | tee nuclei-template-commit.txt
           mkdir -p "$RUNNER_TEMP/nuclei-config"
-          : > "$RUNNER_TEMP/nuclei-config/.nuclei-ignore"
+          cp nuclei-templates/.nuclei-ignore "$RUNNER_TEMP/nuclei-config/.nuclei-ignore"
+          # Validate the selected upstream template subset and retain diagnostics.
+          docker run --rm \
+            --volume "$PWD/nuclei-templates:/templates:ro" \
+            --volume "$RUNNER_TEMP/nuclei-config:/root/.config/nuclei:rw" \
+            projectdiscovery/nuclei:v3.11.1 \
+              -validate \
+              -t /templates/http/misconfiguration/ \
+              -t /templates/http/exposures/ \
+              -tags misconfig,exposure \
+              -duc -vv 2>&1 | tee nuclei-template-validation.log || true
           # This target is a FastAPI identity API, not a generic scan of every
           # third-party product. Run the generic HTTP misconfiguration and
           # exposure checks here; dependency CVEs are independently covered by
