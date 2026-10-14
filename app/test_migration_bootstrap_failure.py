@@ -74,7 +74,11 @@ def test_failed_migration_does_not_record_or_partially_apply(
             id INTEGER PRIMARY KEY
         );
 
-        SELECT 1 / 0;
+        DO $migration_failure$
+        BEGIN
+            RAISE EXCEPTION 'intentional migration failure for rollback test';
+        END
+        $migration_failure$;
         """,
         encoding="utf-8",
     )
@@ -426,3 +430,194 @@ def test_bootstrap_cli_exits_nonzero_when_migration_fails(monkeypatch):
 
     assert exc_info.value.code == 1
 
+
+
+@pytest.mark.postgres
+def test_migration_metadata_failure_rolls_back_schema_changes(
+    migration_runner,
+    tmp_path,
+    monkeypatch,
+):
+    """A migration and its tracking row must commit or roll back together."""
+    dsn = os.getenv("POSTGRES_TEST_DSN") or os.getenv("DATABASE_URL")
+    if not dsn:
+        pytest.skip("PostgreSQL test DSN not configured")
+
+    psycopg2_dsn = dsn.replace("postgresql+psycopg://", "postgresql://", 1)
+    schema = f"migration_record_failure_{uuid4().hex}"
+    setup_conn = psycopg2.connect(psycopg2_dsn)
+    setup_conn.autocommit = True
+    try:
+        with setup_conn.cursor() as cur:
+            cur.execute(
+                psycopg2_sql.SQL("CREATE SCHEMA {}").format(
+                    psycopg2_sql.Identifier(schema)
+                )
+            )
+    finally:
+        setup_conn.close()
+
+    migration = tmp_path / "001_record_failure.sql"
+    migration.write_text(
+        """
+        CREATE TABLE migration_marker (
+            id INTEGER PRIMARY KEY
+        );
+        INSERT INTO migration_marker(id) VALUES (1);
+        """,
+        encoding="utf-8",
+    )
+
+    def get_test_connection():
+        conn = psycopg2.connect(psycopg2_dsn)
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute(
+                psycopg2_sql.SQL("SET search_path TO {}, public").format(
+                    psycopg2_sql.Identifier(schema)
+                )
+            )
+        return conn
+
+    def fail_record_migration(cursor, version):
+        raise RuntimeError("simulated migration metadata write failure")
+
+    monkeypatch.setattr(migration_runner, "get_connection", get_test_connection)
+    monkeypatch.setattr(migration_runner, "ordered_migrations", lambda: [migration])
+    monkeypatch.setattr(migration_runner, "record_migration", fail_record_migration)
+
+    try:
+        with pytest.raises(
+            RuntimeError,
+            match="simulated migration metadata write failure",
+        ):
+            migration_runner.apply()
+
+        verify_conn = psycopg2.connect(psycopg2_dsn)
+        try:
+            with verify_conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM information_schema.tables
+                        WHERE table_schema = %s AND table_name = %s
+                    )
+                    """,
+                    (schema, "migration_marker"),
+                )
+                assert cur.fetchone()[0] is False
+
+                cur.execute(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM information_schema.tables
+                        WHERE table_schema = %s AND table_name = %s
+                    )
+                    """,
+                    (schema, "schema_migrations"),
+                )
+                assert cur.fetchone()[0] is False
+        finally:
+            verify_conn.close()
+    finally:
+        cleanup_conn = psycopg2.connect(psycopg2_dsn)
+        cleanup_conn.autocommit = True
+        try:
+            with cleanup_conn.cursor() as cur:
+                cur.execute(
+                    psycopg2_sql.SQL("DROP SCHEMA {} CASCADE").format(
+                        psycopg2_sql.Identifier(schema)
+                    )
+                )
+        finally:
+            cleanup_conn.close()
+
+
+@pytest.mark.postgres
+def test_reapplying_migrations_skips_already_committed_versions(
+    migration_runner,
+    tmp_path,
+    monkeypatch,
+):
+    """A committed migration must not execute again on a later bootstrap."""
+    dsn = os.getenv("POSTGRES_TEST_DSN") or os.getenv("DATABASE_URL")
+    if not dsn:
+        pytest.skip("PostgreSQL test DSN not configured")
+
+    psycopg2_dsn = dsn.replace("postgresql+psycopg://", "postgresql://", 1)
+    schema = f"migration_idempotency_{uuid4().hex}"
+    setup_conn = psycopg2.connect(psycopg2_dsn)
+    setup_conn.autocommit = True
+    try:
+        with setup_conn.cursor() as cur:
+            cur.execute(
+                psycopg2_sql.SQL("CREATE SCHEMA {}").format(
+                    psycopg2_sql.Identifier(schema)
+                )
+            )
+    finally:
+        setup_conn.close()
+
+    migration = tmp_path / "001_idempotent.sql"
+    migration.write_text(
+        """
+        CREATE TABLE migration_marker (
+            id INTEGER PRIMARY KEY
+        );
+        INSERT INTO migration_marker(id) VALUES (1);
+        """,
+        encoding="utf-8",
+    )
+
+    def get_test_connection():
+        conn = psycopg2.connect(psycopg2_dsn)
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute(
+                psycopg2_sql.SQL("SET search_path TO {}, public").format(
+                    psycopg2_sql.Identifier(schema)
+                )
+            )
+        return conn
+
+    monkeypatch.setattr(migration_runner, "get_connection", get_test_connection)
+    monkeypatch.setattr(migration_runner, "ordered_migrations", lambda: [migration])
+
+    try:
+        migration_runner.apply()
+        migration_runner.apply()
+
+        verify_conn = psycopg2.connect(psycopg2_dsn)
+        try:
+            with verify_conn.cursor() as cur:
+                cur.execute(
+                    psycopg2_sql.SQL(
+                        "SELECT id FROM {}.migration_marker ORDER BY id"
+                    ).format(psycopg2_sql.Identifier(schema))
+                )
+                assert cur.fetchall() == [(1,)]
+
+                cur.execute(
+                    psycopg2_sql.SQL(
+                        "SELECT version FROM {}.schema_migrations ORDER BY version"
+                    ).format(psycopg2_sql.Identifier(schema))
+                )
+                assert [row[0] for row in cur.fetchall()] == [
+                    "001_idempotent.sql"
+                ]
+        finally:
+            verify_conn.close()
+    finally:
+        cleanup_conn = psycopg2.connect(psycopg2_dsn)
+        cleanup_conn.autocommit = True
+        try:
+            with cleanup_conn.cursor() as cur:
+                cur.execute(
+                    psycopg2_sql.SQL("DROP SCHEMA {} CASCADE").format(
+                        psycopg2_sql.Identifier(schema)
+                    )
+                )
+        finally:
+            cleanup_conn.close()
