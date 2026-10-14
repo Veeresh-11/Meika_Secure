@@ -16,6 +16,7 @@ from pathlib import Path
 
 CHECKS = [
     ("Secret scan", "SECRET_SCAN"),
+    ("Workflow security lint and zizmor", "WORKFLOW_HARDENING"),
     ("Dependency review", "DEPENDENCY_REVIEW"),
     ("Checkout", "CHECKOUT"),
     ("Redis readiness", "REDIS_READY"),
