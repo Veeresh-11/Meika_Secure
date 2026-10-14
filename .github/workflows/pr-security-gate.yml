@@ -272,7 +272,8 @@ jobs:
 
       - name: Generate Ephemeral CI Signing Key
         run: |
-          python - <<'PYKEY' >> "$GITHUB_ENV"
+          python - <<'PYKEY'
+          import os
           from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
           from cryptography.hazmat.primitives import serialization
 
@@ -283,7 +284,8 @@ jobs:
               serialization.NoEncryption(),
           )
           print(f"::add-mask::{raw.hex()}")
-          print(f"SIGNING_PRIVATE_KEY={raw.hex()}")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
+              env_file.write(f"SIGNING_PRIVATE_KEY={raw.hex()}\\n")
           PYKEY
 
       - name: Bootstrap Database
