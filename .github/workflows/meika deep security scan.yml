@@ -2,33 +2,21 @@ name: Meika Deep Security Scan
 
 # ─── Triggers ────────────────────────────────────────────────────────────────
 on:
-  # Run against the actual PR commit. Do not use workflow_run to execute PR
-  # code in the privileged workflow_run context.
   pull_request:
-  workflow_run:
-    workflows:
-      - "Meika PR Security Gate"
-    types:
-      - completed
+  push:
+    branches: [main]
   schedule:
     - cron: "0 2 * * *"
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
   deep-scan:
-    # Only run if the gate workflow succeeded (or if triggered manually/scheduled)
-    if: >
-      github.event_name == 'pull_request' ||
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'schedule' ||
-      (
-        github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push' &&
-        github.event.workflow_run.head_branch == 'main'
-      )
     runs-on: ubuntu-24.04
-    timeout-minutes: 60   # ZAP + Nuclei + Schemathesis + pip-audit + bandit all take time
+    timeout-minutes: 60
+    permissions:
+      contents: read   # ZAP + Nuclei + Schemathesis + pip-audit + bandit all take time
 
     # ── FIX 1: PostgreSQL service — API server crashes without DB ─────────────
     services:
@@ -828,6 +816,7 @@ jobs:
       # SonarQube is an external service and may not be reachable from GitHub-hosted
       # runners (for example, a server bound to localhost on a developer machine).
       # Detect availability explicitly; never report an unreachable server as a scan pass.
+      - name: SonarQube preflight
       - name: Check SonarQube scanner API availability
         id: sonar_preflight
         env:
