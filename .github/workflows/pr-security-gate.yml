@@ -29,10 +29,11 @@ jobs:
         with:
           fetch-depth: 0
       - name: Gitleaks Secret Scan
-        uses: gitleaks/gitleaks-action@v3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_ENABLE_COMMENTS: "true"
+        run: |
+          docker run --rm \
+            --volume "$PWD:/path" \
+            ghcr.io/gitleaks/gitleaks:v8.28.0 \
+            detect --source=/path --redact --no-banner --verbose
 
   # ──────────────────────────────────────────────────────────────────────────
   # NEW — GitHub's native Dependency Review. Complements pip-audit: pip-audit
