@@ -8,28 +8,14 @@ on:
   # Run against the actual PR commit. Do not use workflow_run to execute PR
   # code in the privileged workflow_run context.
   pull_request:
-  workflow_run:
-    workflows:
-      - "Meika PR Security Gate"
-    types:
-      - completed
+  push:
+    branches: [main]
   schedule:
     - cron: "0 2 * * *"
   workflow_dispatch:
 
 jobs:
   deep-scan:
-    # Only run if the gate workflow succeeded (or if triggered manually/scheduled)
-    if: >
-      github.event_name == 'pull_request' ||
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'schedule' ||
-      (
-        github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.event == 'push' &&
-        github.event.workflow_run.head_branch == 'main'
-      )
     runs-on: ubuntu-24.04
     timeout-minutes: 60   # ZAP + Nuclei + Schemathesis + pip-audit + bandit all take time
     permissions:
@@ -644,7 +630,6 @@ jobs:
           # A missing report is a hard failure in the security summary; never
           # turn an unavailable scanner into a clean/empty result.
           go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.3.3
-          echo "$HOME/go/bin" >> "$GITHUB_PATH"
           "$HOME/go/bin/osv-scanner" scan source --lockfile requirements.txt --lockfile requirements-dev.txt --format json > osv-report.json || scan_status=$?
           if [ ! -s osv-report.json ]; then
             echo "::error::OSV-Scanner did not produce osv-report.json"
