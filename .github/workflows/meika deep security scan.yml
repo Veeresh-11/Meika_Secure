@@ -492,7 +492,6 @@ jobs:
             --max-examples=50 \
             --seed=20261014 \
             --generation-deterministic \
-            --generation-database=:memory: \
             --suppress-health-check=too_slow,filter_too_much \
             --continue-on-failure \
             2>&1 | tee schemathesis-report.txt
