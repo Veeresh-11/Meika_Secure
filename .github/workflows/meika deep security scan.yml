@@ -402,13 +402,19 @@ jobs:
           echo "Nuclei engine: v3.11.1"
           echo "Nuclei templates: v10.5.0"
           git -C nuclei-templates rev-parse HEAD | tee nuclei-template-commit.txt
+          # This target is a FastAPI identity API, not a generic scan of every
+          # third-party product. Run the generic HTTP misconfiguration and
+          # exposure checks here; dependency CVEs are independently covered by
+          # pip-audit and OSV-Scanner below. A broad CVE sweep runs hundreds of
+          # irrelevant product templates and produces runtime-error noise.
           docker run --rm --network host \
             --volume "$PWD:/work:rw" \
             --volume "$PWD/nuclei-templates:/templates:ro" \
             projectdiscovery/nuclei:v3.11.1 \
               -u http://127.0.0.1:8000 \
-              -t /templates \
-              -tags cves,misconfig,exposure \
+              -t /templates/http/misconfiguration/ \
+              -t /templates/http/exposures/ \
+              -tags misconfig,exposure \
               -duc \
               -jle /work/nuclei.jsonl \
               -nh \
