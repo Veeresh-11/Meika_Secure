@@ -6,7 +6,12 @@ They deliberately do not accept client-supplied trust booleans.
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from typing import Any, Sequence
+from uuid import uuid4
+
+import jwt
+from app.security.tokens.config import TokenConfig
 
 from webauthn import (
     base64url_to_bytes,
@@ -142,3 +147,37 @@ def verify_authentication(
         "credential_device_type": str(verified.credential_device_type),
         "credential_backed_up": verified.credential_backed_up,
     }
+
+
+
+def issue_enrollment_token(user_id: str) -> str:
+    """Issue a five-minute token only after a successful primary authentication."""
+    now = datetime.now(timezone.utc)
+    claims = {
+        "iss": TokenConfig.ISSUER,
+        "aud": TokenConfig.AUDIENCE,
+        "sub": str(user_id),
+        "purpose": "webauthn-enroll",
+        "jti": str(uuid4()),
+        "iat": now,
+        "exp": now + timedelta(minutes=5),
+    }
+    return jwt.encode(claims, TokenConfig.SECRET_KEY, algorithm=TokenConfig.ALGORITHM)
+
+
+def verify_enrollment_token(token: str) -> dict[str, Any]:
+    """Validate a short-lived token for passkey enrollment, not API access."""
+    try:
+        claims = jwt.decode(
+            token,
+            TokenConfig.SECRET_KEY,
+            algorithms=[TokenConfig.ALGORITHM],
+            audience=TokenConfig.AUDIENCE,
+            issuer=TokenConfig.ISSUER,
+            options={"require": ["exp", "iat", "sub", "jti", "iss", "aud"]},
+        )
+    except jwt.PyJWTError as exc:
+        raise FIDO2VerificationError("Invalid enrollment authorization") from exc
+    if claims.get("purpose") != "webauthn-enroll" or not claims.get("jti"):
+        raise FIDO2VerificationError("Invalid enrollment authorization")
+    return claims

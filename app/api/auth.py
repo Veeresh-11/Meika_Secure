@@ -22,6 +22,7 @@ from app.security.device.context import (
 )
 from app.security.device_snapshot import DeviceSnapshot
 from app.security.webauthn.assertion import verify_assertion
+from app.security.webauthn.fido2 import issue_enrollment_token
 from app.security.webauthn.models import WebAuthnCredential
 from app.services.webauthn.challenge_service import ChallengeService
 from app.services.credential_service import CredentialService
@@ -350,7 +351,8 @@ def login(
         "session_id": str(session.id),
         "expires_at": session.expires_at,
         "decision": decision.outcome.value,
-        "warning": "Password authentication is deprecated. Please use WebAuthn instead.",
+        "webauthn_enrollment_token": issue_enrollment_token(session.user_id) if decision.outcome.value == "ALLOW" else None,
+        "warning": "Password authentication is deprecated. Use this short-lived enrollment token only to register a passkey.",
     }
 
 

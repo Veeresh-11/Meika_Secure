@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from sqlalchemy import update
 from sqlalchemy.orm import Session
@@ -24,6 +24,7 @@ from app.security.webauthn.fido2 import (
     generate_registration_options_json,
     verify_authentication,
     verify_registration,
+    verify_enrollment_token,
 )
 from app.services.auth_service import AuthService
 from app.services.webauthn.challenge_service import ChallengeService
@@ -91,12 +92,21 @@ def _consume_challenge(db: Session, record: WebAuthnChallenge, *, purpose: str, 
 
 
 @router.post("/registration/options")
-def registration_options(payload: RegistrationOptionsRequest, db: Session = Depends(get_db)):
-    user = AuthService.get_user_by_email(db, payload.email)
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
+def registration_options(payload: RegistrationOptionsRequest, authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Passkey enrollment authorization required")
+    try:
+        enrollment = verify_enrollment_token(authorization.removeprefix("Bearer ").strip())
+    except FIDO2VerificationError as exc:
+        raise HTTPException(status_code=401, detail="Passkey enrollment authorization required") from exc
 
-    challenge = ChallengeService.create(db=db, user_id=user.id, purpose="fido2-register")
+    user = AuthService.get_user_by_email(db, payload.email)
+    if user is None or str(user.id) != enrollment["sub"]:
+        raise HTTPException(status_code=401, detail="Passkey enrollment authorization required")
+
+    challenge = ChallengeService.create(
+        db=db, user_id=user.id, purpose="fido2-register:" + enrollment["jti"]
+    )
 
     existing = (
         db.query(WebAuthnCredential)
@@ -123,17 +133,24 @@ def registration_options(payload: RegistrationOptionsRequest, db: Session = Depe
 
 
 @router.post("/registration/verify")
-def registration_verify(payload: RegistrationVerifyRequest, db: Session = Depends(get_db)):
+def registration_verify(payload: RegistrationVerifyRequest, authorization: str | None = Header(default=None), db: Session = Depends(get_db)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Passkey enrollment authorization required")
+    try:
+        enrollment = verify_enrollment_token(authorization.removeprefix("Bearer ").strip())
+    except FIDO2VerificationError as exc:
+        raise HTTPException(status_code=401, detail="Passkey enrollment authorization required") from exc
+
     user = AuthService.get_user_by_email(db, payload.email)
-    if user is None:
-        raise HTTPException(status_code=400, detail="Invalid registration ceremony")
+    if user is None or str(user.id) != enrollment["sub"]:
+        raise HTTPException(status_code=401, detail="Passkey enrollment authorization required")
 
     challenge = (
         db.query(WebAuthnChallenge)
         .filter(WebAuthnChallenge.challenge == payload.challenge)
         .first()
     )
-    if challenge is None or challenge.user_id != user.id or challenge.purpose != "fido2-register":
+    if challenge is None or challenge.user_id != user.id or challenge.purpose != ("fido2-register:" + enrollment["jti"]):
         raise HTTPException(status_code=400, detail="Invalid registration ceremony")
     if challenge.used or challenge.expires_at <= datetime.now(timezone.utc).replace(tzinfo=None):
         raise HTTPException(status_code=400, detail="Invalid or expired WebAuthn challenge")
