@@ -80,6 +80,21 @@ async def enforce_security(request: Request, call_next):
 # For all other routes let FastAPI handle unsupported methods
     if method not in {"GET", "POST"}:
       return await call_next(request)
+    # The old /auth/webauthn handlers accept client-asserted trust flags and
+    # are not cryptographically secure. Block them at the application boundary;
+    # the standards-based /fido2 routes use py_webauthn verification instead.
+    LEGACY_MOCK_WEBAUTHN_PATHS = {
+        "/api/v1/auth/webauthn/register/start",
+        "/api/v1/auth/webauthn/register/finish",
+        "/api/v1/auth/webauthn/authenticate/start",
+        "/api/v1/auth/webauthn/authenticate/finish",
+    }
+    if path in LEGACY_MOCK_WEBAUTHN_PATHS:
+        return JSONResponse(
+            status_code=410,
+            content={"error": "Legacy WebAuthn flow disabled; use /api/v1/fido2 endpoints."},
+        )
+
     # ----------------------------------
     # Public endpoints
     # ----------------------------------
