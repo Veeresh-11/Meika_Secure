@@ -89,7 +89,7 @@ def verify_registration(
         "credential_id": bytes_to_base64url(verified.credential_id),
         "public_key": bytes_to_base64url(verified.credential_public_key),
         "sign_count": verified.sign_count,
-        "attestation_type": verified.fmt,
+        "attestation_type": verified.fmt.value,
         "hardware_backed": False,
         "attestation_verified": True,
     }
@@ -144,7 +144,7 @@ def verify_authentication(
         "credential_id": verified.credential_id,
         "new_sign_count": verified.new_sign_count,
         "user_verified": verified.user_verified,
-        "credential_device_type": str(verified.credential_device_type),
+        "credential_device_type": verified.credential_device_type.value,
         "credential_backed_up": verified.credential_backed_up,
     }
 
