@@ -4,7 +4,9 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.db.grant_models import Grant
-from app.db.models import User
+from app.db.models import User, Session as UserSession
+from app.db.device_models import Device
+from app.db.webauthn_models import WebAuthnCredential
 
 
 class GrantService:
@@ -44,6 +46,41 @@ class GrantService:
         if user is None:
             raise ValueError("Cannot create a grant for an unknown user")
 
+        session = (
+            db.query(UserSession)
+            .filter(
+                UserSession.id == session_id,
+                UserSession.user_id == user_id,
+                UserSession.tenant_id == user.tenant_id,
+                UserSession.revoked.is_(False),
+            )
+            .first()
+        )
+        credential = (
+            db.query(WebAuthnCredential)
+            .filter(
+                WebAuthnCredential.id == credential_id,
+                WebAuthnCredential.user_id == user_id,
+                WebAuthnCredential.tenant_id == user.tenant_id,
+                WebAuthnCredential.revoked.is_(False),
+            )
+            .first()
+        )
+        device = (
+            db.query(Device)
+            .filter(
+                Device.id == device_id,
+                Device.user_id == user_id,
+                Device.tenant_id == user.tenant_id,
+                Device.state == "ACTIVE",
+            )
+            .first()
+        )
+        if session is None or credential is None or device is None:
+            raise ValueError("Cannot create a grant with cross-tenant or inactive resources")
+        if session.device_id != device.id or credential.device_id != device.id:
+            raise ValueError("Grant session, credential, and device must belong to the same device")
+
         now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         grant = Grant(
@@ -76,12 +113,15 @@ class GrantService:
         db: Session,
         *,
         grant_id,
+        tenant_id,
     ) -> Grant | None:
-
+        if tenant_id is None:
+            raise ValueError("Tenant context is required to fetch a grant")
         return (
             db.query(Grant)
             .filter(
                 Grant.id == grant_id,
+                Grant.tenant_id == tenant_id,
                 Grant.revoked.is_(False),
             )
             .first()
@@ -92,12 +132,15 @@ class GrantService:
         db: Session,
         *,
         session_id,
+        tenant_id,
     ) -> list[Grant]:
-
+        if tenant_id is None:
+            raise ValueError("Tenant context is required to fetch grants by session")
         return (
             db.query(Grant)
             .filter(
                 Grant.session_id == session_id,
+                Grant.tenant_id == tenant_id,
                 Grant.revoked.is_(False),
             )
             .all()
@@ -108,12 +151,15 @@ class GrantService:
         db: Session,
         *,
         jwt_id,
+        tenant_id,
     ) -> Grant | None:
-
+        if tenant_id is None:
+            raise ValueError("Tenant context is required to fetch a grant by JWT ID")
         return (
             db.query(Grant)
             .filter(
                 Grant.jwt_id == jwt_id,
+                Grant.tenant_id == tenant_id,
                 Grant.revoked.is_(False),
             )
             .first()
@@ -159,9 +205,10 @@ class GrantService:
         db: Session,
         *,
         grant: Grant,
+        tenant_id,
         ip_address: str | None = None,
     ) -> Grant:
-
+        GrantService._require_tenant(grant, tenant_id)
         grant.last_used_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         if ip_address is not None:
@@ -177,8 +224,9 @@ class GrantService:
         db: Session,
         *,
         grant: Grant,
+        tenant_id,
     ) -> Grant:
-
+        GrantService._require_tenant(grant, tenant_id)
         GrantService.validate(grant)
 
         now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -196,9 +244,10 @@ class GrantService:
         db: Session,
         *,
         grant: Grant,
+        tenant_id,
         risk_level: str,
     ) -> Grant:
-
+        GrantService._require_tenant(grant, tenant_id)
         grant.risk_level = risk_level
 
         db.commit()
@@ -211,9 +260,10 @@ class GrantService:
         db: Session,
         *,
         grant: Grant,
+        tenant_id,
         state: str,
     ) -> Grant:
-
+        GrantService._require_tenant(grant, tenant_id)
         grant.guardian_state = state
 
         db.commit()
@@ -230,9 +280,10 @@ class GrantService:
         db: Session,
         *,
         grant: Grant,
+        tenant_id,
         reason: str | None = None,
     ) -> Grant:
-
+        GrantService._require_tenant(grant, tenant_id)
         grant.revoked = True
         grant.revoked_at = datetime.now(timezone.utc).replace(tzinfo=None)
         grant.revocation_reason = reason
@@ -247,13 +298,17 @@ class GrantService:
         db: Session,
         *,
         user_id,
+        tenant_id,
         reason: str = "Bulk revocation",
     ) -> int:
+        if tenant_id is None:
+            raise ValueError("Tenant context is required to revoke grants")
 
         grants = (
             db.query(Grant)
             .filter(
                 Grant.user_id == user_id,
+                Grant.tenant_id == tenant_id,
                 Grant.revoked.is_(False),
             )
             .all()
@@ -275,13 +330,17 @@ class GrantService:
         db: Session,
         *,
         session_id,
+        tenant_id,
         reason: str = "Session terminated",
     ) -> int:
+        if tenant_id is None:
+            raise ValueError("Tenant context is required to revoke grants by session")
 
         grants = (
             db.query(Grant)
             .filter(
                 Grant.session_id == session_id,
+                Grant.tenant_id == tenant_id,
                 Grant.revoked.is_(False),
             )
             .all()
@@ -297,6 +356,11 @@ class GrantService:
         db.commit()
 
         return len(grants)
+
+    @staticmethod
+    def _require_tenant(grant: Grant, tenant_id) -> None:
+        if tenant_id is None or getattr(grant, "tenant_id", None) != tenant_id:
+            raise ValueError("Grant tenant mismatch")
 
     # ---------------------------------------------------------
     # Maintenance
