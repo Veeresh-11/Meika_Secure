@@ -22,6 +22,7 @@ from webauthn import (
     verify_registration_response,
 )
 from webauthn.helpers.structs import (
+    AuthenticatorSelectionCriteria,
     PublicKeyCredentialDescriptor,
     UserVerificationRequirement,
 )
@@ -57,7 +58,9 @@ def generate_registration_options_json(
                 PublicKeyCredentialDescriptor(id=base64url_to_bytes(value))
                 for value in exclude_credential_ids
             ],
-            user_verification=UserVerificationRequirement.REQUIRED,
+            authenticator_selection=AuthenticatorSelectionCriteria(
+                user_verification=UserVerificationRequirement.REQUIRED,
+            ),
         )
         return _options_dict(options)
     except Exception as exc:

@@ -220,4 +220,5 @@ async def test_webauthn_post_path(monkeypatch):
 
     result = await main_module.enforce_security(request, call_next)
 
-    assert result == "ok"
+    assert isinstance(result, JSONResponse)
+    assert result.status_code == 410

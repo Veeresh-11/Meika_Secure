@@ -20,7 +20,7 @@ def test_legacy_mock_webauthn_endpoints_are_disabled():
 
 
 def test_standards_based_fido2_endpoints_are_registered():
-    paths = {route.path for route in app.routes}
+    paths = set(app.openapi()["paths"])
     assert "/api/v1/fido2/registration/options" in paths
     assert "/api/v1/fido2/registration/verify" in paths
     assert "/api/v1/fido2/authentication/options" in paths
@@ -42,7 +42,7 @@ def test_fido2_registration_verification_requires_enrollment_token():
         "/api/v1/fido2/registration/verify",
         json={
             "email": "user@example.com",
-            "challenge": "dGVzdC1jaGFsbGVuZ2U",
+            "challenge": "dGVzdC1jaGFsbGVuZ2UtYnl0ZXM",
             "credential": {"id": "fake", "type": "public-key", "response": {}},
         },
     )
