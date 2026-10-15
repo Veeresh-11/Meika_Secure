@@ -104,8 +104,16 @@ def registration_options(payload: RegistrationOptionsRequest, authorization: str
     if user is None or str(user.id) != enrollment["sub"]:
         raise HTTPException(status_code=401, detail="Passkey enrollment authorization required")
 
+    enrollment_purpose = "fido2-register:" + enrollment["jti"]
+    existing_challenge = (
+        db.query(WebAuthnChallenge)
+        .filter(WebAuthnChallenge.purpose == enrollment_purpose)
+        .first()
+    )
+    if existing_challenge is not None:
+        raise HTTPException(status_code=401, detail="Passkey enrollment authorization already used")
     challenge = ChallengeService.create(
-        db=db, user_id=user.id, purpose="fido2-register:" + enrollment["jti"]
+        db=db, user_id=user.id, purpose=enrollment_purpose
     )
 
     existing = (
@@ -303,7 +311,6 @@ def authentication_verify(payload: AuthenticationVerifyRequest, db: Session = De
     GrantService.touch(db=db, grant=grant)
     from webauthn.helpers import base64url_to_bytes
     token = TokenService.issue_access_token(
-        db=db,
         grant=grant,
         device_public_key=record.public_key.encode(),
     )

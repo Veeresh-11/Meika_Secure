@@ -6,6 +6,8 @@ from app.security.webauthn.fido2 import (
     generate_registration_options_json,
     verify_authentication,
     verify_registration,
+    issue_enrollment_token,
+    verify_enrollment_token,
 )
 
 
@@ -57,3 +59,31 @@ def test_authentication_options_require_user_verification():
 def test_invalid_credential_payloads_fail_closed(verifier):
     with pytest.raises(FIDO2VerificationError):
         verifier()
+
+
+
+def test_enrollment_token_is_short_lived_and_purpose_scoped():
+    token = issue_enrollment_token("user-123")
+    claims = verify_enrollment_token(token)
+    assert claims["sub"] == "user-123"
+    assert claims["purpose"] == "webauthn-enroll"
+    assert claims["jti"]
+
+
+def test_access_token_cannot_be_used_as_enrollment_token():
+    import jwt
+    from app.security.tokens.config import TokenConfig
+
+    token = jwt.encode(
+        {
+            "iss": TokenConfig.ISSUER,
+            "aud": TokenConfig.AUDIENCE,
+            "sub": "user-123",
+            "purpose": "access",
+            "jti": "access-token",
+        },
+        TokenConfig.SECRET_KEY,
+        algorithm=TokenConfig.ALGORITHM,
+    )
+    with pytest.raises(FIDO2VerificationError, match="Invalid enrollment authorization"):
+        verify_enrollment_token(token)
