@@ -35,6 +35,7 @@ CHECKS = [
     ("Trivy configuration scan", "TRIVY_CONFIG"),
     ("Red-team tests", "RED_TEAM"),
     ("CodeQL analysis", "CODEQL"),
+    ("CodeQL high-severity finding gate", "CODEQL_FINDINGS"),
 ]
 POINTS_PER_CHECK = 100
 MAX_SCORE = len(CHECKS) * POINTS_PER_CHECK
