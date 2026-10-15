@@ -15,6 +15,8 @@ import zipfile
 from pathlib import Path
 
 CHECKS = [
+    ("Critical Python correctness lint", "CRITICAL_LINT"),
+    ("API latency smoke test", "PERFORMANCE_SMOKE"),
     ("Secret scan", "SECRET_SCAN"),
     ("Workflow security lint and zizmor", "WORKFLOW_HARDENING"),
     ("Dependency review", "DEPENDENCY_REVIEW"),
