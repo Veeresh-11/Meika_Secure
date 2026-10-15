@@ -11,7 +11,7 @@ from app.security.webauthn.attestation import (
 )
 from datetime import datetime, timezone
 from unittest.mock import ANY, MagicMock, patch
-from app.security.webauthn.assertion import verify_assertion
+from app.security.webauthn.assertion import verify_assertion, CredentialCloneDetected
 
 # ---------------------------------------------------------
 # Test App
@@ -1169,3 +1169,88 @@ def test_webauthn_authenticate_finish_rejects_unknown_user(monkeypatch):
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Authentication failed"
+
+
+def test_webauthn_clone_detection_persists_revocation_and_stops_authentication(monkeypatch):
+    user = SimpleNamespace(id="user-clone", tenant_id="tenant-clone")
+    credential_record = SimpleNamespace(
+        id="credential-row-clone",
+        user_id=user.id,
+        tenant_id=user.tenant_id,
+        credential_id="credential-clone",
+        device_id="device-clone",
+        public_key="public-key",
+        sign_count=12,
+        hardware_backed=True,
+        attestation_verified=True,
+        attestation_type="basic",
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        last_used_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        revoked=False,
+    )
+
+    monkeypatch.setattr(
+        auth.AuthService,
+        "get_user_by_email",
+        staticmethod(lambda *args, **kwargs: user),
+    )
+    monkeypatch.setattr(
+        auth.CredentialService,
+        "get_webauthn_credential",
+        staticmethod(lambda **kwargs: credential_record),
+    )
+
+    def clone_detected(*args, **kwargs):
+        raise CredentialCloneDetected("Clone detected (sign counter regression)")
+
+    verify = MagicMock(side_effect=clone_detected)
+    revoke = MagicMock(return_value=credential_record)
+    update_sign_count = MagicMock()
+    touch_last_used = MagicMock()
+    create_session = MagicMock()
+    create_grant = MagicMock()
+    issue_token = MagicMock()
+
+    monkeypatch.setattr(auth, "verify_assertion", verify)
+    monkeypatch.setattr(
+        auth.CredentialService,
+        "revoke_webauthn_credential",
+        staticmethod(revoke),
+    )
+    monkeypatch.setattr(auth.CredentialService, "update_sign_count", update_sign_count)
+    monkeypatch.setattr(auth.CredentialService, "touch_last_used", touch_last_used)
+    monkeypatch.setattr(auth.SessionService, "create", staticmethod(create_session))
+    monkeypatch.setattr(auth.GrantService, "create", staticmethod(create_grant))
+    monkeypatch.setattr(auth.TokenService, "issue_access_token", staticmethod(issue_token))
+
+    response = client.post(
+        "/auth/webauthn/authenticate/finish",
+        json={
+            "email": "clone@example.com",
+            "credential_id": "credential-clone",
+            "assertion": {
+                "id": "credential-clone",
+                "rawId": "credential-clone",
+                "type": "public-key",
+                "response": {
+                    "response": {
+                        "clientDataJSON": "",
+                        "authenticatorData": "",
+                        "signature": "",
+                    }
+                },
+            },
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Device cloning detected"
+    revoke.assert_called_once()
+    assert revoke.call_args.kwargs["credential"] is credential_record
+    assert revoke.call_args.kwargs["commit"] is True
+    update_sign_count.assert_not_called()
+    touch_last_used.assert_not_called()
+    create_session.assert_not_called()
+    create_grant.assert_not_called()
+    issue_token.assert_not_called()
+
