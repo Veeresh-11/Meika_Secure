@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session as DBSession
 
 from app.db.models import Session, User
+from app.db.device_models import Device
 
 
 class SessionService:
@@ -29,6 +30,19 @@ class SessionService:
         if user is None:
             raise ValueError("Cannot create a session for an unknown user")
 
+        device = (
+            db.query(Device)
+            .filter(
+                Device.id == device_id,
+                Device.user_id == user_id,
+                Device.tenant_id == user.tenant_id,
+                Device.state == "ACTIVE",
+            )
+            .first()
+        )
+        if device is None:
+            raise ValueError("Cannot create a session for a device outside the user's active tenant")
+
         now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         session = Session(
@@ -53,11 +67,17 @@ class SessionService:
         db: DBSession,
         *,
         session_id,
+        tenant_id,
     ) -> Session | None:
-
+        if tenant_id is None:
+            raise ValueError("Tenant context is required to fetch a session")
         return (
             db.query(Session)
-            .filter(Session.id == session_id, Session.revoked.is_(False))
+            .filter(
+                Session.id == session_id,
+                Session.tenant_id == tenant_id,
+                Session.revoked.is_(False),
+            )
             .first()
         )
 
@@ -80,8 +100,9 @@ class SessionService:
         db: DBSession,
         *,
         session: Session,
+        tenant_id,
     ) -> Session:
-
+        SessionService._require_tenant(session, tenant_id)
         session.last_seen = datetime.now(timezone.utc).replace(tzinfo=None)
 
         db.commit()
@@ -94,8 +115,9 @@ class SessionService:
         db: DBSession,
         *,
         session: Session,
+        tenant_id,
     ) -> Session:
-
+        SessionService._require_tenant(session, tenant_id)
         session.revoked = True
 
         db.commit()
@@ -108,12 +130,16 @@ class SessionService:
         db: DBSession,
         *,
         user_id,
+        tenant_id,
     ) -> int:
+        if tenant_id is None:
+            raise ValueError("Tenant context is required to revoke sessions")
 
         sessions = (
             db.query(Session)
             .filter(
                 Session.user_id == user_id,
+                Session.tenant_id == tenant_id,
                 Session.revoked.is_(False),
             )
             .all()
@@ -125,6 +151,11 @@ class SessionService:
         db.commit()
 
         return len(sessions)
+
+    @staticmethod
+    def _require_tenant(session: Session, tenant_id) -> None:
+        if tenant_id is None or getattr(session, "tenant_id", None) != tenant_id:
+            raise ValueError("Session tenant mismatch")
 
     @staticmethod
     def cleanup(
