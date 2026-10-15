@@ -529,19 +529,30 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
-          echo "---- SCHEMATHESIS RESULTS ----"
-          schemathesis run \
-            http://localhost:8000/openapi.json \
-            --checks all \
-            --exclude-checks=positive_data_acceptance \
-            --exclude-deprecated \
-            --exclude-path-regex '/api/v1/auth/webauthn/(register|authenticate)/start|/api/v1/auth/webauthn/register/finish' \
-            --max-examples=50 \
-            --seed=20261014 \
-            --generation-deterministic \
-            --suppress-health-check=too_slow,filter_too_much \
-            --continue-on-failure \
-            2>&1 | tee schemathesis-report.txt
+          seed=20261014
+          echo "Schemathesis seed: $seed"
+          run_schemathesis() {
+            local output="$1"
+            schemathesis run \
+              http://localhost:8000/openapi.json \
+              --checks all \
+              --exclude-checks=positive_data_acceptance \
+              --exclude-deprecated \
+              --exclude-path-regex '/api/v1/auth/webauthn/(register|authenticate)/start|/api/v1/auth/webauthn/register/finish' \
+              --max-examples=50 \
+              --seed="$seed" \
+              --suppress-health-check=too_slow,filter_too_much \
+              --continue-on-failure \
+              2>&1 | tee "$output"
+          }
+          echo "---- SCHEMATHESIS RUN 1 ----"
+          run_schemathesis schemathesis-report.txt
+          echo "---- SCHEMATHESIS RUN 2 (same SHA and seed) ----"
+          run_schemathesis schemathesis-report-repeat.txt
+          python scripts/validate_schemathesis_reproducibility.py \
+            schemathesis-report.txt schemathesis-report-repeat.txt \
+            --seed "$seed" --commit "$GITHUB_SHA" \
+            --output schemathesis-reproducibility.json
 
       # WebAuthn registration finish is excluded from generic schema fuzzing because it
       # requires a live challenge and cryptographically valid attestation; dedicated
