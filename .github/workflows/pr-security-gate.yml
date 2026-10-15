@@ -115,6 +115,7 @@ jobs:
       trivy_config: ${{ steps.trivy_config_scan.outcome }}
       red_team: ${{ steps.red_team_tests.outcome }}
       codeql: ${{ steps.codeql_analyze.outcome }}
+      codeql_findings: ${{ steps.codeql_findings.outcome }}
 
     services:
       postgres:
@@ -656,6 +657,7 @@ jobs:
           TRIVY_CONFIG: ${{ needs.pr-gate.outputs.trivy_config }}
           RED_TEAM: ${{ needs.pr-gate.outputs.red_team }}
           CODEQL: ${{ needs.pr-gate.outputs.codeql }}
+          CODEQL_FINDINGS: ${{ needs.pr-gate.outputs.codeql_findings }}
         run: |
           set -euo pipefail
           # GitHub does not expose a workflow's downloadable log archive until
