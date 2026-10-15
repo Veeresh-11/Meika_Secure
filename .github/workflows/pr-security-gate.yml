@@ -98,7 +98,7 @@ jobs:
         run: python -m pip install --disable-pip-version-check ruff==0.14.10
       - name: Critical correctness lint
         id: critical_lint
-        run: ruff check --select E9,F63,F7,F82 app scripts
+        run: ruff check --select E9,F63,F7,F82,DTZ003 app scripts
 
   scorecard:
     if: github.event_name == 'push'
