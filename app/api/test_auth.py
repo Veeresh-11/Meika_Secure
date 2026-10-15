@@ -9,8 +9,8 @@ from app.security.errors import SecurityPipelineError
 from app.security.webauthn.attestation import (
     AttestationVerificationError,
 )
-from datetime import datetime
-from unittest.mock import MagicMock
+from datetime import datetime, timezone
+from unittest.mock import ANY, MagicMock, patch
 from app.security.webauthn.assertion import verify_assertion
 
 # ---------------------------------------------------------
@@ -21,6 +21,91 @@ app = FastAPI()
 app.include_router(auth.router)
 
 client = TestClient(app)
+
+@pytest.fixture(scope="module", autouse=True)
+def manage_test_client_lifecycle():
+    """Close the shared TestClient transport and its event loop after this module."""
+    try:
+        with client:
+            yield
+    finally:
+        client.close()
+
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "payload"),
+    [
+        ("/auth/webauthn/register/start", {"device_name": "test-device"}),
+        ("/auth/webauthn/register/start", {"email": "user@example.com"}),
+        ("/auth/webauthn/authenticate/start", {}),
+        (
+            "/auth/webauthn/register/finish",
+            {
+                "email": "user@example.com",
+                "attestation": {
+                    "challenge": "challenge123",
+                    "hardware_backed": True,
+                    "attestation_verified": True,
+                    "type": "tpm",
+                },
+            },
+        ),
+        (
+            "/auth/webauthn/register/finish",
+            {
+                "email": "user@example.com",
+                "attestation": {
+                    "challenge": "challenge123",
+                    "hardware_backed": False,
+                    "attestation_verified": True,
+                    "public_key": "public-key",
+                    "type": "tpm",
+                },
+            },
+        ),
+        (
+            "/auth/webauthn/register/finish",
+            {
+                "email": "user@example.com",
+                "attestation": {
+                    "challenge": "challenge123",
+                    "hardware_backed": True,
+                    "attestation_verified": False,
+                    "public_key": "public-key",
+                    "type": "tpm",
+                },
+            },
+        ),
+        (
+            "/auth/webauthn/authenticate/finish",
+            {
+                "email": "user@example.com",
+                "assertion": {
+                    "id": "credential-1",
+                    "rawId": "credential-1",
+                    "type": "public-key",
+                    "response": {"response": {}},
+                },
+            },
+        ),
+    ],
+    ids=[
+        "register-start-requires-email",
+        "register-start-requires-device-name",
+        "authenticate-start-requires-email",
+        "register-finish-requires-public-key",
+        "register-finish-requires-hardware-backed-true",
+        "register-finish-requires-verified-attestation",
+        "authenticate-finish-requires-credential-id",
+    ],
+)
+def test_webauthn_rejects_incomplete_or_untrusted_payloads(endpoint, payload):
+    """Request validation must reject missing fields and client-asserted trust."""
+    response = client.post(endpoint, json=payload)
+    assert response.status_code == 422
+
+
 
 
 # ---------------------------------------------------------
@@ -531,6 +616,61 @@ def test_webauthn_register_finish_success(monkeypatch):
     assert body["credential_id"] == "cred-123"
     assert body["message"] == "WebAuthn credential successfully registered"
     
+def test_webauthn_register_finish_rejects_missing_challenge(monkeypatch):
+    monkeypatch.setattr(
+        auth.ChallengeService,
+        "get",
+        staticmethod(lambda **kwargs: None),
+    )
+
+    response = client.post(
+        "/auth/webauthn/register/finish",
+        json={
+            "email": "user@example.com",
+            "attestation": {
+                "challenge": "not-found",
+                "hardware_backed": True,
+                "attestation_verified": True,
+                "public_key": "public-key",
+                "type": "basic",
+                "credential_id": "cred-123",
+            },
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid or expired challenge"
+
+
+def test_webauthn_register_finish_rejects_unsafe_challenge_characters(monkeypatch):
+    called = False
+
+    def unexpected_get(**kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("unsafe challenge must be rejected before database access")
+
+    monkeypatch.setattr(auth.ChallengeService, "get", staticmethod(unexpected_get))
+
+    response = client.post(
+        "/auth/webauthn/register/finish",
+        json={
+            "email": "user@example.com",
+            "attestation": {
+                "challenge": "bad\\u0000challenge",
+                "hardware_backed": True,
+                "attestation_verified": True,
+                "public_key": "public-key",
+                "type": "basic",
+                "credential_id": "cred-123",
+            },
+        },
+    )
+
+    assert response.status_code == 422
+    assert called is False
+
+
 def test_webauthn_register_finish_attestation_failure(monkeypatch):
 
     challenge = SimpleNamespace(
@@ -699,6 +839,8 @@ def test_webauthn_authenticate_finish_success(monkeypatch):
 
     credential_record = SimpleNamespace(
         id="cred-123",
+        user_id="user-123",
+        tenant_id="tenant-1",
         credential_id="credential-123",
         device_id="device-123",
         public_key="public-key",
@@ -706,8 +848,8 @@ def test_webauthn_authenticate_finish_success(monkeypatch):
         hardware_backed=True,
         attestation_verified=True,
         attestation_type="basic",
-        created_at=datetime.utcnow(),
-        last_used_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        last_used_at=datetime.now(timezone.utc).replace(tzinfo=None),
         revoked=False,
     )
 
@@ -741,6 +883,7 @@ def test_webauthn_authenticate_finish_success(monkeypatch):
 
     user = SimpleNamespace(
         id="user-123",
+        tenant_id="tenant-1",
     )
 
     monkeypatch.setattr(
@@ -882,6 +1025,86 @@ def test_webauthn_authenticate_finish_success(monkeypatch):
     
     
     
+
+def test_webauthn_authenticate_finish_rejects_another_users_credential(monkeypatch):
+    credential_record = SimpleNamespace(
+        id="credential-other",
+        user_id="user-other",
+        tenant_id="tenant-other",
+        credential_id="credential-other",
+        device_id="device-other",
+        public_key="public-key",
+        sign_count=0,
+        hardware_backed=True,
+        attestation_verified=True,
+        attestation_type="basic",
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        last_used_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        revoked=False,
+    )
+    user = SimpleNamespace(id="user-requested", tenant_id="tenant-requested")
+
+    credential_lookup = MagicMock(return_value=credential_record)
+    monkeypatch.setattr(
+        auth.CredentialService,
+        "get_webauthn_credential",
+        staticmethod(credential_lookup),
+    )
+    monkeypatch.setattr(
+        auth.AuthService,
+        "get_user_by_email",
+        staticmethod(lambda *args, **kwargs: user),
+    )
+    verify_assertion = MagicMock()
+    update_sign_count = MagicMock()
+    touch_last_used = MagicMock()
+    session_create = MagicMock()
+    grant_create = MagicMock()
+    issue_token = MagicMock()
+    monkeypatch.setattr(auth, "verify_assertion", verify_assertion)
+    monkeypatch.setattr(auth.CredentialService, "update_sign_count", update_sign_count)
+    monkeypatch.setattr(auth.CredentialService, "touch_last_used", touch_last_used)
+    monkeypatch.setattr(auth.SessionService, "create", session_create)
+    monkeypatch.setattr(auth.GrantService, "create", grant_create)
+    monkeypatch.setattr(auth.TokenService, "issue_access_token", issue_token)
+
+    response = client.post(
+        "/auth/webauthn/authenticate/finish",
+        json={
+            "email": "requested@example.com",
+            "credential_id": "credential-other",
+            "assertion": {
+                "id": "credential-other",
+                "rawId": "credential-other",
+                "type": "public-key",
+                "response": {
+                    "response": {
+                        "clientDataJSON": "",
+                        "authenticatorData": "",
+                        "signature": "",
+                    }
+                },
+            },
+        },
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Credential not found"
+    credential_lookup.assert_called_once_with(
+        db=ANY,
+        credential_id="credential-other",
+        user_id="user-requested",
+        tenant_id="tenant-requested",
+    )
+    verify_assertion.assert_not_called()
+    update_sign_count.assert_not_called()
+    touch_last_used.assert_not_called()
+    session_create.assert_not_called()
+    grant_create.assert_not_called()
+    issue_token.assert_not_called()
+
+
+
 def test_webauthn_authenticate_finish_failure(monkeypatch):
 
     def fail(*args, **kwargs):
@@ -912,6 +1135,37 @@ def test_webauthn_authenticate_finish_failure(monkeypatch):
         },
     },
 )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Authentication failed"
+
+
+def test_webauthn_authenticate_finish_rejects_unknown_user(monkeypatch):
+    monkeypatch.setattr(
+        auth.AuthService,
+        "get_user_by_email",
+        staticmethod(lambda *args, **kwargs: None),
+    )
+
+    response = client.post(
+        "/auth/webauthn/authenticate/finish",
+        json={
+            "email": "unknown@example.org",
+            "credential_id": "credential-unknown",
+            "assertion": {
+                "id": "credential-unknown",
+                "rawId": "credential-unknown",
+                "type": "public-key",
+                "response": {
+                    "response": {
+                        "clientDataJSON": "",
+                        "authenticatorData": "",
+                        "signature": "",
+                    }
+                },
+            },
+        },
+    )
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Authentication failed"

@@ -6,9 +6,8 @@
 # ─────────────────────────────────────────────────────────────────
 
 # Web framework
-fastapi==0.115.6
+fastapi==0.143.0
 uvicorn[standard]==0.34.0
-starlette==0.41.3
 
 # Database
 sqlalchemy==2.0.36
@@ -23,31 +22,30 @@ email-validator==2.2.0
 
 # Auth / crypto  ← MOST LIKELY pip-audit failures are here
 argon2-cffi==23.1.0          # passwords — must pin (CVEs in older versions)
-PyJWT==2.10.1                # tokens — must pin
-python-jose[cryptography]==3.3.0
-pynacl==1.5.0                # MUST pin — crypto library, high-risk if unpinned
-cryptography==44.0.0         # Fixes CVE-2024-26130, CVE-2023-49083
+PyJWT==2.15.1                # approved JWT implementation for signing and verification
+pynacl==1.6.2                # MUST pin — crypto library, high-risk if unpinned
+cryptography==50.0.2         # Fixes CVE-2024-26130, CVE-2023-49083
 
 # HTTP client
 httpx==0.28.1
 
 # Logging / observability
 structlog==24.4.0
-opentelemetry-api==1.29.0
-opentelemetry-sdk==1.29.0
-opentelemetry-exporter-otlp==1.29.0
+opentelemetry-api==1.44.0
+opentelemetry-sdk==1.44.0
+opentelemetry-exporter-otlp==1.44.0
 
 # Utilities
-python-multipart==0.0.20     # CVE fix — older versions had multipart parsing vuln
-python-dotenv==1.0.1
-anyio==4.8.0
+python-multipart==0.0.32     # CVE fix — older versions had multipart parsing vuln
+python-dotenv==1.2.2
+anyio==4.14.2
 
 # Rate limiting
 slowapi==0.1.9
 limits==3.14.0
 
 # Schema validation
-jsonschema==4.23.0
+jsonschema==4.26.0
 
 # Testing (keep here for CI — move to dev if you want)
 pytest-mock==3.14.0

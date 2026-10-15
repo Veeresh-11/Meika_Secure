@@ -1,8 +1,9 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
 from app.db.device_models import Device
+from app.db.models import User
 
 from app.security.device.constants import (
     DEVICE_STATE_ACTIVE,
@@ -58,10 +59,15 @@ class DeviceService:
         attestation_verified: bool = False,
     ) -> Device:
 
-        now = datetime.utcnow()
+        user = db.query(User).filter(User.id == user_id).first()
+        if user is None:
+            raise ValueError("Cannot register a device for an unknown user")
+
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         device = Device(
             user_id=user_id,
+            tenant_id=user.tenant_id,
             device_identifier=device_identifier,
             device_name=device_name,
             device_type=device_type,
@@ -116,8 +122,8 @@ class DeviceService:
         device: Device,
     ) -> Device:
 
-        device.last_seen = datetime.utcnow()
-        device.updated_at = datetime.utcnow()
+        device.last_seen = datetime.now(timezone.utc).replace(tzinfo=None)
+        device.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         db.commit()
         db.refresh(device)
@@ -138,7 +144,7 @@ class DeviceService:
             )
 
         device.trust_level = trust_level
-        device.updated_at = datetime.utcnow()
+        device.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         db.commit()
         db.refresh(device)
@@ -159,7 +165,7 @@ class DeviceService:
             )
 
         device.state = state
-        device.updated_at = datetime.utcnow()
+        device.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         db.commit()
         db.refresh(device)
@@ -174,7 +180,7 @@ class DeviceService:
     ) -> Device:
 
         device.state = DEVICE_STATE_REVOKED
-        device.updated_at = datetime.utcnow()
+        device.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         db.commit()
         db.refresh(device)

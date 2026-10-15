@@ -9,7 +9,7 @@ from app.security.decision import (
     SecurityDecision,
     DecisionOutcome,
 )
-from datetime import datetime
+from datetime import datetime, timezone
 
 class DummyContext:
     pass
@@ -21,7 +21,7 @@ def test_simulation_allow():
         outcome=DecisionOutcome.ALLOW,
         reason="allowed",
         policy_version="1.0.0",
-        evaluated_at=datetime.utcnow(),
+        evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     with patch(
@@ -46,7 +46,7 @@ def test_simulation_deny_becomes_warn():
         outcome=DecisionOutcome.DENY,
         reason="denied",
         policy_version="1.0.0",
-        evaluated_at=datetime.utcnow(),
+        evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     with patch(

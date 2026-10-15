@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from sqlalchemy import (
@@ -28,6 +28,7 @@ class Device(Base):
 
     __table_args__ = (
         Index("ix_devices_user_id", "user_id"),
+        Index("ix_devices_tenant_id", "tenant_id"),
         Index("ix_devices_identifier", "device_identifier"),
         {"schema": "identity"},
     )
@@ -41,6 +42,12 @@ class Device(Base):
     user_id = Column(
         UUID(as_uuid=True),
         ForeignKey("identity.users.id"),
+        nullable=False,
+    )
+
+    tenant_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("identity.organizations.id"),
         nullable=False,
     )
 
@@ -111,12 +118,12 @@ class Device(Base):
 
     registered_at = Column(
         DateTime,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     last_seen = Column(
         DateTime,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     last_attested_at = Column(
@@ -126,11 +133,11 @@ class Device(Base):
 
     created_at = Column(
         DateTime,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     updated_at = Column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
     )

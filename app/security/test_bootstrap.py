@@ -5,7 +5,7 @@ from unittest.mock import patch
 from app.security.bootstrap import build_pipeline
 
 
-def test_build_pipeline_ci_bypass():
+def test_ci_environment_does_not_disable_signer():
 
     fake_policy = object()
 
@@ -15,12 +15,12 @@ def test_build_pipeline_ci_bypass():
     ):
         with patch.dict(
             "os.environ",
-            {"CI_SECURITY_BYPASS": "1"},
+            {"CI_SECURITY_BYPASS": "1", "ENVIRONMENT": "test"},
             clear=False,
         ):
             kernel = build_pipeline()
 
-    assert kernel.signer is None
+    assert kernel.signer is not None
     assert kernel.graph is not None
     assert kernel.policy_evaluator is not None
 

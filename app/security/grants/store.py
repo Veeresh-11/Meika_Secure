@@ -1,5 +1,5 @@
 from typing import Dict, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.security.grants.models import Grant
 
@@ -30,7 +30,7 @@ class GrantStore:
         return self._grants[grant_id]
 
     def list_active(self) -> List[Grant]:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         for gid in list(self._grants.keys()):
             if self._grants[gid].is_expired(now):

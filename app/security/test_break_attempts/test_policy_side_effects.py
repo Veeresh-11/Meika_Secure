@@ -2,7 +2,7 @@ import pytest
 
 pytestmark = pytest.mark.break_attempt
 
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import Mock
 
 from app.security.pipeline import SecurityPipeline
@@ -32,7 +32,7 @@ def test_policy_is_never_invoked_after_clone():
         device_id="x",
         device=snapshot,
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
     )
 

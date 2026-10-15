@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.security.webauthn.mapper import (
     build_device_identity_from_webauthn,
@@ -6,7 +6,7 @@ from app.security.webauthn.mapper import (
 
 
 def test_mapper_builds_identity():
-    ts = datetime.utcnow()
+    ts = datetime.now(timezone.utc).replace(tzinfo=None)
 
     identity = build_device_identity_from_webauthn(
         hardware_backed=True,

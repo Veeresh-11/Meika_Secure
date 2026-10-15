@@ -1,6 +1,6 @@
 # app/security/policy/adapter.py
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.security.decision import SecurityDecision, DecisionOutcome
 from app.security.results import DenyReason, PolicyResult
@@ -44,6 +44,6 @@ class PolicyDecisionAdapter:
             outcome=DecisionOutcome.DENY,
             reason=DenyReason.POLICY_DENY.value,
             policy_version=KERNEL_VERSION,  # 🔥 no "unknown"
-            evaluated_at=datetime.utcnow(),
+            evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
             obligations=None,
         )

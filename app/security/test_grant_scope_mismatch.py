@@ -1,7 +1,7 @@
 # app/security/test_grant_scope_mismatch.py
 
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 pytestmark = pytest.mark.track_a
 from app.security.pipeline import SecurityPipeline
 from app.security.context import SecurityContext
@@ -15,8 +15,8 @@ def test_grant_scope_mismatch_denies():
         grant_id="grant-1",
         principal_id="user",
         intent="other.intent",
-        issued_at=datetime.utcnow() - timedelta(minutes=1),
-        expires_at=datetime.utcnow() + timedelta(minutes=5),
+        issued_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=1),
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=5),
         issued_by_policy="test-policy",
         justification="scope mismatch test",
     )
@@ -29,7 +29,7 @@ def test_grant_scope_mismatch_denies():
         device_id=None,
         device=None,
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
         grant=grant,
     )

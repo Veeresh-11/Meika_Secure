@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -35,7 +35,7 @@ def test_build_with_private_key_path():
             evidence_hash="evidence",
             device_state_hash="device",
             policy_version="v1",
-            issued_at=datetime.utcnow(),
+            issued_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
 
     assert token == "jwt-token"
@@ -54,7 +54,7 @@ def test_build_without_private_key_uses_pq_jwt():
         evidence_hash="evidence",
         device_state_hash="device",
         policy_version="v1",
-        issued_at=datetime.utcnow(),
+        issued_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     assert "." in token
@@ -80,7 +80,7 @@ def test_build_falls_back_when_jwt_encode_fails():
             evidence_hash="evidence",
             device_state_hash="device",
             policy_version="v1",
-            issued_at=datetime.utcnow(),
+            issued_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
 
     assert "." in token

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 import hashlib
 import json
@@ -249,7 +249,7 @@ class SecureIDKernel(SecurityPipeline):
             device_id=None,
             device=None,
             risk_signals={},
-            request_time=datetime.utcnow(),
+            request_time=datetime.now(timezone.utc).replace(tzinfo=None),
             metadata={},
             grant=None,
         )

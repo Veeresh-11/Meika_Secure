@@ -1,10 +1,13 @@
 import importlib
+import runpy
+import types
 import os
 import sys
 from pathlib import Path
 from uuid import uuid4
 
 import psycopg2
+from psycopg2 import sql as psycopg2_sql
 import pytest
 
 
@@ -46,7 +49,7 @@ def test_failed_migration_does_not_record_or_partially_apply(
 
     try:
         with setup_conn.cursor() as cur:
-            cur.execute(f'CREATE SCHEMA "{schema}"')
+            cur.execute(psycopg2_sql.SQL("CREATE SCHEMA {}").format(psycopg2_sql.Identifier(schema)))
     finally:
         setup_conn.close()
 
@@ -94,7 +97,7 @@ def test_failed_migration_does_not_record_or_partially_apply(
 
         with conn.cursor() as cur:
             cur.execute(
-                f'SET search_path TO "{schema}", public'
+                psycopg2_sql.SQL("SET search_path TO {}, public").format(psycopg2_sql.Identifier(schema))
             )
 
             cur.execute("SHOW search_path")
@@ -158,7 +161,7 @@ def test_failed_migration_does_not_record_or_partially_apply(
     # Migration 001 must commit.
     # Migration 002 must fail and roll back.
     # ------------------------------------------------------------
-    with pytest.raises(Exception) as exc_info:
+    with pytest.raises(psycopg2.errors.DivisionByZero) as exc_info:
         migration_runner.apply()
 
     print(
@@ -225,11 +228,13 @@ def test_failed_migration_does_not_record_or_partially_apply(
             # Only migration 001 MUST be recorded.
             # ----------------------------------------------------
             cur.execute(
-                """
-                SELECT version
-                FROM "{}".schema_migrations
-                ORDER BY version
-                """.format(schema),
+                psycopg2_sql.SQL(
+                    """
+                    SELECT version
+                    FROM {}.schema_migrations
+                    ORDER BY version
+                    """
+                ).format(psycopg2_sql.Identifier(schema))
             )
 
             applied_versions = [
@@ -258,11 +263,90 @@ def test_failed_migration_does_not_record_or_partially_apply(
         try:
             with cleanup_conn.cursor() as cur:
                 cur.execute(
-                    f'DROP SCHEMA "{schema}" CASCADE'
+                    psycopg2_sql.SQL("DROP SCHEMA {} CASCADE").format(psycopg2_sql.Identifier(schema))
                 )
         finally:
             cleanup_conn.close()
 
+
+
+@pytest.mark.postgres
+def test_successful_migration_is_recorded_and_committed(
+    migration_runner,
+    tmp_path,
+    monkeypatch,
+):
+    dsn = os.getenv("POSTGRES_TEST_DSN") or os.getenv("DATABASE_URL")
+    if not dsn:
+        pytest.skip("PostgreSQL test DSN not configured")
+
+    psycopg2_dsn = dsn.replace(
+        "postgresql+psycopg://",
+        "postgresql://",
+        1,
+    )
+    schema = f"migration_success_{uuid4().hex}"
+    setup_conn = psycopg2.connect(psycopg2_dsn)
+    setup_conn.autocommit = True
+    try:
+        with setup_conn.cursor() as cur:
+            cur.execute(psycopg2_sql.SQL("CREATE SCHEMA {}").format(psycopg2_sql.Identifier(schema)))
+    finally:
+        setup_conn.close()
+
+    migration = tmp_path / "001_success.sql"
+    # The connection's search_path is scoped to this isolated schema,
+    # so keep the migration SQL identifier-static instead of interpolating
+    # a schema name into executable SQL.
+    migration.write_text(
+        """
+        CREATE TABLE committed_marker (
+            id INTEGER PRIMARY KEY
+        );
+        INSERT INTO committed_marker(id) VALUES (1);
+        """,
+        encoding="utf-8",
+    )
+
+    def get_test_connection():
+        conn = psycopg2.connect(psycopg2_dsn)
+        conn.autocommit = True
+        with conn.cursor() as cur:
+            cur.execute(psycopg2_sql.SQL("SET search_path TO {}, public").format(psycopg2_sql.Identifier(schema)))
+        return conn
+
+    monkeypatch.setattr(migration_runner, "get_connection", get_test_connection)
+    monkeypatch.setattr(migration_runner, "ordered_migrations", lambda: [migration])
+
+    try:
+        migration_runner.apply()
+
+        verify_conn = psycopg2.connect(psycopg2_dsn)
+        try:
+            with verify_conn.cursor() as cur:
+                cur.execute(
+                    psycopg2_sql.SQL(
+                        "SELECT id FROM {}.committed_marker ORDER BY id"
+                    ).format(psycopg2_sql.Identifier(schema))
+                )
+                assert cur.fetchall() == [(1,)]
+
+                cur.execute(
+                    psycopg2_sql.SQL(
+                        "SELECT version FROM {}.schema_migrations ORDER BY version"
+                    ).format(psycopg2_sql.Identifier(schema))
+                )
+                assert [row[0] for row in cur.fetchall()] == ["001_success.sql"]
+        finally:
+            verify_conn.close()
+    finally:
+        cleanup_conn = psycopg2.connect(psycopg2_dsn)
+        cleanup_conn.autocommit = True
+        try:
+            with cleanup_conn.cursor() as cur:
+                cur.execute(psycopg2_sql.SQL("DROP SCHEMA {} CASCADE").format(psycopg2_sql.Identifier(schema)))
+        finally:
+            cleanup_conn.close()
 
 def test_bootstrap_stops_before_schema_validation(monkeypatch):
     scripts_dir = Path(__file__).resolve().parent.parent / "scripts"
@@ -308,3 +392,37 @@ def test_bootstrap_stops_before_schema_validation(monkeypatch):
         bootstrap_db.bootstrap()
 
     assert called["validate"] is False
+
+def test_bootstrap_cli_exits_nonzero_when_migration_fails(monkeypatch):
+    scripts_dir = Path(__file__).resolve().parent.parent / "scripts"
+
+    def fail_apply():
+        raise RuntimeError("migration failure")
+
+    class ReadyConnection:
+        def close(self):
+            pass
+
+    apply_module = types.ModuleType("apply_migrations")
+    apply_module.apply = fail_apply
+
+    db_utils_module = types.ModuleType("db_utils")
+    db_utils_module.get_connection = ReadyConnection
+
+    validate_module = types.ModuleType("validate_schema")
+    validate_module.validate = lambda: pytest.fail(
+        "schema validation must not run after migration failure"
+    )
+
+    monkeypatch.setitem(sys.modules, "apply_migrations", apply_module)
+    monkeypatch.setitem(sys.modules, "db_utils", db_utils_module)
+    monkeypatch.setitem(sys.modules, "validate_schema", validate_module)
+
+    with pytest.raises(SystemExit) as exc_info:
+        runpy.run_path(
+            str(scripts_dir / "bootstrap_db.py"),
+            run_name="__main__",
+        )
+
+    assert exc_info.value.code == 1
+

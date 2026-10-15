@@ -4,7 +4,7 @@
 import hashlib
 import json
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from app.security.version import KERNEL_VERSION
 from app.security.evidence.models import EvidenceRecord
@@ -140,7 +140,7 @@ def append_evidence_record(
         root = store.append(record)
         return EvidenceCommitReceipt(
             merkle_root=root,
-            committed_at=datetime.utcnow(),
+            committed_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
     except Exception:
         return None

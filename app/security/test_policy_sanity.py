@@ -2,7 +2,7 @@ import pytest
 
 pytestmark = pytest.mark.track_a
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.security.bootstrap import build_pipeline
 from app.security.context import SecurityContext
@@ -47,7 +47,7 @@ def test_policy_sanity():
         device_id=device.device_id,
         device=snapshot,
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
     )
 

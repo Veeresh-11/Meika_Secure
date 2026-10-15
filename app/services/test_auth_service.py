@@ -4,7 +4,7 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 
-from app.services.auth_service import AuthService
+from app.services.auth_service import AuthService, LEGACY_TENANT_ID
 
 
 def test_register_user_success():
@@ -16,7 +16,7 @@ def test_register_user_success():
     with patch(
         "app.services.auth_service.User",
         return_value=fake_user,
-    ):
+    ) as user_model:
         with patch(
             "app.services.auth_service.CredentialService.create_password_credential"
         ):
@@ -28,6 +28,13 @@ def test_register_user_success():
             )
 
     assert user == fake_user
+
+    user_model.assert_called_once_with(
+        tenant_id=LEGACY_TENANT_ID,
+        email="user@test.com",
+        display_name="User",
+        status="active",
+    )
 
     db.add.assert_called()
     db.flush.assert_called_once()
@@ -109,6 +116,7 @@ def test_login_user_success():
         )
 
     assert session.user_id == 55
+    assert session.tenant_id == user.tenant_id
 
     db.add.assert_called()
     db.commit.assert_called()
@@ -122,6 +130,7 @@ def test_audit_adds_record():
         db=db,
         actor_type="user",
         actor_id=1,
+        tenant_id=LEGACY_TENANT_ID,
         action="login",
         resource="session",
     )

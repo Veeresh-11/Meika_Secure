@@ -2,7 +2,7 @@
 # app/security/grants/models.py
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import uuid4
 
@@ -18,7 +18,7 @@ class Grant:
     justification: str
 
     def is_expired(self, now=None) -> bool:
-      now = now or datetime.utcnow()
+      now = now or datetime.now(timezone.utc).replace(tzinfo=None)
       return now > self.expires_at
 
     def to_dict(self) -> dict:
@@ -41,7 +41,7 @@ def create_grant(
     issued_by_policy: str,
     justification: str,
 ) -> Grant:
-    issued_at = datetime.utcnow()
+    issued_at = datetime.now(timezone.utc).replace(tzinfo=None)
     expires_at = issued_at + timedelta(seconds=lifetime_seconds)
 
     return Grant(

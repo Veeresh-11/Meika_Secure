@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
 
@@ -22,7 +22,7 @@ def make_context():
         device_id=None,
         device=None,
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
     )
 
@@ -32,7 +32,7 @@ def allow_decision():
         outcome=DecisionOutcome.ALLOW,
         reason="allowed",
         policy_version="v1",
-        evaluated_at=datetime.utcnow(),
+        evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
 
@@ -41,7 +41,7 @@ def deny_decision():
         outcome=DecisionOutcome.DENY,
         reason="denied",
         policy_version="v1",
-        evaluated_at=datetime.utcnow(),
+        evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
 

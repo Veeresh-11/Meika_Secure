@@ -18,7 +18,7 @@ import hashlib
 from pathlib import Path
 from typing import Dict, Any, List, Protocol
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timezone
 
 import requests
 import pytest
@@ -65,6 +65,29 @@ class Table(str, Enum):
     VERIFICATION = "verification_ledger"
     TRANSPARENCY = "transparency_log"
     GOVERNANCE = "governance_policies"
+
+# SQL identifiers are selected from this closed, enum-keyed allowlist.
+# Keep complete statements static so untrusted input can never affect SQL structure.
+_TABLE_SQL = {
+    Table.VERIFICATION: {
+        "last_hash": "SELECT chain_hash FROM verification_ledger ORDER BY id DESC LIMIT 1",
+        "insert": "INSERT INTO verification_ledger (entry_json, entry_hash, prev_chain_hash, chain_hash, signatures) VALUES (?, ?, ?, ?, ?)",
+        "count": "SELECT COUNT(*) as c FROM verification_ledger",
+        "validate": "SELECT * FROM verification_ledger ORDER BY id ASC",
+    },
+    Table.TRANSPARENCY: {
+        "last_hash": "SELECT chain_hash FROM transparency_log ORDER BY id DESC LIMIT 1",
+        "insert": "INSERT INTO transparency_log (entry_json, entry_hash, prev_chain_hash, chain_hash, signatures) VALUES (?, ?, ?, ?, ?)",
+        "count": "SELECT COUNT(*) as c FROM transparency_log",
+        "validate": "SELECT * FROM transparency_log ORDER BY id ASC",
+    },
+    Table.GOVERNANCE: {
+        "last_hash": "SELECT chain_hash FROM governance_policies ORDER BY id DESC LIMIT 1",
+        "insert": "INSERT INTO governance_policies (entry_json, entry_hash, prev_chain_hash, chain_hash, signatures) VALUES (?, ?, ?, ?, ?)",
+        "count": "SELECT COUNT(*) as c FROM governance_policies",
+        "validate": "SELECT * FROM governance_policies ORDER BY id ASC",
+    },
+}
 
 
 # ---------------------------------------------------------
@@ -199,9 +222,9 @@ class SQLiteBackend:
             );
         """)
 
-        for table in Table:
-            cur.execute(f"""
-                CREATE TABLE IF NOT EXISTS {table.value} (
+        schema_sql = {
+            Table.VERIFICATION: """
+                CREATE TABLE IF NOT EXISTS verification_ledger (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     entry_json TEXT NOT NULL,
                     entry_hash TEXT NOT NULL,
@@ -209,7 +232,30 @@ class SQLiteBackend:
                     chain_hash TEXT NOT NULL,
                     signatures TEXT NOT NULL
                 );
-            """)
+            """,
+            Table.TRANSPARENCY: """
+                CREATE TABLE IF NOT EXISTS transparency_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    entry_json TEXT NOT NULL,
+                    entry_hash TEXT NOT NULL,
+                    prev_chain_hash TEXT,
+                    chain_hash TEXT NOT NULL,
+                    signatures TEXT NOT NULL
+                );
+            """,
+            Table.GOVERNANCE: """
+                CREATE TABLE IF NOT EXISTS governance_policies (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    entry_json TEXT NOT NULL,
+                    entry_hash TEXT NOT NULL,
+                    prev_chain_hash TEXT,
+                    chain_hash TEXT NOT NULL,
+                    signatures TEXT NOT NULL
+                );
+            """,
+        }
+        for table in Table:
+            cur.execute(schema_sql[table])
 
         self.conn.commit()
 
@@ -221,7 +267,7 @@ class SQLiteBackend:
         with self.conn:
             self.conn.execute(
                 "INSERT OR REPLACE INTO signer_registry VALUES (?, 'active', ?)",
-                (public_key, datetime.utcnow().isoformat()),
+                (public_key, datetime.now(timezone.utc).replace(tzinfo=None).isoformat()),
             )
 
     def revoke_signer(self, public_key: str):
@@ -244,9 +290,7 @@ class SQLiteBackend:
 
     def _last_hash(self, table: Table):
         
-        row = self.conn.execute( 
-            f"SELECT chain_hash FROM {table.value} ORDER BY id DESC LIMIT 1"# nosec B608
-        ).fetchone()
+        row = self.conn.execute(_TABLE_SQL[table]["last_hash"]).fetchone()
         return row["chain_hash"] if row else None
 
     # -----------------------------------------------------
@@ -285,12 +329,8 @@ class SQLiteBackend:
 
         with self.conn:
            
-            self.conn.execute(  
-                f""" 
-                INSERT INTO {table.value}
-                (entry_json, entry_hash, prev_chain_hash, chain_hash, signatures)
-                VALUES (?, ?, ?, ?, ?)
-                """,# nosec B608
+            self.conn.execute(
+                _TABLE_SQL[table]["insert"],
                 (
                     json.dumps(entry),
                     entry_hash,
@@ -318,9 +358,7 @@ class SQLiteBackend:
     def _verify_anchor(self, table: Table):
 
         
-        count = self.conn.execute( 
-            f"SELECT COUNT(*) as c FROM {table.value}"# nosec B608
-        ).fetchone()["c"]
+        count = self.conn.execute(_TABLE_SQL[table]["count"]).fetchone()["c"]
 
         # ✅ Allow bootstrap if table empty
         if count == 0:
@@ -356,9 +394,7 @@ class SQLiteBackend:
     def _validate_startup(self):
         for table in Table:
             
-            rows = self.conn.execute( 
-                f"SELECT * FROM {table.value} ORDER BY id ASC"# nosec B608
-            ).fetchall()
+            rows = self.conn.execute(_TABLE_SQL[table]["validate"]).fetchall()
 
             prev = None
 

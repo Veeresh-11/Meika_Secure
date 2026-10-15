@@ -1,6 +1,6 @@
 # app/security/test_device_trust.py
 
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 import pytest
 pytestmark = pytest.mark.track_a
@@ -33,7 +33,7 @@ def build_context(device_ctx):
         device_id=snapshot.device_id,
         device=snapshot,      # ✅ snapshot only
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
         
     )

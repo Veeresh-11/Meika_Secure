@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.security.evidence.anchor_policy import (
     AnchorPolicy,
@@ -42,13 +42,13 @@ def test_time_policy_interval_logic():
     policy = TimeAnchorPolicy(interval_seconds=60)
 
     policy.last_anchor_time = (
-        datetime.utcnow() - timedelta(seconds=30)
+        datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=30)
     )
 
     assert policy.should_anchor() is False
 
     policy.last_anchor_time = (
-        datetime.utcnow() - timedelta(seconds=61)
+        datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=61)
     )
 
     assert policy.should_anchor() is True

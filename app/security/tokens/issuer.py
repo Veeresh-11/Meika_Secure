@@ -1,8 +1,7 @@
 import hashlib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import jwt
-import os
 from app.security.tokens.config import TokenConfig
 
 
@@ -10,10 +9,7 @@ from app.security.tokens.config import TokenConfig
 # Backward compatibility
 # ------------------------------------------------------------------
 
-SECRET = os.getenv(
-    "JWT_SECRET_KEY",
-    "meika-secure-id-development-secret-key-2026",
-)
+SECRET = TokenConfig.SECRET_KEY
 ALGO = TokenConfig.ALGORITHM
 
 def hash_public_key(public_key: bytes) -> str:
@@ -33,7 +29,7 @@ def issue_device_bound_token(
     ttl_minutes: int | None = None,
 ) -> str:
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     if ttl_minutes is None:
         exp = now + TokenConfig.ACCESS_TOKEN_TTL

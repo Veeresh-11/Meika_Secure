@@ -1,5 +1,3 @@
-import os
-
 from app.security.policy.loader import load_policy
 from app.security.policy.engine import PolicyEngine
 from app.security.pipeline import SecurityPipeline
@@ -46,11 +44,6 @@ def build_pipeline():
     # Signer (CI-safe)
     # -------------------------------------------------
 
-    if os.getenv("CI_SECURITY_BYPASS") == "1":
-        # ✅ Disable signer in CI to avoid key validation failure
-        kernel.signer = None
-    else:
-        # ✅ Real signer for local/dev/prod
-        kernel.signer = Ed25519LocalSigner()
+    kernel.signer = Ed25519LocalSigner()
 
     return kernel

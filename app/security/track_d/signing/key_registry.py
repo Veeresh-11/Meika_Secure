@@ -23,7 +23,7 @@ def _parse_utc(ts: str) -> datetime:
 
 
 def _utc_now() -> datetime:
-    return datetime.utcnow().replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc).replace(tzinfo=None).replace(tzinfo=timezone.utc)
 
 
 # ---------------------------------------------------------

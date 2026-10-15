@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -18,7 +18,7 @@ def make_context():
         device_id=None,
         device=None,
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
     )
 
@@ -117,7 +117,7 @@ def test_validate_expired_grant():
     class ExpiredGrant:
         principal_id = "user"
         intent = "authentication.attempt"
-        expires_at = datetime.utcnow() - timedelta(minutes=1)
+        expires_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=1)
 
     class Store:
         def get(self, grant_id):

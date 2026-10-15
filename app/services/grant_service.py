@@ -1,9 +1,10 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
 from app.db.grant_models import Grant
+from app.db.models import User
 
 
 class GrantService:
@@ -39,10 +40,15 @@ class GrantService:
         created_by: str = "webauthn",
     ) -> Grant:
 
-        now = datetime.utcnow()
+        user = db.query(User).filter(User.id == user_id).first()
+        if user is None:
+            raise ValueError("Cannot create a grant for an unknown user")
+
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         grant = Grant(
             user_id=user_id,
+            tenant_id=user.tenant_id,
             session_id=session_id,
             credential_id=credential_id,
             jwt_id=jwt_id,
@@ -128,7 +134,7 @@ class GrantService:
         if grant.revoked:
             raise ValueError("Grant revoked")
 
-        if grant.expires_at <= datetime.utcnow():
+        if grant.expires_at <= datetime.now(timezone.utc).replace(tzinfo=None):
             raise ValueError("Grant expired")
 
         #
@@ -156,7 +162,7 @@ class GrantService:
         ip_address: str | None = None,
     ) -> Grant:
 
-        grant.last_used_at = datetime.utcnow()
+        grant.last_used_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         if ip_address is not None:
             grant.last_used_ip = ip_address
@@ -175,7 +181,7 @@ class GrantService:
 
         GrantService.validate(grant)
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         grant.issued_at = now
         grant.expires_at = now + GrantService.DEFAULT_EXPIRY
@@ -228,7 +234,7 @@ class GrantService:
     ) -> Grant:
 
         grant.revoked = True
-        grant.revoked_at = datetime.utcnow()
+        grant.revoked_at = datetime.now(timezone.utc).replace(tzinfo=None)
         grant.revocation_reason = reason
 
         db.commit()
@@ -253,7 +259,7 @@ class GrantService:
             .all()
         )
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         for grant in grants:
             grant.revoked = True
@@ -281,7 +287,7 @@ class GrantService:
             .all()
         )
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         for grant in grants:
             grant.revoked = True
@@ -304,13 +310,13 @@ class GrantService:
         expired = (
             db.query(Grant)
             .filter(
-                Grant.expires_at < datetime.utcnow(),
+                Grant.expires_at < datetime.now(timezone.utc).replace(tzinfo=None),
                 Grant.revoked.is_(False),
             )
             .all()
         )
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         for grant in expired:
             grant.revoked = True

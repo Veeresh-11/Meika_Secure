@@ -1,34 +1,53 @@
+"""Red-team checks for fail-closed middleware behavior on restricted paths."""
+
+import pytest
 from fastapi.testclient import TestClient
 from app.main import app
 
 client = TestClient(app)
 
 
+@pytest.fixture(scope="module", autouse=True)
+def manage_test_client_lifecycle():
+    """Release the shared client transport and its event loop after the tests."""
+    try:
+        with client:
+            yield
+    finally:
+        client.close()
+
+
 def test_auth_bypass():
-    assert client.get("/api/v1/protected").status_code in [401, 403]
+    response = client.get("/api/v1/protected")
+    assert response.status_code in {401, 403}
 
 
 def test_token_replay():
-    h = {"Authorization": "Bearer fake"}
-    assert client.get("/api/v1/protected", headers=h).status_code in [401, 403]
-    assert client.get("/api/v1/protected", headers=h).status_code in [401, 403]
+    headers = {"Authorization": "Bearer fake", "X-Device-ID": "fake-device"}
+    first = client.get("/api/v1/protected", headers=headers)
+    second = client.get("/api/v1/protected", headers=headers)
+    assert first.status_code in {401, 403}
+    assert second.status_code in {401, 403}
 
 
 def test_privilege_escalation():
-    assert client.get("/api/v1/admin", headers={"X-Role": "admin"}).status_code in [401, 403]
+    response = client.get("/api/v1/admin", headers={"X-Role": "admin"})
+    assert response.status_code in {401, 403}
 
 
 def test_device_spoof():
-    assert client.get(
+    response = client.get(
         "/api/v1/protected",
         headers={"X-Device-ID": "fake", "User-Agent": "bot"},
-    ).status_code in [401, 403]
+    )
+    assert response.status_code in {401, 403}
 
 
 def test_header_injection():
-    assert client.get(
+    response = client.get(
         "/api/v1/protected", headers={"X-Device-ID": "a\nb"}
-    ).status_code in [400, 403]
+    )
+    assert response.status_code in {400, 403}
 
 
 def test_invalid_payload():
@@ -37,4 +56,4 @@ def test_invalid_payload():
         content='{"username":',
         headers={"Content-Type": "application/json"},
     )
-    assert response.status_code in [400, 422]
+    assert response.status_code in {400, 422}

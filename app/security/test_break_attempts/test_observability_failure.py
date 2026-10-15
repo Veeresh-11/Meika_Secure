@@ -2,7 +2,7 @@ import pytest
 
 pytestmark = pytest.mark.track_a
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.security.pipeline import SecurityPipeline
 from app.security.context import SecurityContext
@@ -15,7 +15,7 @@ def test_observability_failure_does_not_block_allow():
             outcome=DecisionOutcome.ALLOW,
             reason="ok",
             policy_version="x",
-            evaluated_at=datetime.utcnow(),
+            evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
             obligations=None,
         )
 
@@ -29,7 +29,7 @@ def test_observability_failure_does_not_block_allow():
         device_id=None,
         device=None,
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
     )
 

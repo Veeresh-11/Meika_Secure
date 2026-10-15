@@ -1,7 +1,7 @@
 # app/security/containment/models.py
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 
@@ -18,7 +18,7 @@ class ContainmentState:
 
     def is_active(self, now: Optional[datetime] = None) -> bool:
         if now is None:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
         if self.expires_at is None:
             return True
         return now < self.expires_at

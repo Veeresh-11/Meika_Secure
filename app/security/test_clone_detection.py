@@ -1,6 +1,6 @@
 from app.security.webauthn.models import WebAuthnCredential
 from app.security.webauthn.assertion import verify_assertion
-from datetime import datetime
+from datetime import datetime, timezone
 import pytest
 pytestmark = pytest.mark.track_a
 
@@ -12,8 +12,8 @@ def test_clone_detected():
         hardware_backed=True,
         attestation_verified=True,
         attestation_type="tpm",
-        created_at=datetime.utcnow(),
-        last_used_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        last_used_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     with pytest.raises(ValueError):

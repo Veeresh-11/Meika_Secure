@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Body
 from sqlalchemy.orm import Session
 from pydantic import ( BaseModel, Field, EmailStr, ConfigDict, )
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from app.security.persistence import db
 from app.security.webauthn.attestation import (
     AttestationVerificationError,verify_attestation)
@@ -53,20 +53,20 @@ def get_db():
 # Models
 # --------------------
 class RegisterRequest(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(..., json_schema_extra={"pattern": r"^(?!.*@[^@]*\.(?:test|example|invalid|localhost|local)$).+$"})
     password: str = Field(..., min_length=10)
     display_name: str | None = None
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(..., json_schema_extra={"pattern": r"^(?!.*@[^@]*\.(?:test|example|invalid|localhost|local)$).+$"})
     password: str = Field(..., min_length=10)
     device_id: str = Field(..., min_length=3)
     device_signals: dict = Field(default_factory=dict)
 
 
 class WebAuthnRegisterStartRequest(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(..., json_schema_extra={"pattern": r"^(?!.*@[^@]*\.(?:test|example|invalid|localhost|local)$).+$"})
     device_name: str = Field(
         ...,
         min_length=1,
@@ -90,7 +90,7 @@ class AttestationResponse(BaseModel):
 
 
 class AttestationPayload(BaseModel):
-    challenge: str = Field(..., min_length=1)
+    challenge: str = Field(..., min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+={0,2}$")
 
     hardware_backed: Literal[True]
 
@@ -110,7 +110,7 @@ class AttestationPayload(BaseModel):
 
 
 class WebAuthnRegisterFinishRequest(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(..., json_schema_extra={"pattern": r"^(?!.*@[^@]*\.(?:test|example|invalid|localhost|local)$).+$"})
     attestation: AttestationPayload
 
     model_config = ConfigDict(extra="forbid")
@@ -121,7 +121,7 @@ class WebAuthnRegisterFinishRequest(BaseModel):
 # ---------------------------------------------------------
 
 class WebAuthnAuthenticateStartRequest(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(..., json_schema_extra={"pattern": r"^(?!.*@[^@]*\.(?:test|example|invalid|localhost|local)$).+$"})
 
     model_config = ConfigDict(extra="forbid")
 
@@ -146,7 +146,7 @@ class AssertionPayload(BaseModel):
 
 
 class WebAuthnAuthenticateFinishRequest(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(..., json_schema_extra={"pattern": r"^(?!.*@[^@]*\.(?:test|example|invalid|localhost|local)$).+$"})
 
     credential_id: str = Field(
         ...,
@@ -185,7 +185,7 @@ def register(payload: RegisterRequest = Body(...), db: Session = Depends(get_db)
             "email": payload.email,
             "event": "password_registration_deprecated",
             "severity": "WARNING",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         }
     )
 
@@ -241,7 +241,7 @@ def login(
             "device_id": payload.device_id,
             "event": "password_login_deprecated",
             "severity": "WARNING",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         }
     )
 
@@ -286,7 +286,7 @@ def login(
             binding_valid=True,
             clone_confirmed=False,
             replay_detected=False,
-            last_attested_at=datetime.utcnow(),
+            last_attested_at=datetime.now(timezone.utc).replace(tzinfo=None),
         ),
         posture=posture_ctx,
     )
@@ -324,7 +324,7 @@ def login(
      device_id=device_snapshot.device_id,
      device=device_snapshot,
      risk_signals={},
-     request_time=datetime.utcnow(),
+     request_time=datetime.now(timezone.utc).replace(tzinfo=None),
      metadata={},
     )
     # ---- Step 4: Zero Trust ----
@@ -364,6 +364,7 @@ def login(
     responses={
         200: {"description": "Registration session created"},
         400: {"description": "Malformed request"},
+        404: {"description": "User not found"},
         409: {"description": "User already exists"},
     },
 )
@@ -526,6 +527,9 @@ def webauthn_register_finish(
             "credential_id": credential_data.get("credential_id"),
             "message": "WebAuthn credential successfully registered"
         }
+    except HTTPException:
+        raise
+
     except AttestationVerificationError as e:
       logger.warning(
         f"WebAuthn attestation validation failed: {e}"
@@ -535,6 +539,16 @@ def webauthn_register_finish(
         status_code=422,
         detail=str(e),
         )
+
+    except ValueError as e:
+        logger.warning(
+            "WebAuthn registration challenge rejected",
+            extra={"event": "webauthn_register_challenge_rejected"},
+        )
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired challenge",
+        ) from e
 
     except Exception as e:
         logger.exception(
@@ -557,6 +571,7 @@ def webauthn_register_finish(
         200: {"description": "Authentication challenge generated"},
         400: {"description": "Malformed request body"},
         401: {"description": "User not found or no credentials"},
+        404: {"description": "User not found"},
         422: {"description": "Validation error"},
     },
 )
@@ -667,19 +682,10 @@ def webauthn_authenticate_finish(
         # Load credential
         # --------------------------------------------------
 
-        credential_record = CredentialService.get_webauthn_credential(
-            db=db,
-            credential_id=payload.credential_id,
-        )
-
-        if credential_record is None:
-            raise HTTPException(
-                status_code=401,
-                detail="Credential not found",
-            )
-
         # --------------------------------------------------
-        # Load user
+        # Resolve the requested account before looking up its credential.
+        # A credential owned by another user or tenant must never be used
+        # to create a session, grant, or token for this account.
         # --------------------------------------------------
 
         user = AuthService.get_user_by_email(
@@ -688,9 +694,29 @@ def webauthn_authenticate_finish(
         )
 
         if user is None:
+            # Use the same public response as invalid credentials to avoid
+            # account enumeration. This status is documented by the endpoint.
             raise HTTPException(
-                status_code=404,
-                detail="User not found",
+                status_code=401,
+                detail="Authentication failed",
+            )
+
+        credential_record = CredentialService.get_webauthn_credential(
+            db=db,
+            credential_id=payload.credential_id,
+            user_id=user.id,
+            tenant_id=user.tenant_id,
+        )
+
+        if (
+            credential_record is None
+            or credential_record.user_id != user.id
+            or credential_record.tenant_id != user.tenant_id
+        ):
+            # Do not disclose whether the credential belongs to another account.
+            raise HTTPException(
+                status_code=401,
+                detail="Credential not found",
             )
 
         # --------------------------------------------------

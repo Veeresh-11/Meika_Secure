@@ -1,5 +1,5 @@
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 from app.services.session_service import SessionService
 
@@ -11,7 +11,7 @@ def test_validate_missing():
 def test_validate_revoked():
     session = MagicMock(
         revoked=True,
-        expires_at=datetime.utcnow() + timedelta(hours=1),
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1),
     )
 
     with pytest.raises(ValueError, match="revoked"):
@@ -21,7 +21,7 @@ def test_validate_revoked():
 def test_validate_expired():
     session = MagicMock(
         revoked=False,
-        expires_at=datetime.utcnow() - timedelta(seconds=1),
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=1),
     )
 
     with pytest.raises(ValueError, match="expired"):
@@ -31,7 +31,7 @@ def test_validate_expired():
 def test_validate_success():
     session = MagicMock(
         revoked=False,
-        expires_at=datetime.utcnow() + timedelta(hours=1),
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1),
     )
 
     SessionService.validate(session)

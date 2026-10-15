@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.security.policy.adapter import PolicyDecisionAdapter
 from app.security.results import PolicyResult, DenyReason
@@ -20,7 +20,7 @@ def test_adapt_policy_result():
     result = PolicyResult(
         outcome=DecisionOutcome.ALLOW,
         policy_version="TEST_POLICY",
-        evaluated_at=datetime.utcnow(),
+        evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         kind=ResultKind.POLICY,
         reason="allowed",
     )
@@ -39,7 +39,7 @@ def test_adapt_security_decision():
         outcome=DecisionOutcome.DENY,
         reason="deny",
         policy_version="OLD_VERSION",
-        evaluated_at=datetime.utcnow(),
+        evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         obligations={"x": 1},
         evidence_hash="abc123",
     )

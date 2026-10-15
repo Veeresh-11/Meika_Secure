@@ -1,6 +1,6 @@
 # app/security/grants/validator.py
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.security.context import SecurityContext
 from app.security.errors import (
@@ -58,7 +58,7 @@ class GrantValidator:
             )
 
         # Expiry enforcement
-        if grant.expires_at <= datetime.utcnow():
+        if grant.expires_at <= datetime.now(timezone.utc).replace(tzinfo=None):
             raise SecurityPipelineError(
                 DenyReason.EXPIRED_GRANT,
                 FailureClass.GRANT,

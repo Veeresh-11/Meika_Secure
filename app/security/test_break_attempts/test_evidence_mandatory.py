@@ -5,7 +5,7 @@ pytestmark = [
     pytest.mark.track_b,
 ]
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.security.pipeline import SecurityPipeline
 from app.security.context import SecurityContext
@@ -20,7 +20,7 @@ def test_deny_without_evidence_is_forbidden():
             outcome=DecisionOutcome.DENY,
             reason="test",
             policy_version="x",
-            evaluated_at=datetime.utcnow(),
+            evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
             obligations=None,
         )
 
@@ -34,7 +34,7 @@ def test_deny_without_evidence_is_forbidden():
         device_id=None,
         device=None,
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
     )
 

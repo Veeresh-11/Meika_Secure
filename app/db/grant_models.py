@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 
 from sqlalchemy import (
@@ -35,6 +35,7 @@ class Grant(Base):
         Index("ix_grants_device_id", "device_id"),
         Index("ix_grants_session_id", "session_id"),
         Index("ix_grants_jwt_id", "jwt_id"),
+        Index("ix_grants_tenant_id", "tenant_id"),
         {"schema": "identity"}
     )
 
@@ -51,6 +52,12 @@ class Grant(Base):
     user_id = Column(
         UUID(as_uuid=True),
         ForeignKey("identity.users.id"),
+        nullable=False,
+    )
+
+    tenant_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("identity.organizations.id"),
         nullable=False,
     )
 
@@ -133,19 +140,19 @@ class Grant(Base):
     created_at = Column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     issued_at = Column(
         DateTime,
         nullable=False,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     expires_at = Column(
         DateTime,
         nullable=False,
-        default=lambda: datetime.utcnow() + timedelta(hours=1),
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=1),
     )
 
     last_used_at = Column(

@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
-from app.db.models import Credential
+from app.db.models import Credential, User
 from app.security.password import hash_password, verify_password
-from datetime import datetime
+from datetime import datetime, timezone
 from app.db.webauthn_models import WebAuthnCredential
 
 class CredentialService:
@@ -39,8 +39,13 @@ class CredentialService:
         attestation_type: str,
     ) -> WebAuthnCredential:
 
+        user = db.query(User).filter(User.id == user_id).first()
+        if user is None:
+            raise ValueError("Cannot create a WebAuthn credential for an unknown user")
+
         credential = WebAuthnCredential(
         user_id=user_id,
+        tenant_id=user.tenant_id,
         credential_id=credential_id,
         device_id=device_id,
         public_key=public_key,
@@ -57,18 +62,23 @@ class CredentialService:
     
     @staticmethod
     def get_webauthn_credential(
-      db: Session,
-      credential_id: str,
+        db: Session,
+        *,
+        credential_id: str,
+        user_id,
+        tenant_id,
     ) -> WebAuthnCredential | None:
-
-     return (
-        db.query(WebAuthnCredential)
-        .filter(
-            WebAuthnCredential.credential_id == credential_id,
-            WebAuthnCredential.revoked.is_(False),
+        """Fetch an active credential only within its owning user and tenant."""
+        return (
+            db.query(WebAuthnCredential)
+            .filter(
+                WebAuthnCredential.credential_id == credential_id,
+                WebAuthnCredential.user_id == user_id,
+                WebAuthnCredential.tenant_id == tenant_id,
+                WebAuthnCredential.revoked.is_(False),
+            )
+            .first()
         )
-        .first()
-       )
 
     @staticmethod
     def verify_password_credential(
@@ -90,7 +100,7 @@ class CredentialService:
             return False
 
         if verify_password(credential.secret_ref, password):
-            credential.last_used_at = datetime.utcnow()
+            credential.last_used_at = datetime.now(timezone.utc).replace(tzinfo=None)
             db.commit()
             return True
 
@@ -116,7 +126,7 @@ class CredentialService:
         credential: WebAuthnCredential,
     ) -> WebAuthnCredential:
 
-        credential.last_used_at = datetime.utcnow()
+        credential.last_used_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         db.commit()
         db.refresh(credential)

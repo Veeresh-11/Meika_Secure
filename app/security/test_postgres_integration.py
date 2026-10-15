@@ -1,6 +1,6 @@
 import os
 import pytest
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 psycopg2 = pytest.importorskip("psycopg2")
@@ -42,7 +42,7 @@ def test_postgres_append_only_integrity():
         device_id=None,
         device=None,
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
         grant=None,
     )
@@ -55,7 +55,7 @@ def test_postgres_append_only_integrity():
             outcome=DecisionOutcome.ALLOW,
             reason="ok",
             policy_version="test",
-            evaluated_at=datetime.utcnow(),
+            evaluated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
 
         record = build_evidence_record(
@@ -86,7 +86,7 @@ def test_postgres_append_only_integrity():
 
     with pytest.raises(Exception):
         cur.execute(
-            "UPDATE evidence_ledger SET payload_hash='x' WHERE sequence_number=0"
+            "UPDATE identity.evidence_ledger SET payload_hash='x' WHERE sequence_number=0"
         )
         conn.commit()
 
@@ -96,7 +96,7 @@ def test_postgres_append_only_integrity():
     # DELETE should fail
     # -------------------------------------------------
     with pytest.raises(Exception):
-        cur.execute("DELETE FROM evidence_ledger WHERE sequence_number=0")
+        cur.execute("DELETE FROM identity.evidence_ledger WHERE sequence_number=0")
         conn.commit()
 
     conn.rollback()
@@ -109,7 +109,7 @@ def test_postgres_append_only_integrity():
     with pytest.raises(Exception):
         cur.execute(
             """
-            INSERT INTO evidence_ledger
+            INSERT INTO identity.evidence_ledger
             (sequence_number, previous_hash, payload_hash, record_hash)
             VALUES (%s, %s, %s, %s)
             """,
@@ -122,4 +122,7 @@ def test_postgres_append_only_integrity():
         )
         conn.commit()
 
+    cur.close()
     conn.close()
+    new_store.close()
+    store.close()

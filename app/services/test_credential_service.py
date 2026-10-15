@@ -120,6 +120,8 @@ def test_get_webauthn_credential():
     result = CredentialService.get_webauthn_credential(
         db=db,
         credential_id="credential-123",
+        user_id="user-123",
+        tenant_id="tenant-123",
     )
 
     assert result == credential
@@ -187,6 +189,8 @@ def test_get_webauthn_credential_not_found():
     result = CredentialService.get_webauthn_credential(
         db=db,
         credential_id="missing",
+        user_id="user-123",
+        tenant_id="tenant-123",
     )
 
     assert result is None
@@ -200,6 +204,8 @@ def test_get_webauthn_credential_revoked():
     result = CredentialService.get_webauthn_credential(
         db=db,
         credential_id="revoked",
+        user_id="user-123",
+        tenant_id="tenant-123",
     )
 
     assert result is None

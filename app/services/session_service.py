@@ -1,8 +1,8 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session as DBSession
 
-from app.db.models import Session
+from app.db.models import Session, User
 
 
 class SessionService:
@@ -25,10 +25,15 @@ class SessionService:
         expires_at=None,
     ) -> Session:
 
-        now = datetime.utcnow()
+        user = db.query(User).filter(User.id == user_id).first()
+        if user is None:
+            raise ValueError("Cannot create a session for an unknown user")
+
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         session = Session(
             user_id=user_id,
+            tenant_id=user.tenant_id,
             device_id=device_id,
             issued_at=now,
             expires_at=expires_at
@@ -67,7 +72,7 @@ class SessionService:
         if session.revoked:
             raise ValueError("Session revoked")
 
-        if session.expires_at <= datetime.utcnow():
+        if session.expires_at <= datetime.now(timezone.utc).replace(tzinfo=None):
             raise ValueError("Session expired")
 
     @staticmethod
@@ -77,7 +82,7 @@ class SessionService:
         session: Session,
     ) -> Session:
 
-        session.last_seen = datetime.utcnow()
+        session.last_seen = datetime.now(timezone.utc).replace(tzinfo=None)
 
         db.commit()
         db.refresh(session)
@@ -129,7 +134,7 @@ class SessionService:
         expired = (
             db.query(Session)
             .filter(
-                Session.expires_at < datetime.utcnow(),
+                Session.expires_at < datetime.now(timezone.utc).replace(tzinfo=None),
                 Session.revoked.is_(False),
             )
             .all()

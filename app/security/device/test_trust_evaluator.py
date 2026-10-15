@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.db.device_models import Device
 
@@ -38,10 +38,10 @@ def make_device(
         attestation_verified=attestation_verified,
         trust_level="LOW",
         state=state,
-        registered_at=datetime.utcnow(),
-        last_seen=datetime.utcnow(),
-        created_at=datetime.utcnow(),
-        updated_at=datetime.utcnow(),
+        registered_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        last_seen=datetime.now(timezone.utc).replace(tzinfo=None),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        updated_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
 

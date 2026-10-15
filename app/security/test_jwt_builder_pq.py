@@ -9,7 +9,7 @@ import pytest
 import os
 import json
 import base64
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch, MagicMock
 from app.security.federation.jwt_builder import DeterministicJWTBuilder
 from app.security.federation.pq_signer import PostQuantumSigner, SigningAlgorithm
@@ -41,7 +41,7 @@ class TestJWTBuilderBasics:
     
     def test_build_creates_valid_jwt(self, jwt_builder):
         """Test: build() creates a valid JWT structure."""
-        issued_at_time = datetime.utcnow()
+        issued_at_time = datetime.now(timezone.utc).replace(tzinfo=None)
         token = jwt_builder.build(
             signing_key="test-key",
             principal_id="user@example.com",
@@ -64,7 +64,7 @@ class TestJWTBuilderBasics:
     
     def test_jwt_header_has_required_fields(self, jwt_builder):
         """Test: JWT header includes required fields."""
-        issued_at_time = datetime.utcnow()
+        issued_at_time = datetime.now(timezone.utc).replace(tzinfo=None)
         token = jwt_builder.build(
             signing_key="test-key",
             principal_id="user@example.com",
@@ -86,7 +86,7 @@ class TestJWTBuilderBasics:
     
     def test_jwt_payload_includes_required_claims(self, jwt_builder):
         """Test: JWT payload includes all required security claims."""
-        issued_at_time = datetime.utcnow()
+        issued_at_time = datetime.now(timezone.utc).replace(tzinfo=None)
         token = jwt_builder.build(
             signing_key="test-key",
             principal_id="user@example.com",
@@ -127,7 +127,7 @@ class TestPQAlgorithmIntegration:
     
     def test_jwt_respects_pq_signer_algorithm(self, jwt_builder):
         """Test: JWT uses the algorithm from the PQ signer."""
-        issued_at_time = datetime.utcnow()
+        issued_at_time = datetime.now(timezone.utc).replace(tzinfo=None)
         token = jwt_builder.build(
             signing_key="test-key",
             principal_id="user@example.com",
@@ -148,15 +148,14 @@ class TestPQAlgorithmIntegration:
         # The algorithm name in header depends on PQ signer configuration
         assert header["alg"] in ["RS256", "DILITHIUM-3", "EdDSA"]
     
-    @pytest.mark.skip(reason="Mock JWT builder signature test - complex mock interactions")
-    @patch('app.security.federation.jwt_builder.PostQuantumSigner')
-    def test_jwt_calls_pq_signer_for_signature(self, mock_signer_class):
-        """Test: JWT builder calls PQ signer to create signature."""
+    def test_jwt_calls_pq_signer_for_signature(self):
+        """Test that the injected PQ signer produces the JWT signature."""
         mock_signer = MagicMock()
+        mock_signer.algorithm = "RS256"
         mock_signer.sign.return_value = "mock-signature-base64url"
-        
+
         builder = DeterministicJWTBuilder(pq_signer=mock_signer)
-        issued_at_time = datetime.utcnow()
+        issued_at_time = datetime.now(timezone.utc).replace(tzinfo=None)
         
         token = builder.build(
             signing_key="test-key",
@@ -183,7 +182,7 @@ class TestForceAlgorithmParameter:
     
     def test_build_accepts_force_algorithm(self, jwt_builder):
         """Test: build() accepts force_algorithm parameter."""
-        issued_at_time = datetime.utcnow()
+        issued_at_time = datetime.now(timezone.utc).replace(tzinfo=None)
         # Should not raise an exception
         token = jwt_builder.build(
             signing_key="test-key",
@@ -208,7 +207,7 @@ class TestForceAlgorithmParameter:
         mock_signer.sign.return_value = "mock-signature"
         
         builder = DeterministicJWTBuilder(pq_signer=mock_signer)
-        issued_at_time = datetime.utcnow()
+        issued_at_time = datetime.now(timezone.utc).replace(tzinfo=None)
         
         builder.build(
             signing_key="test-key",
@@ -297,7 +296,7 @@ class TestJWTIssuer:
     
     def test_jwt_issuer_is_kernel_version(self, jwt_builder):
         """Test: JWT issuer is set to kernel identifier."""
-        issued_at_time = datetime.utcnow()
+        issued_at_time = datetime.now(timezone.utc).replace(tzinfo=None)
         token = jwt_builder.build(
             signing_key="test-key",
             principal_id="user@example.com",
@@ -323,7 +322,7 @@ class TestJWTKernelMetadata:
     
     def test_jwt_includes_kernel_metadata(self, jwt_builder):
         """Test: JWT includes kernel version and build hash."""
-        issued_at_time = datetime.utcnow()
+        issued_at_time = datetime.now(timezone.utc).replace(tzinfo=None)
         token = jwt_builder.build(
             signing_key="test-key",
             principal_id="user@example.com",

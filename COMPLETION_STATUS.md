@@ -570,3 +570,48 @@ git checkout -b sprint-2-webauthn-db
 
 **COMPLETION DATE**: December 2024  
 **STATUS**: ✅ ALL DELIVERABLES COMPLETE AND VALIDATED
+
+---
+
+# CURRENT WORKING PLAN — 13 OCTOBER 2026
+
+This section supersedes any older statement that CI or production readiness is complete. Do not merge PR #1 until the acceptance criteria below are verified on the latest commit.
+
+## Current verified CI position
+
+- PR Security Gate: latest observed run passed. Its workflow is intentionally unchanged during this cleanup.
+- Deep Security Scan: API startup, database bootstrap steps, Red Team Suite, OWASP ZAP, Nuclei, API fuzzing, dependency audit, OSV-Scanner, Bandit, adversarial invariant tests, Trivy config scan, SBOM generation, and the deep security summary completed in the latest observed run.
+- Latest observed Deep Security Scan failure: SonarQube scanner could not query `/api/v2/analysis/version`. This is an external service/reachability/configuration failure, not an API startup failure.
+- The API signing-key issue was corrected by generating a fresh ephemeral Ed25519 key and passing that generated key explicitly to the API startup step. Latest observed run showed API startup and Red Team Suite passing.
+- A Schemathesis schema-validation warning remains to investigate: one operation mostly rejected generated inputs. Do not suppress it without determining whether the OpenAPI contract or runtime validation is incorrect.
+- Security tools marked `continue-on-error` must not be treated as proof of a clean scan. Review their reports and distinguish findings, scanner failures, and optional external-service availability.
+
+## Active work queue
+
+### P0 — Deep-scan workflow reliability
+- [x] Keep PR Security Gate unchanged during this work.
+- [x] Generate and explicitly pass an ephemeral, valid Ed25519 key to API startup.
+- [x] Upgrade the Deep Scan checkout action to a Node.js 24-compatible release.
+- [x] Add a SonarQube preflight. Run the scanner only when both secrets are configured and the server reports `UP`; otherwise record an explicit notice that SonarQube was skipped, not passed.
+- [ ] Verify the new Deep Security Scan run reaches a terminal state on the current commit.
+- [ ] If SonarQube is skipped, fix the external host/server configuration separately before claiming Sonar analysis is complete.
+- [ ] Investigate and correct the Schemathesis schema mismatch; retain the fuzzing result as an artifact.
+- [ ] Review OSV-Scanner output/exit status and ensure a valid report is always generated when the scanner executes.
+- [ ] Review ZAP, Nuclei, Trivy, pip-audit, and Bandit reports; remove broad error swallowing only after the scanner behavior is understood, and make high/critical findings block the gate.
+
+### P1 — Warning cleanup
+- [ ] Eliminate project-caused Python deprecation warnings and keep warning-as-error checks enabled where compatible.
+- [ ] Remove PostgreSQL transaction-control warnings by fixing migration transaction ownership; preserve per-migration rollback and commit semantics.
+- [ ] Resolve Redis configuration noise and remaining Node/action deprecation notices where repository-controlled.
+- [ ] Do not globally suppress warnings or mark skipped/unavailable scans as passed.
+
+### P1 — DB-011 and DB-012
+- [ ] Confirm clean PostgreSQL 16 bootstrap and exact ordered migration history 000–017 on the latest commit.
+- [ ] Confirm failed migrations roll back and are not recorded; earlier committed migrations remain intact.
+- [ ] Confirm bootstrap exits nonzero and skips schema validation after migration failure.
+- [ ] Confirm successful migrations are recorded and committed.
+- [ ] Do not modify `scripts/apply_migrations.py` or merge PR #1 without explicit approval.
+
+## Completion rule
+
+A green workflow alone is insufficient. Mark this work complete only when the latest Deep Security Scan has no unexplained job failures, the reports have been reviewed, the Schemathesis warning has a documented resolution, and DB-011/DB-012 acceptance evidence is recorded. Any unavailable external SonarQube service must be labeled **skipped/unverified**, never as a successful analysis.

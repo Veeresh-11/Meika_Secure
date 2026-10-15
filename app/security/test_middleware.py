@@ -6,7 +6,7 @@ from app.security.middleware import security_middleware
 from app.security.errors import SecurityError
 
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.security.device.context import (
     DeviceContext,
@@ -44,7 +44,7 @@ def FakeDeviceContext():
         binding_valid=True,
         clone_confirmed=False,
         replay_detected=False,
-        last_attested_at=datetime.utcnow(),
+        last_attested_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     posture = DevicePostureContext(

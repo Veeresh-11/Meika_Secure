@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     
     
     signing_private_key: str = Field(..., alias="SIGNING_PRIVATE_KEY")
+    jwt_secret_key: str = Field(..., min_length=32, alias="JWT_SECRET_KEY")
 
     model_config = SettingsConfigDict(
         env_file=".env",

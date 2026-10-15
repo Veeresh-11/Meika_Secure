@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.security.policy.engine import PolicyEngine
 
@@ -9,7 +9,7 @@ def make_ctx():
         principal_id="alice",
         authenticated=True,
         intent="read",
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={},
         device=None,
     )
@@ -167,7 +167,7 @@ def test_mfa_age_valid():
     ctx = make_ctx()
 
     ctx.device = SimpleNamespace(
-        last_mfa_at=datetime.utcnow() - timedelta(hours=2)
+        last_mfa_at=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=2)
     )
 
     condition = {

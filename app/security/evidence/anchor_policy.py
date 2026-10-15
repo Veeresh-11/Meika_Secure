@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 class AnchorPolicy:
@@ -27,7 +27,7 @@ class TimeAnchorPolicy:
         if self.last_anchor_time is None:
             return True
 
-        return datetime.utcnow() - self.last_anchor_time >= self.interval
+        return datetime.now(timezone.utc).replace(tzinfo=None) - self.last_anchor_time >= self.interval
 
     def mark_anchored(self):
-        self.last_anchor_time = datetime.utcnow()
+        self.last_anchor_time = datetime.now(timezone.utc).replace(tzinfo=None)

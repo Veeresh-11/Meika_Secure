@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 
 from sqlalchemy import (
@@ -8,6 +8,7 @@ from sqlalchemy import (
     DateTime,
     Integer,
     ForeignKey,
+    Index,
 )
 from sqlalchemy.dialects.postgresql import UUID
 
@@ -16,7 +17,10 @@ from app.db.models import Base
 
 class WebAuthnChallenge(Base):
     __tablename__ = "webauthn_challenges"
-    __table_args__ = {"schema": "identity"}
+    __table_args__ = (
+        Index("ix_webauthn_challenges_tenant_id", "tenant_id"),
+        {"schema": "identity"},
+    )
 
     id = Column(
         UUID(as_uuid=True),
@@ -27,6 +31,12 @@ class WebAuthnChallenge(Base):
     user_id = Column(
         UUID(as_uuid=True),
         ForeignKey("identity.users.id"),
+        nullable=False,
+    )
+
+    tenant_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("identity.organizations.id"),
         nullable=False,
     )
 
@@ -49,18 +59,21 @@ class WebAuthnChallenge(Base):
 
     created_at = Column(
         DateTime,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     expires_at = Column(
         DateTime,
-        default=lambda: datetime.utcnow() + timedelta(minutes=5),
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=5),
     )
 
 
 class WebAuthnCredential(Base):
     __tablename__ = "webauthn_credentials"
-    __table_args__ = {"schema": "identity"}
+    __table_args__ = (
+        Index("ix_webauthn_credentials_tenant_id", "tenant_id"),
+        {"schema": "identity"},
+    )
 
     id = Column(
         UUID(as_uuid=True),
@@ -71,6 +84,12 @@ class WebAuthnCredential(Base):
     user_id = Column(
         UUID(as_uuid=True),
         ForeignKey("identity.users.id"),
+        nullable=False,
+    )
+
+    tenant_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("identity.organizations.id"),
         nullable=False,
     )
 
@@ -119,10 +138,10 @@ class WebAuthnCredential(Base):
 
     created_at = Column(
         DateTime,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     last_used_at = Column(
         DateTime,
-        default=datetime.utcnow,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
     )

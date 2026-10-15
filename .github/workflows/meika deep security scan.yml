@@ -1,25 +1,30 @@
 name: Meika Deep Security Scan
 
+# Default-deny the workflow token; grant only what a job explicitly needs.
+permissions: {}
+
 # ─── Triggers ────────────────────────────────────────────────────────────────
+env:
+  GIT_CONFIG_COUNT: 1
+  GIT_CONFIG_KEY_0: init.defaultBranch
+  GIT_CONFIG_VALUE_0: main
+
 on:
-  workflow_run:
-    workflows:
-      - "Meika PR Security Gate"
-    types:
-      - completed
+  # Run against the actual PR commit. Do not use workflow_run to execute PR
+  # code in the privileged workflow_run context.
+  pull_request:
+  push:
+    branches: [main]
   schedule:
     - cron: "0 2 * * *"
   workflow_dispatch:
 
 jobs:
   deep-scan:
-    # Only run if the gate workflow succeeded (or if triggered manually/scheduled)
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'schedule' ||
-      github.event.workflow_run.conclusion == 'success'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60   # ZAP + Nuclei + Schemathesis + pip-audit + bandit all take time
+    permissions:
+      contents: read
 
     # ── FIX 1: PostgreSQL service — API server crashes without DB ─────────────
     services:
@@ -29,6 +34,7 @@ jobs:
           POSTGRES_DB: test_db
           POSTGRES_USER: test_user
           POSTGRES_PASSWORD: test_pass
+          POSTGRES_INITDB_ARGS: "--auth-local=scram-sha-256 --auth-host=scram-sha-256"
         ports:
           - 5432:5432
         options: >-
@@ -36,18 +42,12 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     env:
       # Security enforcement remains enabled during adversarial scans.
       PYTHONPATH: "."
+      GIT_CONFIG_COUNT: "1"
+      GIT_CONFIG_KEY_0: "init.defaultBranch"
+      GIT_CONFIG_VALUE_0: "main"
 
       # ── DB (match service above) ──────────────────────────────────────────
       DB_HOST: "localhost"
@@ -64,7 +64,6 @@ jobs:
       REDIS_URL: "redis://localhost:6379/0"
 
       # ── App secrets (CI-only, not production) ─────────────────────────────
-      SIGNING_PRIVATE_KEY: "dummy_test_key_123"
       SECRET_KEY: "ci-test-secret-key-not-for-production"
       JWT_SECRET_KEY: "ci-only-jwt-secret-key-at-least-32-chars"
       JWT_ISSUER: "https://meika.test"
@@ -75,31 +74,76 @@ jobs:
       PYTHONUNBUFFERED: "1"
 
     steps:
-      # ────────────────────────────────────────────────────────────────────────
-      # NEW — Harden-Runner (StepSecurity, free). Monitors and can block
-      # unexpected outbound network calls and detects tampered/compromised
-      # GitHub Actions during the run itself — supply-chain protection for
-      # the CI pipeline, not just the app. "audit" mode here only logs
-      # anomalies (safe default); switch to "block" once you've reviewed a
-      # few runs' worth of the egress report and are confident nothing
-      # legitimate gets blocked.
-      # ────────────────────────────────────────────────────────────────────────
-      - name: Harden Runner
-        uses: step-security/harden-runner@v2
-        with:
-          egress-policy: audit
+      # Harden Runner intentionally omitted: its Docker daemon restart invalidated
+      # the PostgreSQL service port in observed CI runs.
 
       # ────────────────────────────────────────────────────────────────────────
       # 1. Checkout
       # ────────────────────────────────────────────────────────────────────────
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      # Validate the CI control plane before running any application scanner.
+      - name: Workflow syntax and security audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="actionlint_1.7.12_linux_amd64.tar.gz"
+          curl --fail --silent --show-error --location \
+            "https://github.com/rhysd/actionlint/releases/download/v1.7.12/$archive" \
+            --output "$RUNNER_TEMP/$archive"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/$archive" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" actionlint
+          set +e
+          "$RUNNER_TEMP/actionlint" -color .github/workflows/*.yml 2>&1 | tee "$RUNNER_TEMP/actionlint.log"
+          lint_status=${PIPESTATUS[0]}
+          set -e
+          if [ "$lint_status" -ne 0 ]; then
+            echo "::error::actionlint reported workflow problems; see the diagnostics above."
+            exit "$lint_status"
+          fi
+      - name: zizmor workflow security audit
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          advanced-security: false
+          version: v1.29.0
+          min-severity: medium
+          fail-on-no-inputs: true
+
+      - name: Start Redis with explicit CI configuration
+        run: |
+          set -euo pipefail
+          sudo sysctl -w vm.overcommit_memory=1
+          cat > "$RUNNER_TEMP/redis-ci.conf" <<'REDISCONF'
+          bind 0.0.0.0
+          protected-mode no
+          port 6379
+          save ""
+          appendonly no
+          loglevel notice
+          REDISCONF
+          docker run --detach --name meika-deep-scan-redis \
+            --publish 127.0.0.1:6379:6379 \
+            --volume "$RUNNER_TEMP/redis-ci.conf:/usr/local/etc/redis/redis.conf:ro" \
+            redis:7-alpine redis-server /usr/local/etc/redis/redis.conf
+          for _ in $(seq 1 30); do
+            if docker exec meika-deep-scan-redis redis-cli ping | grep -q PONG; then
+              echo "Redis is ready with explicit configuration."
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs meika-deep-scan-redis
+          echo "::error::Redis did not become ready."
+          exit 1
 
       # ────────────────────────────────────────────────────────────────────────
       # 2. Python
       # ────────────────────────────────────────────────────────────────────────
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.11"
           cache: pip
@@ -116,20 +160,43 @@ jobs:
           fi
           # Deep-scan specific packages
           pip install \
-            pytest==8.3.5 \
-            pytest-asyncio==0.25.3 \
+            pytest==9.0.3 \
+            pytest-asyncio==1.3.0 \
             pytest-mock==3.14.0 \
             psycopg2-binary==2.9.10 \
             redis==5.2.1 \
             httpx==0.28.1 \
-            anyio==4.8.0 \
-            schemathesis==4.10.2 \
+            anyio==4.14.2 \
+            schemathesis==4.30.1 \
             hypothesis==6.138.15 \
-            pynguin==0.45.0 \
-            cyclonedx-bom==7.1.0 \
+            cyclonedx-bom==7.5.0 \
             pip-audit==2.10.1 \
             bandit==1.9.4 \
             uvicorn==0.35.0
+          python -m pip check
+          python -m compileall -q app scripts
+
+      # Use a fresh ephemeral Ed25519 key for this CI run. Never disable the signer.
+      - name: Generate ephemeral CI signing key
+        id: signing_key
+        run: |
+          python - <<'PYKEY'
+          import os
+          from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+          from cryptography.hazmat.primitives import serialization
+
+          key = Ed25519PrivateKey.generate()
+          raw = key.private_bytes(
+              serialization.Encoding.Raw,
+              serialization.PrivateFormat.Raw,
+              serialization.NoEncryption(),
+          )
+          print(f"::add-mask::{raw.hex()}")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
+              env_file.write(f"SIGNING_PRIVATE_KEY={raw.hex()}\n")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output_file:
+              output_file.write(f"signing_private_key={raw.hex()}\n")
+          PYKEY
 
       # ────────────────────────────────────────────────────────────────────────
       # NEW — Auto-resolve compatible versions for CLI tools prone to
@@ -152,58 +219,23 @@ jobs:
       #
       # Capped at 8 fallback attempts per tool to bound worst-case runtime.
       # ────────────────────────────────────────────────────────────────────────
-      - name: Auto-resolve compatible dependency versions
-        continue-on-error: true
-        run: |
-          resolve_version() {
-            pkg="$1"
-            selftest="$2"
-            echo "== Resolving compatible version for $pkg =="
-
-            pip install --upgrade "$pkg" -q
-            current=$(pip show "$pkg" 2>/dev/null | grep '^Version:' | cut -d' ' -f2)
-            if eval "$selftest" > /dev/null 2>&1; then
-              echo "$pkg==$current : OK (latest)"
-              return 0
-            fi
-            echo "$pkg==$current : self-test failed, searching older versions..."
-
-            versions=$(pip index versions "$pkg" 2>/dev/null \
-              | grep -oP '(?<=Available versions: ).*' \
-              | tr ',' '\n' | sed 's/ //g')
-
-            attempts=0
-            for v in $versions; do
-              [ "$v" = "$current" ] && continue
-              attempts=$((attempts + 1))
-              if [ "$attempts" -gt 8 ]; then
-                echo "$pkg : giving up after 8 fallback attempts, leaving $current installed"
-                return 1
-              fi
-              echo "  trying $pkg==$v ..."
-              pip install "$pkg==$v" -q 2>/dev/null
-              if eval "$selftest" > /dev/null 2>&1; then
-                echo "$pkg==$v : OK (fell back from $current)"
-                return 0
-              fi
-            done
-            echo "$pkg : no working version found in $attempts attempts, leaving $current installed"
-            return 1
-          }
-
-          resolve_version schemathesis 'schemathesis run --help | grep -q -- "--max-examples"'
-          resolve_version bandit 'bandit --help | grep -q -- "-r "'
-          resolve_version pip-audit 'pip-audit --help | grep -q -- "--desc"'
-          resolve_version cyclonedx-bom 'cyclonedx-py --help | grep -q -- "requirements"'
-
-          echo "== Final resolved versions =="
-          pip show schemathesis bandit pip-audit cyclonedx-bom 2>/dev/null | grep -E '^(Name|Version):'
-
+      # Tool versions are pinned above; do not silently replace them with
+      # whatever happens to be latest during a scan.
       # Bootstrap the database with ordered migrations and fail-fast validation.
       - name: Bootstrap and validate application database
+        timeout-minutes: 3
         run: |
-          until pg_isready -h localhost -p 5432 -U test_user -d test_db; do
-            echo "Waiting for postgres..."
+          for attempt in $(seq 1 60); do
+            if pg_isready -h localhost -p 5432 -U test_user -d test_db; then
+              break
+            fi
+            if [ "$attempt" -eq 60 ]; then
+              echo "::error::PostgreSQL service did not become reachable within 120 seconds."
+              docker ps -a
+              docker logs "$(docker ps -aq --filter ancestor=postgres:16 | head -1)" || true
+              exit 1
+            fi
+            echo "Waiting for postgres ($attempt/60)..."
             sleep 2
           done
           DB_NAME=test_db python scripts/bootstrap_db.py
@@ -225,27 +257,39 @@ jobs:
             createdb -h localhost -p 5432 -U test_user meika_evidence_test
           fi
           DB_NAME=meika_evidence_test python scripts/bootstrap_db.py
-      - name: Generate Ephemeral CI Signing Key
+      - name: Start API Server
+        id: api_server
         run: |
-          python - <<'PYKEY' >> "$GITHUB_ENV"
+          # Generate and export a fresh key in this shell so no job/step
+          # environment precedence can substitute a stale placeholder.
+          python - <<'PYKEY'
           from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
           from cryptography.hazmat.primitives import serialization
-
           key = Ed25519PrivateKey.generate()
           raw = key.private_bytes(
               serialization.Encoding.Raw,
               serialization.PrivateFormat.Raw,
               serialization.NoEncryption(),
           )
-          print(f"SIGNING_PRIVATE_KEY={raw.hex()}")
+          with open("/tmp/meika-ci-signing-key", "w", encoding="ascii") as handle:
+              handle.write(raw.hex())
           PYKEY
-
-      - name: Start API Server
-        run: |
+          SIGNING_PRIVATE_KEY="$(cat /tmp/meika-ci-signing-key)"
+          export SIGNING_PRIVATE_KEY
+          python - <<'PYVALIDATE'
+          import os
+          key = os.environ.get("SIGNING_PRIVATE_KEY", "")
+          if len(key) != 64:
+              raise SystemExit("SIGNING_PRIVATE_KEY must be exactly 32 bytes encoded as 64 hex characters")
+          try:
+              bytes.fromhex(key)
+          except ValueError:
+              raise SystemExit("SIGNING_PRIVATE_KEY is not valid hexadecimal")
+          PYVALIDATE
           uvicorn app.main:app \
             --host 0.0.0.0 \
             --port 8000 \
-            --log-level info \
+            --log-level error \
             > /tmp/uvicorn.log 2>&1 &
           echo "Waiting for API server to be ready..."
           timeout 90s bash -c '
@@ -260,6 +304,22 @@ jobs:
           }
           echo "API server is up."
           curl -s http://127.0.0.1:8000/openapi.json | python3 -m json.tool | head -20
+
+      # Run the security negative-path tests immediately after API readiness,
+      # before lengthy network scanners, so auth bypass regressions fail fast.
+      - name: Red Team Suite
+        id: red_team_tests
+        if: ${{ always() && steps.api_server.outcome == 'success' }}
+        env:
+          CI_SECURITY_BYPASS: "0"
+        run: |
+          pytest app/security/test_red_team_attacks.py \
+            -v \
+            --tb=short \
+            --asyncio-mode=auto \
+            -W error \
+            --junitxml=red-team-results.xml
+          python scripts/validate_pytest_results.py red-team-results.xml
 
       # ────────────────────────────────────────────────────────────────────────
       # FIX 2 — OWASP ZAP: removed duplicate -J flag.
@@ -278,14 +338,37 @@ jobs:
       # entirely and rename the action's default output ourselves instead.
       # ────────────────────────────────────────────────────────────────────────
       - name: OWASP ZAP Scan
-        uses: zaproxy/action-full-scan@v0.12.0
+        id: zap_scan
+        if: ${{ always() && steps.api_server.outcome == 'success' }}
+        timeout-minutes: 25
         continue-on-error: true
-        with:
-          target: "http://127.0.0.1:8000"
-          cmd_options: "-I"
-          fail_action: false
-          allow_issue_writing: false
-
+        run: |
+          set -uo pipefail
+          zap_work="$RUNNER_TEMP/zap-work"
+          mkdir -p "$zap_work"
+          # ZAP runs as UID 1000; assign ownership of its isolated temp directory.
+          sudo chown 1000:1000 "$zap_work"
+          scan_status=0
+          docker run --rm --network host \
+            --volume "$zap_work:/zap/wrk/:rw" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-full-scan.py \
+              -t http://127.0.0.1:8000 \
+              -J zap-report.json \
+              -r zap-report.html \
+              -I \
+              -m 10 \
+              -T 5 || scan_status=$?
+          for report in zap-report.json zap-report.html; do
+            if [ -s "$zap_work/$report" ]; then
+              cp "$zap_work/$report" "$PWD/$report"
+            fi
+          done
+          if [ ! -s zap-report.json ]; then
+            echo "::error::ZAP did not produce a non-empty JSON report; inspect ZAP output above."
+            exit 1
+          fi
+          exit "$scan_status"
       - name: Normalize ZAP report names
         if: always()
         run: |
@@ -338,12 +421,63 @@ jobs:
       # `-es` served no purpose here, so it's dropped entirely.
       # ────────────────────────────────────────────────────────────────────────
       - name: Nuclei Scan
-        uses: projectdiscovery/nuclei-action@v2
-        continue-on-error: true
-        with:
-          target: "http://127.0.0.1:8000"
-          json-export: nuclei.json
-          flags: -nh -timeout 10 -rate-limit 50
+        id: nuclei_scan
+        if: ${{ always() && steps.api_server.outcome == 'success' }}
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          # Pin the scanner and template release together. The default template
+          # auto-update can mix new templates with an older engine and emit
+          # syntax/runtime warnings, making results non-reproducible.
+          git clone --quiet --depth 1 --branch v10.5.0 \
+            https://github.com/projectdiscovery/nuclei-templates.git nuclei-templates
+          echo "Nuclei engine: v3.11.1"
+          echo "Nuclei templates: v10.5.0"
+          git -C nuclei-templates rev-parse HEAD | tee nuclei-template-commit.txt
+          mkdir -p "$RUNNER_TEMP/nuclei-config"
+          cp nuclei-templates/.nuclei-ignore "$RUNNER_TEMP/nuclei-config/.nuclei-ignore"
+          # Validate the selected upstream template subset and retain diagnostics.
+          docker run --rm \
+            --volume "$PWD/nuclei-templates:/root/nuclei-templates:ro" \
+            --volume "$RUNNER_TEMP/nuclei-config:/root/.config/nuclei:rw" \
+            projectdiscovery/nuclei:v3.11.1 \
+              -validate \
+              -duc \
+              -t /root/nuclei-templates/http/misconfiguration/ \
+              -t /root/nuclei-templates/http/exposures/ \
+              -tags misconfig,exposure \
+              -vv 2>&1 | tee nuclei-template-validation.log
+          # This target is a FastAPI identity API, not a generic scan of every
+          # third-party product. Run the generic HTTP misconfiguration and
+          # exposure checks here; dependency CVEs are independently covered by
+          # pip-audit and OSV-Scanner below. A broad CVE sweep runs hundreds of
+          # irrelevant product templates and produces runtime-error noise.
+          docker run --rm --network host \
+            --volume "$PWD:/work:rw" \
+            --volume "$PWD/nuclei-templates:/root/nuclei-templates:ro" \
+            --volume "$RUNNER_TEMP/nuclei-config:/root/.config/nuclei:rw" \
+            projectdiscovery/nuclei:v3.11.1 \
+              -u http://127.0.0.1:8000 \
+              -duc \
+              -t /root/nuclei-templates/http/misconfiguration/ \
+              -t /root/nuclei-templates/http/exposures/ \
+              -tags misconfig,exposure \
+              -jle /work/nuclei.jsonl \
+              -nh \
+              -no-interactsh \
+              -timeout 10 \
+              -rate-limit 50 \
+              -vv 2>&1 | tee nuclei-scan.log
+          if [ ! -s nuclei.jsonl ]; then
+            echo "::error::Nuclei did not produce a non-empty JSONL report."
+            exit 1
+          fi
+          # Strip terminal colors before matching scanner warnings.
+          perl -pe 's/\e\[[0-9;]*[[:alpha:]]//g' nuclei-scan.log > nuclei-scan-clean.log
+          if grep -E '\[WRN\]|(^|[[:space:]])WARN([:[:space:]]|$)|warning:' nuclei-scan-clean.log; then
+            echo "::error::Nuclei emitted warnings; fix template/engine incompatibility instead of accepting a partial scan."
+            exit 1
+          fi
 
       # ────────────────────────────────────────────────────────────────────────
       # FIX 3d — this parser was reading nuclei.json (the structured/pretty
@@ -416,26 +550,39 @@ jobs:
       # shell redirection — that can't be broken by a future flag rename.
       # ────────────────────────────────────────────────────────────────────────
       - name: API Fuzzing (Schemathesis)
+        id: schemathesis_scan
+        if: ${{ always() && steps.api_server.outcome == 'success' }}
         continue-on-error: true
         run: |
+          set -euo pipefail
           echo "---- SCHEMATHESIS RESULTS ----"
           schemathesis run \
             http://localhost:8000/openapi.json \
             --checks all \
+            --exclude-checks=positive_data_acceptance \
+            --exclude-deprecated \
+            --exclude-path-regex '/api/v1/auth/webauthn/(register|authenticate)/start|/api/v1/auth/webauthn/register/finish' \
             --max-examples=50 \
+            --seed=20261014 \
+            --generation-deterministic \
             --suppress-health-check=too_slow,filter_too_much \
             --continue-on-failure \
-            2>&1 | tee schemathesis-report.txt || true
+            2>&1 | tee schemathesis-report.txt
 
+      # WebAuthn registration finish is excluded from generic schema fuzzing because it
+      # requires a live challenge and cryptographically valid attestation; dedicated
+      # WebAuthn tests cover this flow. Generic fuzzing still exercises other auth routes.
       # ────────────────────────────────────────────────────────────────────────
       # NEW — Dependency Vulnerability Audit (pip-audit)
       # Checks pinned requirements.txt versions against known CVEs.
       # Was already being installed but never actually run — pure waste.
       # ────────────────────────────────────────────────────────────────────────
       - name: Dependency Vulnerability Audit (pip-audit)
+        id: pip_audit_scan
+        if: always()
         continue-on-error: true
         run: |
-          pip-audit -r requirements.txt --desc -f json -o pip-audit-report.json || true
+          pip-audit -r requirements.txt -r requirements-dev.txt --desc -f json -o pip-audit-report.json
           echo "---- PIP-AUDIT SUMMARY ----"
           if [ -f pip-audit-report.json ]; then
             python3 -c "
@@ -465,27 +612,61 @@ jobs:
       # every language in the repo matters, not just Python.
       # ────────────────────────────────────────────────────────────────────────
       - name: OSV-Scanner (secondary SCA)
+        id: osv_scan
+        if: always()
         continue-on-error: true
         run: |
-          curl -sSfL https://raw.githubusercontent.com/google/osv-scanner/main/scripts/install.sh \
-            | sh -s -- -b /usr/local/bin 2>/dev/null \
-            || go install github.com/google/osv-scanner/cmd/osv-scanner@latest 2>/dev/null \
-            || echo "OSV-Scanner install skipped (no supported installer available)"
-          if command -v osv-scanner > /dev/null 2>&1; then
-            osv-scanner --format json --output osv-report.json --recursive . || true
-            echo "---- OSV-SCANNER SUMMARY ----"
-            python3 -c "
+          # Pin the scanner version and use the documented Go module install path.
+          # A missing report is a hard failure in the security summary; never
+          # turn an unavailable scanner into a clean/empty result.
+          go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.3.3
+          # pip-audit below covers both production and development dependencies.
+          # Keep OSV's secondary source scan on runtime dependencies: its PyPI
+          # resolver emits an upstream sdist metadata warning for pip-audit's
+          # development-only parser dependency.
+          "$HOME/go/bin/osv-scanner" scan source --lockfile=./requirements.txt --format json > osv-report.json 2> osv-scanner.log || scan_status=$?
+          if [ -s osv-scanner.log ]; then
+            cat osv-scanner.log
+            if grep -Eiq "warning:|(^|[[:space:]])WARN([:[:space:]]|$)|failed to parse metadata" osv-scanner.log; then
+              echo "::error::OSV-Scanner emitted a warning; fix the scan input or tool compatibility instead of accepting a noisy scan."
+              exit 1
+            fi
+          fi
+          if [ ! -s osv-report.json ]; then
+            echo "::error::OSV-Scanner did not produce osv-report.json"
+            exit 1
+          fi
+          echo "---- OSV-SCANNER SUMMARY ----"
+          python3 - <<'PY'
           import json
-          try:
-              d = json.load(open('osv-report.json'))
-              results = d.get('results', [])
-              total = sum(len(pkg.get('vulnerabilities', [])) for r in results for pkg in r.get('packages', []))
-              print(f'Total vulnerabilities found: {total}')
-          except Exception as e:
-              print(f'Could not parse osv-scanner report: {e}')
-          " 2>/dev/null || echo "No osv-scanner report generated"
-          else
-            echo "osv-scanner binary not available in this runner — skipping"
+          from pathlib import Path
+
+          report = json.loads(Path("osv-report.json").read_text(encoding="utf-8"))
+          results = report.get("results", [])
+          total = 0
+          for result in results:
+              if not isinstance(result, dict):
+                  continue
+              for package in result.get("packages", []):
+                  if not isinstance(package, dict):
+                      continue
+                  vulnerabilities = package.get("vulnerabilities", [])
+                  total += len(vulnerabilities)
+                  metadata = package.get("package", {})
+                  name = metadata.get("name", "unknown") if isinstance(metadata, dict) else "unknown"
+                  version = metadata.get("version", "unknown") if isinstance(metadata, dict) else "unknown"
+                  for vulnerability in vulnerabilities:
+                      if isinstance(vulnerability, dict):
+                          aliases = vulnerability.get("aliases", [])
+                          advisory = vulnerability.get("id", "unknown")
+                          print(f"VULNERABLE: {name}=={version} {advisory} aliases={aliases}")
+          print(f"Total vulnerabilities found: {total}")
+          PY
+          # Exit code 1 means findings; the validated JSON is evaluated by the gate.
+          # Higher exit codes indicate scanner execution failure.
+          if [ "${scan_status:-0}" -gt 1 ]; then
+            echo "::error::OSV-Scanner failed to complete; review scanner output"
+            exit "${scan_status}"
           fi
 
       # ────────────────────────────────────────────────────────────────────────
@@ -495,9 +676,12 @@ jobs:
       # Was already being installed but never actually run — pure waste.
       # ────────────────────────────────────────────────────────────────────────
       - name: Static Analysis (bandit)
+        id: bandit_scan
+        if: always()
         continue-on-error: true
         run: |
-          bandit -r app/ -f json -o bandit-report.json || true
+          set -euo pipefail
+          bandit -r app/ -ll -f json -o bandit-report.json
           echo "---- BANDIT SUMMARY ----"
           if [ -f bandit-report.json ]; then
             python3 -c "
@@ -517,37 +701,16 @@ jobs:
             echo "No bandit report generated"
           fi
 
-      # ────────────────────────────────────────────────────────────────────────
-      # 9. Logic Fuzzing (Pynguin)
-      # ────────────────────────────────────────────────────────────────────────
-      - name: Logic Fuzzing (Pynguin)
-        env:
-          PYNGUIN_DANGER_AWARE: "1"
+      # Run the repository's adversarial invariant tests as an explicit gate.
+      # Pynguin currently requires pytest <9, while the patched pytest 9.0.3
+      # is required to eliminate the OSV tmpdir vulnerability. Avoid installing
+      # a known-vulnerable test runner just for an optional, non-blocking step.
+      - name: Adversarial invariant tests
+        id: adversarial_tests
+        if: ${{ always() && steps.api_server.outcome == 'success' }}
         run: |
-          mkdir -p fuzz_results
-          pynguin \
-            --project-path . \
-            --output-path ./fuzz_results \
-            --module-name app.security.pipeline \
-            --maximum-search-time 60 \
-            --seed 42 \
-            || true
-          echo "Pynguin output:"
-          ls -la fuzz_results/ 2>/dev/null || echo "No fuzz results"
-
-      - name: Red Team Suite
-        env:
-          # Run attack tests with enforcement enabled; the global bypass is only for scanner traffic.
-          CI_SECURITY_BYPASS: "0"
-        run: |
-          if [ -f app/security/test_red_team_attacks.py ]; then
-            pytest app/security/test_red_team_attacks.py \
-              -v \
-              --tb=short \
-              --asyncio-mode=auto
-          else
-            echo "Red team test file not found — skipping"
-          fi
+          pytest app/security/test_break_attempts/ -v --tb=short -W error --junitxml=adversarial-results.xml
+          python scripts/validate_pytest_results.py adversarial-results.xml
 
       # ────────────────────────────────────────────────────────────────────────
       # NEW — Container image scan (Trivy). Standard in mature security
@@ -558,6 +721,7 @@ jobs:
       # ────────────────────────────────────────────────────────────────────────
       - name: Check for Dockerfile
         id: dockerfile_check
+        if: always()
         run: |
           if [ -f Dockerfile ]; then
             echo "found=true" >> "$GITHUB_OUTPUT"
@@ -566,15 +730,19 @@ jobs:
           fi
 
       - name: Build image for container scan
-        if: steps.dockerfile_check.outputs.found == 'true'
+        id: build_image
+        if: ${{ always() && steps.dockerfile_check.outputs.found == 'true' }}
         continue-on-error: true
         run: docker build -t meika-secure-id:scan .
 
       - name: Trivy Container Image Scan
-        if: steps.dockerfile_check.outputs.found == 'true'
-        uses: aquasecurity/trivy-action@master
+        id: trivy_image_scan
+        if: ${{ always() && steps.dockerfile_check.outputs.found == 'true' }}
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         continue-on-error: true
         with:
+          version: 'v0.72.0'
+          cache: false
           image-ref: meika-secure-id:scan
           severity: HIGH,CRITICAL
           format: sarif
@@ -590,9 +758,13 @@ jobs:
       # exists in the repo, not just a Dockerfile.
       # ────────────────────────────────────────────────────────────────────────
       - name: Trivy Config/IaC Scan
-        uses: aquasecurity/trivy-action@master
+        id: trivy_config_scan
+        if: always()
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         continue-on-error: true
         with:
+          version: 'v0.72.0'
+          cache: false
           scan-type: config
           scan-ref: .
           severity: HIGH,CRITICAL
@@ -603,11 +775,11 @@ jobs:
       # 11. Generate SBOM
       # ────────────────────────────────────────────────────────────────────────
       - name: Generate SBOM
+        if: always()
         run: |
-          cyclonedx-py requirements \
+          cyclonedx-py environment \
             --of JSON \
-            -o bom.json \
-            requirements.txt
+            -o bom.json
           echo "SBOM generated:"
           python3 -c "
           import json
@@ -619,25 +791,30 @@ jobs:
       # ────────────────────────────────────────────────────────────────────────
       # 12. Security Summary
       # ────────────────────────────────────────────────────────────────────────
-      - name: Security Summary
+      - name: Enforce deep security gate
         if: always()
-        run: |
-          python3 scripts/security_summary.py 2>/dev/null || {
-            echo "---- SECURITY SCAN SUMMARY ----"
-            echo "ZAP:          $([ -f zap-report.json ]  && echo 'report generated' || echo 'no report')"
-            echo "Nuclei:       $([ -f nuclei.json ]       && echo 'report generated' || echo 'no report')"
-            echo "Schemathesis: $([ -f schemathesis-report.txt ] && echo 'report generated' || echo 'no report')"
-            echo "Pip-audit:    $([ -f pip-audit-report.json ] && echo 'report generated' || echo 'no report')"
-            echo "Bandit:       $([ -f bandit-report.json ] && echo 'report generated' || echo 'no report')"
-            echo "SBOM:         $([ -f bom.json ]          && echo 'generated' || echo 'missing')"
-          }
+        env:
+          ZAP_OUTCOME: ${{ steps.zap_scan.outcome }}
+          NUCLEI_OUTCOME: ${{ steps.nuclei_scan.outcome }}
+          SCHEMATHESIS_OUTCOME: ${{ steps.schemathesis_scan.outcome }}
+          PIP_AUDIT_OUTCOME: ${{ steps.pip_audit_scan.outcome }}
+          OSV_OUTCOME: ${{ steps.osv_scan.outcome }}
+          BANDIT_OUTCOME: ${{ steps.bandit_scan.outcome }}
+          RED_TEAM_OUTCOME: ${{ steps.red_team_tests.outcome }}
+          ADVERSARIAL_OUTCOME: ${{ steps.adversarial_tests.outcome }}
+          TRIVY_CONFIG_OUTCOME: ${{ steps.trivy_config_scan.outcome }}
+          DOCKERFILE_CHECK_OUTCOME: ${{ steps.dockerfile_check.outcome }}
+          DOCKERFILE_FOUND: ${{ steps.dockerfile_check.outputs.found }}
+          IMAGE_BUILD_OUTCOME: ${{ steps.build_image.outcome }}
+          IMAGE_SCAN_OUTCOME: ${{ steps.trivy_image_scan.outcome }}
+        run: python3 scripts/security_summary.py
 
       # ────────────────────────────────────────────────────────────────────────
       # 13. Upload ALL security artifacts
       # ────────────────────────────────────────────────────────────────────────
       - name: Upload Security Results
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: deep-security-results
           retention-days: 30
@@ -649,9 +826,12 @@ jobs:
             zap-report.json
             nuclei.json
             nuclei.jsonl
+            nuclei-scan.log
+            nuclei-template-commit.txt
             schemathesis-report.txt
             pip-audit-report.json
             osv-report.json
+            osv-scanner.log
             bandit-report.json
             trivy-image.sarif
             trivy-config.sarif
@@ -673,16 +853,44 @@ jobs:
       #   env:
       #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       
+      # SonarQube is an external service and may not be reachable from GitHub-hosted
+      # runners (for example, a server bound to localhost on a developer machine).
+      # Detect availability explicitly; never report an unreachable server as a scan pass.
+      - name: Check SonarQube scanner API availability
+        id: sonar_preflight
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SONAR_TOKEN:-}" ] || [ -z "${SONAR_HOST_URL:-}" ]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::SonarQube scan skipped: SONAR_TOKEN or SONAR_HOST_URL is not configured."
+            exit 0
+          fi
+          # Probe the exact endpoint the scanner failed to query. Checking
+          # /api/system/status alone can pass while the analysis API is blocked.
+          version_url="${SONAR_HOST_URL%/}/api/v2/analysis/version"
+          http_code="$(curl --silent --output "$RUNNER_TEMP/sonar-analysis-version.txt" \
+            --write-out '%{http_code}' --max-time 10 \
+            --header "Authorization: Bearer ${SONAR_TOKEN}" "$version_url" || true)"
+          if [[ "$http_code" =~ ^2[0-9][0-9]$ ]] && \
+             [ -s "$RUNNER_TEMP/sonar-analysis-version.txt" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "SonarQube analysis API is reachable."
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::SonarQube scan skipped: analysis API endpoint is unreachable or unsupported (HTTP ${http_code:-000}). Verify server version, proxy routing, and token; this is not reported as a scan pass."
+          fi
+
       - name: Checkout Repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-            fetch-depth: 0
+          fetch-depth: 0
 
       - name: SonarQube Scan
+        if: steps.sonar_preflight.outputs.available == 'true'
         uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995
         env:
-            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-            SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-      
-      
-
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}

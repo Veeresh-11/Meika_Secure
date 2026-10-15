@@ -3,7 +3,7 @@ from .challenge import generate_challenge
 from .attestation import verify_attestation
 from .assertion import verify_assertion
 from .models import WebAuthnCredential
-from datetime import datetime
+from datetime import datetime, timezone
 from app.security.webauthn.mapper import build_device_identity_from_webauthn
 from app.security.device.context import DeviceContext, DevicePostureContext
 from app.security.webauthn.models import device_id
@@ -34,8 +34,8 @@ def register_finish(user_id: str, attestation: dict):
         hardware_backed=True,
         attestation_verified=True,
         attestation_type=data["attestation_type"],
-        created_at=datetime.utcnow(),
-        last_used_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        last_used_at=datetime.now(timezone.utc).replace(tzinfo=None),
     )
 
     CREDENTIALS[user_id] = cred
@@ -56,7 +56,7 @@ identity = build_device_identity_from_webauthn(
     binding_valid=True,                 # RP ID + origin verified
     clone_confirmed=False,
     replay_detected=False,
-    last_attested_at=datetime.utcnow(),
+    last_attested_at=datetime.now(timezone.utc).replace(tzinfo=None),
 )
 
 device = DeviceContext(

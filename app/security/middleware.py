@@ -3,7 +3,7 @@ from app.security.tokens.enforce import enforce_device_bound_token
 from app.security.pipeline import SecurityPipeline
 from app.security.context import SecurityContext
 from app.security.errors import SecurityError
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 
@@ -41,7 +41,7 @@ async def security_middleware(
         device_id=device_ctx,
         device=device_ctx,
         risk_signals={},
-        request_time=datetime.utcnow(),
+        request_time=datetime.now(timezone.utc).replace(tzinfo=None),
         metadata={
             "ip": request.client.host if request.client else None,
             "ua": request.headers.get("user-agent"),
