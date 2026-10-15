@@ -146,6 +146,7 @@ jobs:
       trivy_config: ${{ steps.trivy_config_scan.outcome }}
       red_team: ${{ steps.red_team_tests.outcome }}
       codeql: ${{ steps.codeql_analyze.outcome }}
+      codeql_findings: ${{ steps.codeql_findings.outcome }}
       performance_smoke: ${{ steps.performance_smoke.outcome }}
 
     services:
@@ -646,6 +647,20 @@ jobs:
         uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
           upload: true
+          output: codeql-results.sarif
+
+      - name: Enforce CodeQL findings threshold
+        id: codeql_findings
+        if: always() && steps.codeql_analyze.outcome == 'success'
+        run: python scripts/check_codeql_sarif.py codeql-results.sarif
+
+      - name: Upload CodeQL SARIF report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: codeql-sarif-report
+          path: codeql-results.sarif
+          if-no-files-found: error
 
       # Run the final gate after all diagnostics so one scanner finding
       # does not prevent the full test and security suite from executing.
@@ -661,6 +676,7 @@ jobs:
           TRIVY_CONFIG_OUTCOME: ${{ steps.trivy_config_scan.outcome }}
           RED_TEAM_OUTCOME: ${{ steps.red_team_tests.outcome }}
           CODEQL_OUTCOME: ${{ steps.codeql_analyze.outcome }}
+          CODEQL_FINDINGS_OUTCOME: ${{ steps.codeql_findings.outcome }}
         run: |
           failed=0
           for item in \
@@ -671,7 +687,8 @@ jobs:
             "Trivy:$TRIVY_OUTCOME" \
             "Trivy-config:$TRIVY_CONFIG_OUTCOME" \
             "Red-team-tests:$RED_TEAM_OUTCOME" \
-            "CodeQL:$CODEQL_OUTCOME"; do
+            "CodeQL:$CODEQL_OUTCOME" \
+            "CodeQL-findings:$CODEQL_FINDINGS_OUTCOME"; do
             name="${item%%:*}"
             outcome="${item#*:}"
             echo "$name outcome: $outcome"
@@ -729,6 +746,7 @@ jobs:
           TRIVY_CONFIG: ${{ needs.pr-gate.outputs.trivy_config }}
           RED_TEAM: ${{ needs.pr-gate.outputs.red_team }}
           CODEQL: ${{ needs.pr-gate.outputs.codeql }}
+          CODEQL_FINDINGS: ${{ needs.pr-gate.outputs.codeql_findings }}
         run: |
           set -euo pipefail
           # GitHub does not expose a workflow's downloadable log archive until
