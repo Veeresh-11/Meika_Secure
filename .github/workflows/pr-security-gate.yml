@@ -120,7 +120,7 @@ jobs:
           results_format: sarif
           publish_results: true
       - name: Upload Scorecard SARIF
-        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
           sarif_file: scorecard-results.sarif
 
@@ -253,7 +253,7 @@ jobs:
           df -h /
       - name: Init CodeQL
         id: codeql_init
-        uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
+        uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
           languages: python
 
@@ -530,7 +530,7 @@ jobs:
           echo "BANDIT_HAS=$HAS" >> "$GITHUB_ENV"
       - name: Upload Bandit SARIF to CodeQL
         if: env.BANDIT_HAS == 'true'
-        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
           sarif_file: bandit.sarif
 
@@ -654,7 +654,7 @@ jobs:
       - name: CodeQL Analyze
         id: codeql_analyze
         if: always()
-        uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
+        uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
           upload: true
 
