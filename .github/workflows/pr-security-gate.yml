@@ -192,17 +192,7 @@ jobs:
       PYTHONUNBUFFERED: 1
 
     steps:
-      # ────────────────────────────────────────────────────────────────────
-      # NEW — Harden-Runner (StepSecurity, free). Same protection added to
-      # deep-scan.yml: monitors/can block unexpected outbound network calls
-      # during the run and flags tampered Actions — supply-chain protection
-      # for the CI pipeline itself. "audit" mode logs only; switch to
-      # "block" after reviewing a few runs' egress reports.
-      # ────────────────────────────────────────────────────────────────────
-      - name: Harden Runner
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2
-        with:
-          egress-policy: audit
+      # Workflow security is enforced by the dedicated actionlint + zizmor job.
 
       - name: Checkout
         id: checkout
