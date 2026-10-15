@@ -39,11 +39,12 @@ def test_validate_success():
 def test_touch():
     db = MagicMock()
 
-    session = MagicMock()
+    session = MagicMock(tenant_id="tenant-1")
 
     SessionService.touch(
         db=db,
         session=session,
+        tenant_id="tenant-1",
     )
 
     assert session.last_seen is not None
@@ -54,11 +55,12 @@ def test_touch():
 def test_revoke():
     db = MagicMock()
 
-    session = MagicMock(revoked=False)
+    session = MagicMock(revoked=False, tenant_id="tenant-1")
 
     SessionService.revoke(
         db=db,
         session=session,
+        tenant_id="tenant-1",
     )
 
     assert session.revoked is True
@@ -80,6 +82,7 @@ def test_revoke_all_user_sessions():
     count = SessionService.revoke_all_user_sessions(
         db=db,
         user_id=1,
+        tenant_id="tenant-1",
     )
 
     assert count == 2
@@ -139,6 +142,7 @@ def test_get():
     result = SessionService.get(
         db=db,
         session_id=123,
+        tenant_id="tenant-1",
     )
 
     assert result is fake
