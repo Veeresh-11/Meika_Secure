@@ -72,8 +72,10 @@ def test_enrollment_token_is_short_lived_and_purpose_scoped():
 
 def test_access_token_cannot_be_used_as_enrollment_token():
     import jwt
+    from datetime import datetime, timezone, timedelta
     from app.security.tokens.config import TokenConfig
 
+    now = datetime.now(timezone.utc)
     token = jwt.encode(
         {
             "iss": TokenConfig.ISSUER,
@@ -81,8 +83,8 @@ def test_access_token_cannot_be_used_as_enrollment_token():
             "sub": "user-123",
             "purpose": "access",
             "jti": "access-token",
-            "iat": 1_800_000_000,
-            "exp": 1_800_000_300,
+            "iat": now,
+            "exp": now + timedelta(minutes=5),
         },
         TokenConfig.SECRET_KEY,
         algorithm=TokenConfig.ALGORITHM,
