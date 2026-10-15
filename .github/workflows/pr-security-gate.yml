@@ -73,6 +73,26 @@ jobs:
   # security posture?"). Evaluates repo-wide state, so it only makes sense
   # on push to main, not per-PR.
   # ──────────────────────────────────────────────────────────────────────────
+  code-quality:
+    name: Critical Python Quality Checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install pinned Ruff
+        run: python -m pip install --disable-pip-version-check ruff==0.14.10
+      - name: Critical correctness lint
+        id: critical_lint
+        run: ruff check --select E9,F63,F7,F82 app scripts
+
   scorecard:
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
@@ -119,6 +139,7 @@ jobs:
       trivy_config: ${{ steps.trivy_config_scan.outcome }}
       red_team: ${{ steps.red_team_tests.outcome }}
       codeql: ${{ steps.codeql_analyze.outcome }}
+      performance_smoke: ${{ steps.performance_smoke.outcome }}
 
     services:
       postgres:
@@ -408,6 +429,68 @@ jobs:
           python scripts/bootstrap_db.py
 
       # Dependency CVE audit — findings block the PR.
+      - name: API latency smoke test
+        id: performance_smoke
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          uvicorn app.main:app --host 127.0.0.1 --port 8000 --log-level error > "$RUNNER_TEMP/meika-perf-api.log" 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true; wait "$api_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for _ in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:8000/health >/dev/null; then ready=1; break; fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then cat "$RUNNER_TEMP/meika-perf-api.log"; echo "::error::API did not become ready for latency smoke test"; exit 1; fi
+          python - <<'PY'
+          import asyncio
+          import statistics
+          import time
+          import httpx
+
+          URLS = ["http://127.0.0.1:8000/health", "http://127.0.0.1:8000/openapi.json"]
+          REQUESTS = 200
+          CONCURRENCY = 20
+          async def main():
+              semaphore = asyncio.Semaphore(CONCURRENCY)
+              latencies = []
+              failures = []
+              async with httpx.AsyncClient(timeout=5.0) as client:
+                  async def request(index):
+                      url = URLS[index % len(URLS)]
+                      async with semaphore:
+                          start = time.perf_counter()
+                          try:
+                              response = await client.get(url)
+                              elapsed = (time.perf_counter() - start) * 1000
+                              latencies.append(elapsed)
+                              if response.status_code != 200:
+                                  failures.append(f"{url}: HTTP {response.status_code}")
+                              elif url.endswith("/health") and response.json().get("status") != "ok":
+                                  failures.append(f"{url}: invalid health payload")
+                          except Exception as exc:
+                              failures.append(f"{url}: {type(exc).__name__}: {exc}")
+                  await asyncio.gather(*(request(i) for i in range(REQUESTS)))
+              if failures:
+                  raise SystemExit("API latency smoke test failed:\n" + "\n".join(failures[:20]))
+              ordered = sorted(latencies)
+              p95 = ordered[min(len(ordered) - 1, int(len(ordered) * 0.95))]
+              p50 = statistics.median(ordered)
+              print(f"Requests: {len(latencies)}; concurrency: {CONCURRENCY}; errors: 0")
+              print(f"Latency ms: p50={p50:.2f}; p95={p95:.2f}; max={max(ordered):.2f}")
+              if p95 > 1000:
+                  raise SystemExit(f"p95 latency {p95:.2f} ms exceeds the 1000 ms CI smoke threshold")
+          asyncio.run(main())
+          PY
+          if [ -s "$RUNNER_TEMP/meika-perf-api.log" ]; then
+            if grep -Eiq '(^|[[:space:]])(warning|warn|error|exception)(:|[[:space:]])' "$RUNNER_TEMP/meika-perf-api.log"; then
+              cat "$RUNNER_TEMP/meika-perf-api.log"
+              echo "::error::API emitted warning/error output during latency smoke test"
+              exit 1
+            fi
+          fi
+
       - name: Dependency Audit
         id: dependency_audit
         continue-on-error: true
@@ -607,7 +690,7 @@ jobs:
   quality-score:
     name: PR Gate Quality Score (100 points per check)
     if: always() && github.event_name == 'pull_request'
-    needs: [secret-scan, dependency-review, pr-gate, workflow-hardening]
+    needs: [secret-scan, dependency-review, code-quality, pr-gate, workflow-hardening]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
@@ -629,6 +712,8 @@ jobs:
           GH_RUN_ID: ${{ github.run_id }}
           SECRET_SCAN: ${{ needs.secret-scan.result }}
           WORKFLOW_HARDENING: ${{ needs.workflow-hardening.result }}
+      CRITICAL_LINT: ${{ needs.code-quality.outputs.critical_lint }}
+      PERFORMANCE_SMOKE: ${{ needs.pr-gate.outputs.performance_smoke }}
           DEPENDENCY_REVIEW: ${{ needs.dependency-review.result }}
           CHECKOUT: ${{ needs.pr-gate.outputs.checkout }}
           REDIS_READY: ${{ needs.pr-gate.outputs.redis_ready }}
