@@ -248,3 +248,20 @@ def test_revoke_all_device_credentials():
     assert cred2.revoked is True
 
     db.commit.assert_called_once()
+
+def test_revoke_webauthn_credential_can_join_existing_transaction():
+    db = MagicMock()
+    credential = MagicMock()
+    credential.revoked = False
+
+    result = CredentialService.revoke_webauthn_credential(
+        db=db,
+        credential=credential,
+        commit=False,
+    )
+
+    assert result is credential
+    assert credential.revoked is True
+    db.commit.assert_not_called()
+    db.refresh.assert_not_called()
+

@@ -21,7 +21,8 @@ from app.security.device.context import (
     DevicePostureContext,
 )
 from app.security.device_snapshot import DeviceSnapshot
-from app.security.webauthn.assertion import verify_assertion
+from app.security.webauthn.assertion import verify_assertion, CredentialCloneDetected
+from app.security.results import DenyReason
 from app.security.webauthn.models import WebAuthnCredential
 from app.services.webauthn.challenge_service import ChallengeService
 from app.services.credential_service import CredentialService
@@ -739,10 +740,48 @@ def webauthn_authenticate_finish(
         # Verify assertion
         # --------------------------------------------------
 
-        verify_assertion(
-            payload.assertion.model_dump(),
-            credential,
-        )
+        try:
+            verify_assertion(
+                payload.assertion.model_dump(),
+                credential,
+            )
+        except CredentialCloneDetected:
+            # Clone detection is a hard stop. Persist credential revocation
+            # before returning and never create a session, grant, or token.
+            try:
+                CredentialService.revoke_webauthn_credential(
+                    db=db,
+                    credential=credential_record,
+                    commit=True,
+                )
+            except Exception:
+                db.rollback()
+                logger.exception(
+                    "Failed to persist WebAuthn clone revocation",
+                    extra={
+                        "user_id": str(user.id),
+                        "credential_id": payload.credential_id,
+                        "event": "webauthn_clone_revocation_persist_failed",
+                    },
+                )
+                raise HTTPException(
+                    status_code=503,
+                    detail="Authentication temporarily unavailable",
+                )
+
+            logger.warning(
+                "WebAuthn credential clone detected and revoked",
+                extra={
+                    "user_id": str(user.id),
+                    "credential_id": payload.credential_id,
+                    "event": "webauthn_credential_clone_detected",
+                    "deny_reason": DenyReason.DEVICE_CLONED.value,
+                },
+            )
+            raise HTTPException(
+                status_code=403,
+                detail=DenyReason.DEVICE_CLONED.value,
+            )
 
         # --------------------------------------------------
         # Update credential metadata

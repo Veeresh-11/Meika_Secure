@@ -137,12 +137,20 @@ class CredentialService:
     def revoke_webauthn_credential(
         db: Session,
         credential: WebAuthnCredential,
+        *,
+        commit: bool = True,
     ) -> WebAuthnCredential:
+        """Revoke a credential, optionally leaving transaction control to the caller.
 
+        The default preserves existing behavior. Callers performing a larger
+        atomic operation can pass commit=False and commit or roll back the
+        surrounding transaction themselves.
+        """
         credential.revoked = True
 
-        db.commit()
-        db.refresh(credential)
+        if commit:
+            db.commit()
+            db.refresh(credential)
 
         return credential
     
