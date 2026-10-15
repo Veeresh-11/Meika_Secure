@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 
 from app.api.health import router as health_router
 from app.api.auth import router as auth_router
+from app.api.fido2 import router as fido2_router
 from app.security.bootstrap import build_pipeline
 from app.security.middleware import security_middleware
 
@@ -16,6 +17,7 @@ pipeline = build_pipeline()
 # Routers
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(fido2_router, prefix="/api/v1")
 
 
 # --------------------
@@ -71,13 +73,28 @@ async def enforce_security(request: Request, call_next):
     # ----------------------------------
     # WebAuthn endpoints are POST-only.
 # Let FastAPI return 405 for unsupported methods.
-    if path.startswith("/api/v1/auth/webauthn/"):
+    if path.startswith(("/api/v1/auth/webauthn/", "/api/v1/fido2/")):
       if method != "POST":
         return await call_next(request)
 
 # For all other routes let FastAPI handle unsupported methods
     if method not in {"GET", "POST"}:
       return await call_next(request)
+    # The old /auth/webauthn handlers accept client-asserted trust flags and
+    # are not cryptographically secure. Block them at the application boundary;
+    # the standards-based /fido2 routes use py_webauthn verification instead.
+    LEGACY_MOCK_WEBAUTHN_PATHS = {
+        "/api/v1/auth/webauthn/register/start",
+        "/api/v1/auth/webauthn/register/finish",
+        "/api/v1/auth/webauthn/authenticate/start",
+        "/api/v1/auth/webauthn/authenticate/finish",
+    }
+    if path in LEGACY_MOCK_WEBAUTHN_PATHS:
+        return JSONResponse(
+            status_code=410,
+            content={"error": "Legacy WebAuthn flow disabled; use /api/v1/fido2 endpoints."},
+        )
+
     # ----------------------------------
     # Public endpoints
     # ----------------------------------
@@ -95,6 +112,10 @@ async def enforce_security(request: Request, call_next):
 
     "/api/v1/auth/webauthn/authenticate/start",
     "/api/v1/auth/webauthn/authenticate/finish",
+    "/api/v1/fido2/registration/options",
+    "/api/v1/fido2/registration/verify",
+    "/api/v1/fido2/authentication/options",
+    "/api/v1/fido2/authentication/verify",
 
     "/openapi.json",
     "/docs",

@@ -1,14 +1,18 @@
-from datetime import datetime, timezone
-from .models import WebAuthnCredential
+"""Legacy assertion shim.
 
-def verify_assertion(assertion: dict, cred: WebAuthnCredential):
-    if cred.revoked:
-        raise ValueError("Credential revoked")
+A signature counter alone does not authenticate a WebAuthn assertion. Use
+app.security.webauthn.fido2.verify_authentication to validate the client data,
+RP ID hash, user-presence/user-verification flags, and signature.
+"""
+from __future__ import annotations
 
-    # FIDO2 canonical clone detection
-    if assertion["sign_count"] <= cred.sign_count:
-        cred.revoked = True
-        raise ValueError("Clone detected (sign counter regression)")
 
-    cred.sign_count = assertion["sign_count"]
-    cred.last_used_at = datetime.now(timezone.utc).replace(tzinfo=None)
+class AssertionVerificationError(ValueError):
+    """Raised when an assertion cannot be cryptographically verified."""
+
+
+def verify_assertion(assertion: dict, cred) -> None:
+    """Reject the legacy counter-only assertion format."""
+    raise AssertionVerificationError(
+        "Legacy counter-only assertion is disabled; use FIDO2 signature verification"
+    )
