@@ -77,6 +77,8 @@ jobs:
     name: Critical Python Quality Checks
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    outputs:
+      critical_lint: ${{ steps.critical_lint.outcome }}
     permissions:
       contents: read
     steps:
@@ -712,8 +714,8 @@ jobs:
           GH_RUN_ID: ${{ github.run_id }}
           SECRET_SCAN: ${{ needs.secret-scan.result }}
           WORKFLOW_HARDENING: ${{ needs.workflow-hardening.result }}
-      CRITICAL_LINT: ${{ needs.code-quality.outputs.critical_lint }}
-      PERFORMANCE_SMOKE: ${{ needs.pr-gate.outputs.performance_smoke }}
+          CRITICAL_LINT: ${{ needs.code-quality.outputs.critical_lint }}
+          PERFORMANCE_SMOKE: ${{ needs.pr-gate.outputs.performance_smoke }}
           DEPENDENCY_REVIEW: ${{ needs.dependency-review.result }}
           CHECKOUT: ${{ needs.pr-gate.outputs.checkout }}
           REDIS_READY: ${{ needs.pr-gate.outputs.redis_ready }}
