@@ -175,7 +175,7 @@ def registration_verify(payload: RegistrationVerifyRequest, authorization: str |
 
     # Do not label credentials as hardware-backed merely because registration
     # succeeded. Platform and synced passkeys are valid WebAuthn credentials.
-    _consume_challenge(db, challenge, purpose="fido2-register", user_id=user.id)
+    _consume_challenge(db, challenge, purpose="fido2-register:" + enrollment["jti"], user_id=user.id)
 
     device = DeviceService.register(
         db=db,
