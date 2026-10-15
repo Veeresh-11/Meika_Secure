@@ -81,6 +81,8 @@ def test_access_token_cannot_be_used_as_enrollment_token():
             "sub": "user-123",
             "purpose": "access",
             "jti": "access-token",
+            "iat": 1_800_000_000,
+            "exp": 1_800_000_300,
         },
         TokenConfig.SECRET_KEY,
         algorithm=TokenConfig.ALGORITHM,
