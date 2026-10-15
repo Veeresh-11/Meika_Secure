@@ -13,7 +13,6 @@
 --
 -- This migration does not rewrite existing explicit values.
 
-BEGIN;
 
 -- ==========================================================
 -- 1. Refuse to silently convert ambiguous existing data
@@ -67,4 +66,3 @@ ALTER TABLE identity.webauthn_credentials
 ALTER TABLE identity.webauthn_credentials
     ALTER COLUMN attestation_verified SET NOT NULL;
 
-COMMIT;
