@@ -26,6 +26,7 @@ from app.security.webauthn.fido2 import (
     verify_registration,
 )
 from app.services.auth_service import AuthService
+from app.services.webauthn.challenge_service import ChallengeService
 from app.services.credential_service import CredentialService
 from app.services.device_service import DeviceService
 from app.services.grant_service import GrantService
@@ -95,9 +96,7 @@ def registration_options(payload: RegistrationOptionsRequest, db: Session = Depe
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
-    challenge = __import__(
-        "app.services.webauthn.challenge_service", fromlist=["ChallengeService"]
-    ).ChallengeService.create(db=db, user_id=user.id, purpose="fido2-register")
+    challenge = ChallengeService.create(db=db, user_id=user.id, purpose="fido2-register")
 
     existing = (
         db.query(WebAuthnCredential)
@@ -206,7 +205,6 @@ def authentication_options(payload: AuthenticationOptionsRequest, db: Session = 
     if not credentials:
         raise HTTPException(status_code=401, detail="Authentication failed")
 
-    from app.services.webauthn.challenge_service import ChallengeService
     challenge = ChallengeService.create(db=db, user_id=user.id, purpose="fido2-authenticate")
     try:
         options = generate_authentication_options_json(
@@ -290,7 +288,7 @@ def authentication_verify(payload: AuthenticationVerifyRequest, db: Session = De
     token = TokenService.issue_access_token(
         db=db,
         grant=grant,
-        device_public_key=base64url_to_bytes(record.public_key),
+        device_public_key=record.public_key.encode(),
     )
     return {
         "status": "authenticated",
