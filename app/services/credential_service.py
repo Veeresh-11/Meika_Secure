@@ -3,6 +3,7 @@ from app.db.models import Credential, User
 from app.security.password import hash_password, verify_password
 from datetime import datetime, timezone
 from app.db.webauthn_models import WebAuthnCredential
+from app.db.device_models import Device
 
 class CredentialService:
 
@@ -42,6 +43,19 @@ class CredentialService:
         user = db.query(User).filter(User.id == user_id).first()
         if user is None:
             raise ValueError("Cannot create a WebAuthn credential for an unknown user")
+
+        device = (
+            db.query(Device)
+            .filter(
+                Device.id == device_id,
+                Device.user_id == user_id,
+                Device.tenant_id == user.tenant_id,
+                Device.state == "ACTIVE",
+            )
+            .first()
+        )
+        if device is None:
+            raise ValueError("Cannot create a WebAuthn credential for a device outside the user's active tenant")
 
         credential = WebAuthnCredential(
         user_id=user_id,
@@ -84,12 +98,18 @@ class CredentialService:
     def verify_password_credential(
         db: Session,
         user_id,
-        password: str
+        password: str,
+        *,
+        tenant_id,
     ) -> bool:
+        if tenant_id is None:
+            raise ValueError("Tenant context is required to verify a password credential")
         credential = (
             db.query(Credential)
+            .join(User, Credential.user_id == User.id)
             .filter(
                 Credential.user_id == user_id,
+                User.tenant_id == tenant_id,
                 Credential.type == "password",
                 Credential.status == "active",
             )
@@ -111,8 +131,10 @@ class CredentialService:
         db: Session,
         credential: WebAuthnCredential,
         sign_count: int,
-  ) -> WebAuthnCredential:
-
+        *,
+        tenant_id,
+    ) -> WebAuthnCredential:
+        CredentialService._require_tenant(credential, tenant_id)
         credential.sign_count = sign_count
 
         db.commit()
@@ -124,8 +146,10 @@ class CredentialService:
     def touch_last_used(
         db: Session,
         credential: WebAuthnCredential,
+        *,
+        tenant_id,
     ) -> WebAuthnCredential:
-
+        CredentialService._require_tenant(credential, tenant_id)
         credential.last_used_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
         db.commit()
@@ -137,8 +161,10 @@ class CredentialService:
     def revoke_webauthn_credential(
         db: Session,
         credential: WebAuthnCredential,
+        *,
+        tenant_id,
     ) -> WebAuthnCredential:
-
+        CredentialService._require_tenant(credential, tenant_id)
         credential.revoked = True
 
         db.commit()
@@ -147,16 +173,24 @@ class CredentialService:
         return credential
     
     @staticmethod
+    def _require_tenant(credential: WebAuthnCredential, tenant_id) -> None:
+        if tenant_id is None or getattr(credential, "tenant_id", None) != tenant_id:
+            raise ValueError("WebAuthn credential tenant mismatch")
+
+    @staticmethod
     def get_credentials_for_device(
       db: Session,
       *,
       device_id,
+      tenant_id,
     ):
-
+     if tenant_id is None:
+         raise ValueError("Tenant context is required to fetch device credentials")
      return (
         db.query(WebAuthnCredential)
         .filter(
             WebAuthnCredential.device_id == device_id,
+            WebAuthnCredential.tenant_id == tenant_id,
             WebAuthnCredential.revoked.is_(False),
         )
         .all()
@@ -167,11 +201,15 @@ class CredentialService:
         db: Session,
         *,
         device_id,
+        tenant_id,
     ):
+        if tenant_id is None:
+            raise ValueError("Tenant context is required to revoke device credentials")
         credentials = (
             db.query(WebAuthnCredential)
             .filter(
                 WebAuthnCredential.device_id == device_id,
+                WebAuthnCredential.tenant_id == tenant_id,
                 WebAuthnCredential.revoked.is_(False),
             )
             .all()
