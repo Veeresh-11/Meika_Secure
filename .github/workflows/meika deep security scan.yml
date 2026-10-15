@@ -257,21 +257,6 @@ jobs:
             createdb -h localhost -p 5432 -U test_user meika_evidence_test
           fi
           DB_NAME=meika_evidence_test python scripts/bootstrap_db.py
-      - name: Generate Ephemeral CI Signing Key
-        run: |
-          python - <<'PYKEY' >> "$GITHUB_ENV"
-          from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-          from cryptography.hazmat.primitives import serialization
-
-          key = Ed25519PrivateKey.generate()
-          raw = key.private_bytes(
-              serialization.Encoding.Raw,
-              serialization.PrivateFormat.Raw,
-              serialization.NoEncryption(),
-          )
-          print(f"SIGNING_PRIVATE_KEY={raw.hex()}")
-          PYKEY
-
       - name: Start API Server
         id: api_server
         run: |
