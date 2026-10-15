@@ -1,7 +1,17 @@
 name: Meika Deep Security Scan
 
+# Default-deny the workflow token; grant only what a job explicitly needs.
+permissions: {}
+
 # ─── Triggers ────────────────────────────────────────────────────────────────
+env:
+  GIT_CONFIG_COUNT: 1
+  GIT_CONFIG_KEY_0: init.defaultBranch
+  GIT_CONFIG_VALUE_0: main
+
 on:
+  # Run against the actual PR commit. Do not use workflow_run to execute PR
+  # code in the privileged workflow_run context.
   pull_request:
   push:
     branches: [main]
@@ -9,14 +19,12 @@ on:
     - cron: "0 2 * * *"
   workflow_dispatch:
 
-permissions: {}
-
 jobs:
   deep-scan:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 60   # ZAP + Nuclei + Schemathesis + pip-audit + bandit all take time
     permissions:
-      contents: read   # ZAP + Nuclei + Schemathesis + pip-audit + bandit all take time
+      contents: read
 
     # ── FIX 1: PostgreSQL service — API server crashes without DB ─────────────
     services:
@@ -74,6 +82,35 @@ jobs:
       # ────────────────────────────────────────────────────────────────────────
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      # Validate the CI control plane before running any application scanner.
+      - name: Workflow syntax and security audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="actionlint_1.7.12_linux_amd64.tar.gz"
+          curl --fail --silent --show-error --location \
+            "https://github.com/rhysd/actionlint/releases/download/v1.7.12/$archive" \
+            --output "$RUNNER_TEMP/$archive"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/$archive" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" actionlint
+          set +e
+          "$RUNNER_TEMP/actionlint" -color .github/workflows/*.yml 2>&1 | tee "$RUNNER_TEMP/actionlint.log"
+          lint_status=${PIPESTATUS[0]}
+          set -e
+          if [ "$lint_status" -ne 0 ]; then
+            echo "::error::actionlint reported workflow problems; see the diagnostics above."
+            exit "$lint_status"
+          fi
+      - name: zizmor workflow security audit
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          advanced-security: false
+          version: v1.29.0
+          min-severity: medium
+          fail-on-no-inputs: true
 
       - name: Start Redis with explicit CI configuration
         run: |
@@ -91,7 +128,7 @@ jobs:
             --publish 127.0.0.1:6379:6379 \
             --volume "$RUNNER_TEMP/redis-ci.conf:/usr/local/etc/redis/redis.conf:ro" \
             redis:7-alpine redis-server /usr/local/etc/redis/redis.conf
-          for attempt in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if docker exec meika-deep-scan-redis redis-cli ping | grep -q PONG; then
               echo "Redis is ready with explicit configuration."
               exit 0
@@ -136,6 +173,8 @@ jobs:
             pip-audit==2.10.1 \
             bandit==1.9.4 \
             uvicorn==0.35.0
+          python -m pip check
+          python -m compileall -q app scripts
 
       # Use a fresh ephemeral Ed25519 key for this CI run. Never disable the signer.
       - name: Generate ephemeral CI signing key
@@ -218,21 +257,6 @@ jobs:
             createdb -h localhost -p 5432 -U test_user meika_evidence_test
           fi
           DB_NAME=meika_evidence_test python scripts/bootstrap_db.py
-      - name: Generate Ephemeral CI Signing Key
-        run: |
-          python - <<'PYKEY' >> "$GITHUB_ENV"
-          from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-          from cryptography.hazmat.primitives import serialization
-
-          key = Ed25519PrivateKey.generate()
-          raw = key.private_bytes(
-              serialization.Encoding.Raw,
-              serialization.PrivateFormat.Raw,
-              serialization.NoEncryption(),
-          )
-          print(f"SIGNING_PRIVATE_KEY={raw.hex()}")
-          PYKEY
-
       - name: Start API Server
         id: api_server
         run: |
@@ -250,7 +274,8 @@ jobs:
           with open("/tmp/meika-ci-signing-key", "w", encoding="ascii") as handle:
               handle.write(raw.hex())
           PYKEY
-          export SIGNING_PRIVATE_KEY="$(cat /tmp/meika-ci-signing-key)"
+          SIGNING_PRIVATE_KEY="$(cat /tmp/meika-ci-signing-key)"
+          export SIGNING_PRIVATE_KEY
           python - <<'PYVALIDATE'
           import os
           key = os.environ.get("SIGNING_PRIVATE_KEY", "")
@@ -284,7 +309,7 @@ jobs:
       # before lengthy network scanners, so auth bypass regressions fail fast.
       - name: Red Team Suite
         id: red_team_tests
-        if: always()
+        if: ${{ always() && steps.api_server.outcome == 'success' }}
         env:
           CI_SECURITY_BYPASS: "0"
         run: |
@@ -292,6 +317,7 @@ jobs:
             -v \
             --tb=short \
             --asyncio-mode=auto \
+            -W error \
             --junitxml=red-team-results.xml
           python scripts/validate_pytest_results.py red-team-results.xml
 
@@ -605,8 +631,18 @@ jobs:
           # A missing report is a hard failure in the security summary; never
           # turn an unavailable scanner into a clean/empty result.
           go install github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.3.3
-          echo "$HOME/go/bin" >> "$GITHUB_PATH"
-          "$HOME/go/bin/osv-scanner" scan source --lockfile requirements.txt --lockfile requirements-dev.txt --format json > osv-report.json || scan_status=$?
+          # pip-audit below covers both production and development dependencies.
+          # Keep OSV's secondary source scan on runtime dependencies: its PyPI
+          # resolver emits an upstream sdist metadata warning for pip-audit's
+          # development-only parser dependency.
+          "$HOME/go/bin/osv-scanner" scan source --lockfile=./requirements.txt --format json > osv-report.json 2> osv-scanner.log || scan_status=$?
+          if [ -s osv-scanner.log ]; then
+            cat osv-scanner.log
+            if grep -Eiq "warning:|(^|[[:space:]])WARN([:[:space:]]|$)|failed to parse metadata" osv-scanner.log; then
+              echo "::error::OSV-Scanner emitted a warning; fix the scan input or tool compatibility instead of accepting a noisy scan."
+              exit 1
+            fi
+          fi
           if [ ! -s osv-report.json ]; then
             echo "::error::OSV-Scanner did not produce osv-report.json"
             exit 1
@@ -681,9 +717,10 @@ jobs:
       # is required to eliminate the OSV tmpdir vulnerability. Avoid installing
       # a known-vulnerable test runner just for an optional, non-blocking step.
       - name: Adversarial invariant tests
-        if: always()
+        id: adversarial_tests
+        if: ${{ always() && steps.api_server.outcome == 'success' }}
         run: |
-          pytest app/security/test_break_attempts/ -v --tb=short --junitxml=adversarial-results.xml
+          pytest app/security/test_break_attempts/ -v --tb=short -W error --junitxml=adversarial-results.xml
           python scripts/validate_pytest_results.py adversarial-results.xml
 
       # ────────────────────────────────────────────────────────────────────────
@@ -774,6 +811,8 @@ jobs:
           PIP_AUDIT_OUTCOME: ${{ steps.pip_audit_scan.outcome }}
           OSV_OUTCOME: ${{ steps.osv_scan.outcome }}
           BANDIT_OUTCOME: ${{ steps.bandit_scan.outcome }}
+          RED_TEAM_OUTCOME: ${{ steps.red_team_tests.outcome }}
+          ADVERSARIAL_OUTCOME: ${{ steps.adversarial_tests.outcome }}
           TRIVY_CONFIG_OUTCOME: ${{ steps.trivy_config_scan.outcome }}
           DOCKERFILE_CHECK_OUTCOME: ${{ steps.dockerfile_check.outcome }}
           DOCKERFILE_FOUND: ${{ steps.dockerfile_check.outputs.found }}
@@ -805,6 +844,7 @@ jobs:
             schemathesis-reproducibility.json
             pip-audit-report.json
             osv-report.json
+            osv-scanner.log
             bandit-report.json
             trivy-image.sarif
             trivy-config.sarif
@@ -830,7 +870,6 @@ jobs:
       # runners (for example, a server bound to localhost on a developer machine).
       # Detect availability explicitly; never report an unreachable server as a scan pass.
       - name: Check SonarQube scanner API availability
-        if: github.event_name != 'pull_request'
         id: sonar_preflight
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -847,7 +886,7 @@ jobs:
           version_url="${SONAR_HOST_URL%/}/api/v2/analysis/version"
           http_code="$(curl --silent --output "$RUNNER_TEMP/sonar-analysis-version.txt" \
             --write-out '%{http_code}' --max-time 10 \
-            --user "${SONAR_TOKEN}:" "$version_url" || true)"
+            --header "Authorization: Bearer ${SONAR_TOKEN}" "$version_url" || true)"
           if [[ "$http_code" =~ ^2[0-9][0-9]$ ]] && \
              [ -s "$RUNNER_TEMP/sonar-analysis-version.txt" ]; then
             echo "available=true" >> "$GITHUB_OUTPUT"
@@ -863,7 +902,7 @@ jobs:
           fetch-depth: 0
 
       - name: SonarQube Scan
-        if: github.event_name != 'pull_request' && steps.sonar_preflight.outputs.available == 'true'
+        if: steps.sonar_preflight.outputs.available == 'true'
         uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

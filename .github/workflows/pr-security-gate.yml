@@ -1,5 +1,13 @@
 name: Meika PR Security Gate
 
+# Default-deny GITHUB_TOKEN; each job grants only its required permissions.
+permissions: {}
+
+env:
+  GIT_CONFIG_COUNT: 1
+  GIT_CONFIG_KEY_0: init.defaultBranch
+  GIT_CONFIG_VALUE_0: main
+
 on:
   pull_request:
   push:
@@ -29,10 +37,11 @@ jobs:
         with:
           fetch-depth: 0
       - name: Gitleaks Secret Scan
-        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_ENABLE_COMMENTS: "true"
+        run: |
+          docker run --rm \
+            --volume "$PWD:/path" \
+            ghcr.io/gitleaks/gitleaks:v8.28.0 \
+            detect --source=/path --redact --no-banner --verbose
 
   # ──────────────────────────────────────────────────────────────────────────
   # NEW — GitHub's native Dependency Review. Complements pip-audit: pip-audit
@@ -56,7 +65,7 @@ jobs:
       - name: Dependency Review
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
-          fail-on-severity: high
+          fail-on-severity: moderate
           comment-summary-in-pr: always
 
   # ──────────────────────────────────────────────────────────────────────────
@@ -69,6 +78,28 @@ jobs:
   # security posture?"). Evaluates repo-wide state, so it only makes sense
   # on push to main, not per-PR.
   # ──────────────────────────────────────────────────────────────────────────
+  code-quality:
+    name: Critical Python Quality Checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      critical_lint: ${{ steps.critical_lint.outcome }}
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Setup Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install pinned Ruff
+        run: python -m pip install --disable-pip-version-check ruff==0.14.10
+      - name: Critical correctness lint
+        id: critical_lint
+        run: ruff check --select E9,F63,F7,F82,DTZ003 app scripts
+
   scorecard:
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
@@ -89,7 +120,7 @@ jobs:
           results_format: sarif
           publish_results: true
       - name: Upload Scorecard SARIF
-        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
           sarif_file: scorecard-results.sarif
 
@@ -116,6 +147,7 @@ jobs:
       red_team: ${{ steps.red_team_tests.outcome }}
       codeql: ${{ steps.codeql_analyze.outcome }}
       codeql_findings: ${{ steps.codeql_findings.outcome }}
+      performance_smoke: ${{ steps.performance_smoke.outcome }}
 
     services:
       postgres:
@@ -151,7 +183,6 @@ jobs:
       POSTGRES_DSN: postgresql://test_user:test_pass@localhost:5432/test_db
       POSTGRES_TEST_DSN: postgresql://test_user:test_pass@localhost:5432/test_db
       REDIS_URL: redis://localhost:6379/0
-      SIGNING_PRIVATE_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
       ENVIRONMENT: test
       SECRET_KEY: test-secret-key-for-ci-only-not-production
       JWT_SECRET_KEY: "ci-only-jwt-secret-key-at-least-32-chars"
@@ -161,17 +192,7 @@ jobs:
       PYTHONUNBUFFERED: 1
 
     steps:
-      # ────────────────────────────────────────────────────────────────────
-      # NEW — Harden-Runner (StepSecurity, free). Same protection added to
-      # deep-scan.yml: monitors/can block unexpected outbound network calls
-      # during the run and flags tampered Actions — supply-chain protection
-      # for the CI pipeline itself. "audit" mode logs only; switch to
-      # "block" after reviewing a few runs' egress reports.
-      # ────────────────────────────────────────────────────────────────────
-      - name: Harden Runner
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2
-        with:
-          egress-policy: audit
+      # Workflow security is enforced by the dedicated actionlint + zizmor job.
 
       - name: Checkout
         id: checkout
@@ -181,6 +202,7 @@ jobs:
         id: redis_ready
         run: |
           set -euo pipefail
+          sudo sysctl -w vm.overcommit_memory=1
           cat > "$RUNNER_TEMP/redis-ci.conf" <<'REDISCONF'
           bind 0.0.0.0
           protected-mode no
@@ -193,7 +215,7 @@ jobs:
             --publish 127.0.0.1:6379:6379 \
             --volume "$RUNNER_TEMP/redis-ci.conf:/usr/local/etc/redis/redis.conf:ro" \
             redis:7-alpine redis-server /usr/local/etc/redis/redis.conf
-          for attempt in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if docker exec meika-ci-redis redis-cli ping | grep -q PONG; then
               echo "Redis is ready with explicit configuration."
               exit 0
@@ -221,7 +243,7 @@ jobs:
           df -h /
       - name: Init CodeQL
         id: codeql_init
-        uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
+        uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
           languages: python
 
@@ -245,6 +267,8 @@ jobs:
             httpx==0.28.1 \
             pip-audit==2.10.1 \
             "bandit[sarif]==1.9.4"
+          python -m pip check
+          python -m compileall -q app scripts
       - name: Verify tenant ORM contract
         run: |
           python - <<'PY'
@@ -402,6 +426,68 @@ jobs:
           python scripts/bootstrap_db.py
 
       # Dependency CVE audit — findings block the PR.
+      - name: API latency smoke test
+        id: performance_smoke
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          uvicorn app.main:app --host 127.0.0.1 --port 8000 --log-level error > "$RUNNER_TEMP/meika-perf-api.log" 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true; wait "$api_pid" 2>/dev/null || true' EXIT
+          ready=0
+          for _ in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:8000/health >/dev/null; then ready=1; break; fi
+            sleep 2
+          done
+          if [ "$ready" -ne 1 ]; then cat "$RUNNER_TEMP/meika-perf-api.log"; echo "::error::API did not become ready for latency smoke test"; exit 1; fi
+          python - <<'PY'
+          import asyncio
+          import statistics
+          import time
+          import httpx
+
+          URLS = ["http://127.0.0.1:8000/health", "http://127.0.0.1:8000/openapi.json"]
+          REQUESTS = 200
+          CONCURRENCY = 20
+          async def main():
+              semaphore = asyncio.Semaphore(CONCURRENCY)
+              latencies = []
+              failures = []
+              async with httpx.AsyncClient(timeout=5.0) as client:
+                  async def request(index):
+                      url = URLS[index % len(URLS)]
+                      async with semaphore:
+                          start = time.perf_counter()
+                          try:
+                              response = await client.get(url)
+                              elapsed = (time.perf_counter() - start) * 1000
+                              latencies.append(elapsed)
+                              if response.status_code != 200:
+                                  failures.append(f"{url}: HTTP {response.status_code}")
+                              elif url.endswith("/health") and response.json().get("status") != "ok":
+                                  failures.append(f"{url}: invalid health payload")
+                          except Exception as exc:
+                              failures.append(f"{url}: {type(exc).__name__}: {exc}")
+                  await asyncio.gather(*(request(i) for i in range(REQUESTS)))
+              if failures:
+                  raise SystemExit("API latency smoke test failed:\n" + "\n".join(failures[:20]))
+              ordered = sorted(latencies)
+              p95 = ordered[min(len(ordered) - 1, int(len(ordered) * 0.95))]
+              p50 = statistics.median(ordered)
+              print(f"Requests: {len(latencies)}; concurrency: {CONCURRENCY}; errors: 0")
+              print(f"Latency ms: p50={p50:.2f}; p95={p95:.2f}; max={max(ordered):.2f}")
+              if p95 > 1000:
+                  raise SystemExit(f"p95 latency {p95:.2f} ms exceeds the 1000 ms CI smoke threshold")
+          asyncio.run(main())
+          PY
+          if [ -s "$RUNNER_TEMP/meika-perf-api.log" ]; then
+            if grep -Eiq '(^|[[:space:]])(warning|warn|error|exception)(:|[[:space:]])' "$RUNNER_TEMP/meika-perf-api.log"; then
+              cat "$RUNNER_TEMP/meika-perf-api.log"
+              echo "::error::API emitted warning/error output during latency smoke test"
+              exit 1
+            fi
+          fi
+
       - name: Dependency Audit
         id: dependency_audit
         continue-on-error: true
@@ -431,10 +517,10 @@ jobs:
           results=[r for run in d.get('runs',[]) for r in run.get('results',[])]
           print('true' if results else 'false')
           " 2>/dev/null || echo "false")
-          echo "BANDIT_HAS=$HAS" >> $GITHUB_ENV
+          echo "BANDIT_HAS=$HAS" >> "$GITHUB_ENV"
       - name: Upload Bandit SARIF to CodeQL
         if: env.BANDIT_HAS == 'true'
-        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
           sarif_file: bandit.sarif
 
@@ -558,7 +644,7 @@ jobs:
       - name: CodeQL Analyze
         id: codeql_analyze
         if: always()
-        uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
+        uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
           upload: true
           output: codeql-results.sarif
@@ -617,7 +703,7 @@ jobs:
   quality-score:
     name: PR Gate Quality Score (100 points per check)
     if: always() && github.event_name == 'pull_request'
-    needs: [secret-scan, dependency-review, pr-gate]
+    needs: [secret-scan, dependency-review, code-quality, pr-gate, workflow-hardening]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
@@ -638,6 +724,9 @@ jobs:
           GH_REPOSITORY: ${{ github.repository }}
           GH_RUN_ID: ${{ github.run_id }}
           SECRET_SCAN: ${{ needs.secret-scan.result }}
+          WORKFLOW_HARDENING: ${{ needs.workflow-hardening.result }}
+          CRITICAL_LINT: ${{ needs.code-quality.outputs.critical_lint }}
+          PERFORMANCE_SMOKE: ${{ needs.pr-gate.outputs.performance_smoke }}
           DEPENDENCY_REVIEW: ${{ needs.dependency-review.result }}
           CHECKOUT: ${{ needs.pr-gate.outputs.checkout }}
           REDIS_READY: ${{ needs.pr-gate.outputs.redis_ready }}
@@ -666,3 +755,43 @@ jobs:
           # already fatal via pytest -W error; scanner findings are enforced by
           # their steps. Score the explicit job/step outcomes here.
           python .github/scripts/score_pr_gate.py
+
+  # Independently lint and security-audit the CI definitions themselves.
+  # This job is deliberately separate from application tests so workflow
+  # weaknesses are visible as a required PR check.
+  workflow-hardening:
+    name: Workflow Security (actionlint + zizmor)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Install and verify actionlint
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="actionlint_1.7.12_linux_amd64.tar.gz"
+          curl --fail --silent --show-error --location \
+            "https://github.com/rhysd/actionlint/releases/download/v1.7.12/$archive" \
+            --output "$RUNNER_TEMP/$archive"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/$archive" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" actionlint
+          set +e
+          "$RUNNER_TEMP/actionlint" -color .github/workflows/*.yml 2>&1 | tee "$RUNNER_TEMP/actionlint.log"
+          lint_status=${PIPESTATUS[0]}
+          set -e
+          if [ "$lint_status" -ne 0 ]; then
+            echo "::error::actionlint reported workflow problems; see the diagnostics above."
+            exit "$lint_status"
+          fi
+      - name: Audit workflows with zizmor
+        uses: zizmorcore/zizmor-action@cc914d7f3750a2d13d75c7f184a1060aa0e9d482 # v0.6.4
+        with:
+          advanced-security: false
+          version: v1.29.0
+          min-severity: medium
+          fail-on-no-inputs: true

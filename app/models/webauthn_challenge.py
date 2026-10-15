@@ -1,7 +1,7 @@
 from sqlalchemy import Column, String, Boolean, DateTime
 from app.db.models import Credential
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 class WebAuthnChallenge(Credential):
     __tablename__ = "webauthn_challenges"
@@ -20,6 +20,6 @@ class WebAuthnChallenge(Credential):
 
     used = Column(Boolean, default=False)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     expires_at = Column(DateTime, nullable=False)

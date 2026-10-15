@@ -161,7 +161,7 @@ def test_failed_migration_does_not_record_or_partially_apply(
     # Migration 001 must commit.
     # Migration 002 must fail and roll back.
     # ------------------------------------------------------------
-    with pytest.raises(Exception) as exc_info:
+    with pytest.raises(psycopg2.errors.DivisionByZero) as exc_info:
         migration_runner.apply()
 
     print(
