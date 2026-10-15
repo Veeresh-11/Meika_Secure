@@ -801,6 +801,8 @@ jobs:
             nuclei-scan.log
             nuclei-template-commit.txt
             schemathesis-report.txt
+            schemathesis-report-repeat.txt
+            schemathesis-reproducibility.json
             pip-audit-report.json
             osv-report.json
             bandit-report.json
