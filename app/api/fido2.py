@@ -86,9 +86,7 @@ def _consume_challenge(db: Session, record: WebAuthnChallenge, *, purpose: str, 
         .values(used=True)
     )
     if result.rowcount != 1:
-        db.rollback()
         raise HTTPException(status_code=400, detail="Invalid or expired WebAuthn challenge")
-    db.commit()
 
 
 @router.post("/registration/options")
@@ -173,40 +171,46 @@ def registration_verify(payload: RegistrationVerifyRequest, authorization: str |
     except FIDO2VerificationError as exc:
         raise HTTPException(status_code=422, detail="WebAuthn registration verification failed") from exc
 
-    # Do not label credentials as hardware-backed merely because registration
-    # succeeded. Platform and synced passkeys are valid WebAuthn credentials.
-    _consume_challenge(db, challenge, purpose="fido2-register:" + enrollment["jti"], user_id=user.id)
-
-    device = DeviceService.register(
-        db=db,
-        user_id=user.id,
-        device_identifier=verified["credential_id"],
-        device_name=payload.device_name,
-        hardware_backed=False,
-        attestation_verified=True,
-    )
-    CredentialService.create_webauthn_credential(
-        db=db,
-        user_id=user.id,
-        device_id=device.id,
-        credential_id=verified["credential_id"],
-        public_key=verified["public_key"],
-        hardware_backed=False,
-        attestation_verified=True,
-        attestation_type=verified["attestation_type"],
-    )
-    credential_record = (
-        db.query(WebAuthnCredential)
-        .filter(
-            WebAuthnCredential.user_id == user.id,
-            WebAuthnCredential.tenant_id == user.tenant_id,
-            WebAuthnCredential.credential_id == verified["credential_id"],
+    # All state changes, including challenge consumption, belong to one
+    # transaction. Any failed write rolls the entire ceremony back.
+    try:
+        _consume_challenge(
+            db,
+            challenge,
+            purpose="fido2-register:" + enrollment["jti"],
+            user_id=user.id,
         )
-        .first()
-    )
-    if credential_record is not None and credential_record.sign_count != verified["sign_count"]:
+        device = DeviceService.register(
+            db=db,
+            user_id=user.id,
+            device_identifier=verified["credential_id"],
+            device_name=payload.device_name,
+            hardware_backed=False,
+            attestation_verified=True,
+            commit=False,
+        )
+        credential_record = CredentialService.create_webauthn_credential(
+            db=db,
+            user_id=user.id,
+            device_id=device.id,
+            credential_id=verified["credential_id"],
+            public_key=verified["public_key"],
+            hardware_backed=False,
+            attestation_verified=True,
+            attestation_type=verified["attestation_type"],
+            commit=False,
+        )
         credential_record.sign_count = verified["sign_count"]
         db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to complete WebAuthn registration",
+        ) from exc
 
     return {"status": "registered", "credential_id": verified["credential_id"]}
 
@@ -290,30 +294,51 @@ def authentication_verify(payload: AuthenticationVerifyRequest, db: Session = De
     if verified["credential_id"] != base64url_to_bytes(record.credential_id):
         raise HTTPException(status_code=401, detail="Authentication failed")
 
-    _consume_challenge(db, challenge, purpose="fido2-authenticate", user_id=user.id)
-    CredentialService.update_sign_count(db=db, credential=record, sign_count=verified["new_sign_count"])
-    CredentialService.touch_last_used(db=db, credential=record)
+    # Consume the challenge and persist every authenticated-state mutation
+    # atomically. A token is returned only after the transaction commits.
+    try:
+        _consume_challenge(
+            db, challenge, purpose="fido2-authenticate", user_id=user.id
+        )
+        CredentialService.update_sign_count(
+            db=db, credential=record, sign_count=verified["new_sign_count"], commit=False
+        )
+        CredentialService.touch_last_used(db=db, credential=record, commit=False)
 
-    session = SessionService.create(db=db, user_id=user.id, device_id=record.device_id)
-    grant = GrantService.create(
-        db=db,
-        user_id=user.id,
-        session_id=session.id,
-        credential_id=record.id,
-        jwt_id=uuid4(),
-        device_id=record.device_id,
-        grant_type="access",
-        created_by="fido2-webauthn",
-    )
-    device = DeviceService.get(db=db, device_id=record.device_id)
-    if device is not None:
-        DeviceService.touch(db=db, device=device)
-    GrantService.touch(db=db, grant=grant)
-    from webauthn.helpers import base64url_to_bytes
-    token = TokenService.issue_access_token(
-        grant=grant,
-        device_public_key=record.public_key.encode(),
-    )
+        session = SessionService.create(
+            db=db, user_id=user.id, device_id=record.device_id, commit=False
+        )
+        grant = GrantService.create(
+            db=db,
+            user_id=user.id,
+            session_id=session.id,
+            credential_id=record.id,
+            jwt_id=uuid4(),
+            device_id=record.device_id,
+            grant_type="access",
+            created_by="fido2-webauthn",
+            commit=False,
+        )
+        device = DeviceService.get(db=db, device_id=record.device_id)
+        if device is not None:
+            DeviceService.touch(db=db, device=device, commit=False)
+        GrantService.touch(db=db, grant=grant, commit=False)
+
+        token = TokenService.issue_access_token(
+            grant=grant,
+            device_public_key=record.public_key.encode(),
+        )
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication failed",
+        ) from exc
+
     return {
         "status": "authenticated",
         "grant_id": str(grant.id),
