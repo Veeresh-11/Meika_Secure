@@ -1,10 +1,13 @@
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock
+from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
+from app.api import fido2 as fido2_api
 from app.api.fido2 import _consume_challenge
 
 from app.main import app
@@ -88,4 +91,64 @@ def test_challenge_consume_rejects_race_without_committing():
         )
 
     assert error.value.status_code == 400
+    db.commit.assert_not_called()
+
+
+
+def test_registration_failure_rolls_back_challenge_consumption(monkeypatch):
+    user = SimpleNamespace(id=uuid4(), tenant_id=uuid4(), email="user@example.com")
+    enrollment_jti = "enrollment-once"
+    challenge = SimpleNamespace(
+        id=uuid4(),
+        user_id=user.id,
+        purpose="fido2-register:" + enrollment_jti,
+        challenge="dGVzdC1jaGFsbGVuZ2UtYnl0ZXM",
+        used=False,
+        expires_at=datetime.utcnow() + timedelta(minutes=5),
+    )
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = challenge
+    db.execute.return_value.rowcount = 1
+
+    monkeypatch.setattr(
+        fido2_api,
+        "verify_enrollment_token",
+        lambda token: {"sub": str(user.id), "jti": enrollment_jti},
+    )
+    monkeypatch.setattr(
+        fido2_api.AuthService,
+        "get_user_by_email",
+        lambda db, email: user,
+    )
+    monkeypatch.setattr(
+        fido2_api,
+        "verify_registration",
+        lambda **kwargs: {
+            "credential_id": "credential-id",
+            "public_key": "cHVibGljLWtleQ",
+            "sign_count": 0,
+            "attestation_type": "none",
+        },
+    )
+    monkeypatch.setattr(
+        fido2_api.DeviceService,
+        "register",
+        MagicMock(side_effect=RuntimeError("simulated device insert failure")),
+    )
+
+    payload = fido2_api.RegistrationVerifyRequest(
+        email="user@example.com",
+        challenge=challenge.challenge,
+        credential={"id": "credential-id", "type": "public-key", "response": {}},
+        device_name="test device",
+    )
+    with pytest.raises(HTTPException) as error:
+        fido2_api.registration_verify(
+            payload,
+            authorization="Bearer enrollment-token",
+            db=db,
+        )
+
+    assert error.value.status_code == 500
+    db.rollback.assert_called_once()
     db.commit.assert_not_called()
