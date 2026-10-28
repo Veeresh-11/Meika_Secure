@@ -185,3 +185,9 @@ def test_missing_issuer_or_audience_is_rejected(missing_claim, expected_error):
     with pytest.raises(SecurityError, match=expected_error):
         enforce_device_bound_token(token, DEVICE_KEY)
 
+
+
+@pytest.mark.parametrize("invalid_key", [{}, {"device_id": "device-1"}, "", b""])
+def test_invalid_public_key_material_fails_closed(invalid_key):
+    with pytest.raises(SecurityError, match="Invalid device public key"):
+        enforce_device_bound_token("not-a-jwt", invalid_key)

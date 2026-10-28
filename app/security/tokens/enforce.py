@@ -1,6 +1,7 @@
 import hashlib
 
 import jwt
+
 from app.security.errors import SecurityError
 from app.security.tokens.config import TokenConfig
 
@@ -16,12 +17,11 @@ def enforce_device_bound_token(
     token: str,
     device_public_key: bytes,
 ):
-    """
-    Validate an authentication JWT.
-    """
+    """Validate a signed JWT against a registered device public key."""
+    if not isinstance(device_public_key, bytes) or not device_public_key:
+        raise SecurityError("Invalid device public key")
 
     try:
-
         payload = jwt.decode(
             token,
             SECRET,
@@ -33,8 +33,6 @@ def enforce_device_bound_token(
         )
 
         # Issuer and audience are mandatory trust boundaries.
-        # Missing claims must fail closed; optional validation permits
-        # tokens from unintended issuers or for unintended services.
         if payload.get("iss") != TokenConfig.ISSUER:
             raise SecurityError("Invalid issuer")
 
@@ -47,13 +45,8 @@ def enforce_device_bound_token(
     except jwt.InvalidTokenError:
         raise SecurityError("Invalid token")
 
-    expected_dkh = hashlib.sha256(
-        device_public_key
-    ).hexdigest()
-
+    expected_dkh = hashlib.sha256(device_public_key).hexdigest()
     if payload.get("dkh") != expected_dkh:
-        raise SecurityError(
-            "Token not bound to this device"
-        )
+        raise SecurityError("Token not bound to this device")
 
     return payload
