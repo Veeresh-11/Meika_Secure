@@ -346,3 +346,18 @@ def test_password_login_commits_only_after_policy_allow(monkeypatch):
     assert captured["context"].device.secure_boot is False
     db.commit.assert_called_once()
     db.rollback.assert_not_called()
+
+
+
+def test_enrollment_challenge_index_is_partial_and_unique():
+    from app.db.webauthn_models import WebAuthnChallenge
+
+    index = next(
+        item
+        for item in WebAuthnChallenge.__table__.indexes
+        if item.name == "uq_webauthn_enrollment_purpose"
+    )
+
+    assert index.unique is True
+    assert index.dialect_options["postgresql"]["where"] is not None
+    assert index.dialect_options["sqlite"]["where"] is not None
