@@ -359,5 +359,7 @@ def test_enrollment_challenge_index_is_partial_and_unique():
     )
 
     assert index.unique is True
-    assert index.dialect_options["postgresql"]["where"] is not None
-    assert index.dialect_options["sqlite"]["where"] is not None
+    pg_predicate = str(index.dialect_options["postgresql"]["where"])
+    sqlite_predicate = str(index.dialect_options["sqlite"]["where"])
+    assert "fido2-register:%" in pg_predicate
+    assert "fido2-register:%" in sqlite_predicate
