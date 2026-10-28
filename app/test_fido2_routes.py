@@ -152,3 +152,69 @@ def test_registration_failure_rolls_back_challenge_consumption(monkeypatch):
     assert error.value.status_code == 500
     db.rollback.assert_called_once()
     db.commit.assert_not_called()
+
+
+
+def test_authentication_failure_rolls_back_consumed_challenge(monkeypatch):
+    user = SimpleNamespace(id=uuid4(), tenant_id=uuid4(), email="user@example.com")
+    challenge = SimpleNamespace(
+        id=uuid4(),
+        user_id=user.id,
+        purpose="fido2-authenticate",
+        challenge="dGVzdC1jaGFsbGVuZ2UtYnl0ZXM",
+        used=False,
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=5),
+    )
+    credential = SimpleNamespace(
+        id=uuid4(),
+        user_id=user.id,
+        tenant_id=user.tenant_id,
+        credential_id="Y3JlZGVudGlhbC1pZA",
+        public_key="cHVibGljLWtleQ",
+        sign_count=0,
+        device_id=uuid4(),
+        revoked=False,
+    )
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = challenge
+    db.execute.return_value.rowcount = 1
+
+    monkeypatch.setattr(
+        fido2_api.AuthService,
+        "get_user_by_email",
+        lambda db, email: user,
+    )
+    monkeypatch.setattr(
+        fido2_api.CredentialService,
+        "get_webauthn_credential",
+        lambda **kwargs: credential,
+    )
+    monkeypatch.setattr(
+        fido2_api,
+        "verify_authentication",
+        lambda **kwargs: {
+            "credential_id": b"credential-id",
+            "new_sign_count": 1,
+        },
+    )
+    monkeypatch.setattr(
+        fido2_api.CredentialService,
+        "update_sign_count",
+        MagicMock(side_effect=RuntimeError("simulated credential update failure")),
+    )
+
+    payload = fido2_api.AuthenticationVerifyRequest(
+        email="user@example.com",
+        challenge=challenge.challenge,
+        credential={
+            "id": credential.credential_id,
+            "type": "public-key",
+            "response": {},
+        },
+    )
+    with pytest.raises(HTTPException) as error:
+        fido2_api.authentication_verify(payload, db=db)
+
+    assert error.value.status_code == 401
+    db.rollback.assert_called_once()
+    db.commit.assert_not_called()
