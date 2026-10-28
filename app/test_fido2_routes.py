@@ -301,3 +301,48 @@ def test_password_login_deny_rolls_back_and_ignores_client_device_signals(monkey
     assert snapshot.secure_boot is False
     db.rollback.assert_called_once()
     db.commit.assert_not_called()
+
+
+
+def test_password_login_commits_only_after_policy_allow(monkeypatch):
+    user_id = uuid4()
+    session = SimpleNamespace(
+        id=uuid4(),
+        user_id=user_id,
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=30),
+    )
+    db = MagicMock()
+    captured = {}
+
+    monkeypatch.setattr(
+        auth_api.AuthService,
+        "login_user",
+        lambda **kwargs: session,
+    )
+    monkeypatch.setattr(
+        auth_api,
+        "issue_enrollment_token",
+        lambda user_id: "limited-enrollment-token",
+    )
+
+    def allow_policy(context):
+        captured["context"] = context
+        return SimpleNamespace(outcome=SimpleNamespace(value="ALLOW"))
+
+    monkeypatch.setattr(auth_api.pipeline, "evaluate", allow_policy)
+
+    payload = auth_api.LoginRequest(
+        email="user@example.com",
+        password="a-long-test-password",
+        device_id="unverified-device",
+        device_signals={"secure_boot": True, "hardware_backed": True},
+    )
+    response = auth_api.login(payload, db=db)
+
+    assert response["decision"] == "ALLOW"
+    assert response["webauthn_enrollment_token"] == "limited-enrollment-token"
+    assert captured["context"].device.registered is False
+    assert captured["context"].device.hardware_backed is False
+    assert captured["context"].device.secure_boot is False
+    db.commit.assert_called_once()
+    db.rollback.assert_not_called()
