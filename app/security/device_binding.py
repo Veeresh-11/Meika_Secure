@@ -1,12 +1,12 @@
-"""Resolve a JWT's device binding against persisted, tenant-scoped credentials.
+"""Resolve JWT device bindings against persisted, tenant-scoped credentials.
 
-JWT claims are treated as untrusted lookup hints until signature, issuer,
-audience, expiry and device-key binding are verified by enforce_device_bound_token.
+The token is verified against candidate registered credentials; unverified claims
+are never used to choose a principal or device.
 """
 from dataclasses import dataclass
 from uuid import UUID
 
-import jwt
+from sqlalchemy import or_
 
 from app.db.device_models import Device
 from app.db.models import User
@@ -31,29 +31,27 @@ def resolve_registered_device_binding(
 ) -> ResolvedDeviceBinding:
     """Resolve and verify a token against an active registered device credential.
 
-    The request header is only a selector, never a source of key material.
+    The request header selects candidate device records but is never key material.
     """
     if not isinstance(token, str) or not token:
         raise SecurityError("Invalid token")
-    if not isinstance(requested_device_identifier, str) or not requested_device_identifier:
+    if (
+        not isinstance(requested_device_identifier, str)
+        or not requested_device_identifier
+    ):
         raise SecurityError("Missing device identity")
 
+    # The request identifier is only a selector. Do not decode an unverified JWT
+    # to discover the user/device; verify it against active registered keys first.
+    device_predicates = [
+        Device.device_identifier == requested_device_identifier,
+    ]
     try:
-        # Unverified claims are used only to narrow the database lookup. No
-        # authorization decision is made until enforce_device_bound_token passes.
-        unverified = jwt.decode(
-            token,
-            options={
-                "verify_signature": False,
-                "verify_exp": False,
-                "verify_aud": False,
-                "verify_iss": False,
-            },
-        )
-        user_id = UUID(unverified["sub"])
-        device_id = UUID(unverified["did"])
-    except (jwt.InvalidTokenError, KeyError, TypeError, ValueError, AttributeError):
-        raise SecurityError("Invalid token") from None
+        requested_device_uuid = UUID(requested_device_identifier)
+    except (TypeError, ValueError, AttributeError):
+        requested_device_uuid = None
+    if requested_device_uuid is not None:
+        device_predicates.append(Device.id == requested_device_uuid)
 
     with SessionLocal() as db:
         rows = (
@@ -61,12 +59,11 @@ def resolve_registered_device_binding(
             .join(Device, Device.id == WebAuthnCredential.device_id)
             .join(User, User.id == WebAuthnCredential.user_id)
             .filter(
-                WebAuthnCredential.user_id == user_id,
-                WebAuthnCredential.device_id == device_id,
+                or_(*device_predicates),
                 WebAuthnCredential.tenant_id == User.tenant_id,
                 WebAuthnCredential.tenant_id == Device.tenant_id,
                 WebAuthnCredential.revoked.is_(False),
-                Device.user_id == user_id,
+                Device.user_id == WebAuthnCredential.user_id,
                 Device.state == DEVICE_STATE_ACTIVE,
                 User.status == "active",
             )
@@ -74,12 +71,6 @@ def resolve_registered_device_binding(
         )
 
         for credential, registered_device in rows:
-            if requested_device_identifier not in {
-                str(registered_device.id),
-                registered_device.device_identifier,
-            }:
-                continue
-
             public_key = credential.public_key
             if not isinstance(public_key, str) or not public_key:
                 continue
@@ -90,12 +81,14 @@ def resolve_registered_device_binding(
                     device_public_key=public_key.encode("utf-8"),
                 )
             except SecurityError:
-                # Another credential may belong to the same device. Continue
-                # only through persisted active credentials for this exact
-                # user/device/tenant tuple.
+                # Try only other persisted active credentials for this selected
+                # device. No unverified token claims are trusted for lookup.
                 continue
 
-            if payload.get("sub") != str(user_id) or payload.get("did") != str(device_id):
+            if (
+                payload.get("sub") != str(credential.user_id)
+                or payload.get("did") != str(registered_device.id)
+            ):
                 continue
 
             return ResolvedDeviceBinding(
@@ -107,8 +100,7 @@ def resolve_registered_device_binding(
                     hardware_backed=bool(credential.hardware_backed),
                     attestation_verified=bool(credential.attestation_verified),
                     binding_valid=True,
-                    # The schema has no verified secure-boot measurement;
-                    # do not assert secure boot without evidence.
+                    # No verified secure-boot measurement exists in the schema.
                     secure_boot=False,
                 ),
             )
