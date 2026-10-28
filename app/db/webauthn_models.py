@@ -27,6 +27,7 @@ class WebAuthnChallenge(Base):
             "purpose",
             unique=True,
             postgresql_where=text("purpose LIKE 'fido2-register:%'"),
+            sqlite_where=text("purpose LIKE 'fido2-register:%'"),
         ),
         {"schema": "identity"},
     )
