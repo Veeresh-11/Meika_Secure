@@ -62,6 +62,8 @@ class AuthService:
         db: Session,
         email: str,
         password: str,
+        *,
+        commit: bool = True,
     ) -> UserSession | None:
         user = (
             db.query(User)
@@ -80,6 +82,7 @@ class AuthService:
             db=db,
             user_id=user.id,
             password=password,
+            commit=commit,
         ):
             return None
 
@@ -102,7 +105,10 @@ class AuthService:
             resource="session",
         )
 
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
         db.refresh(session)
         return session
 
