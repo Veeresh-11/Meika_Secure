@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import IntegrityError
 
+from app.api import auth as auth_api
 from app.api import fido2 as fido2_api
 from app.api.fido2 import _consume_challenge
 
@@ -257,3 +258,46 @@ def test_registration_options_rejects_concurrent_enrollment_token_reuse(monkeypa
     assert error.value.status_code == 401
     assert "already used" in error.value.detail.lower()
     db.rollback.assert_called_once()
+
+
+
+def test_password_login_deny_rolls_back_and_ignores_client_device_signals(monkeypatch):
+    user_id = uuid4()
+    session = SimpleNamespace(
+        id=uuid4(),
+        user_id=user_id,
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=30),
+    )
+    db = MagicMock()
+    captured = {}
+
+    monkeypatch.setattr(
+        auth_api.AuthService,
+        "login_user",
+        lambda **kwargs: session,
+    )
+
+    def deny_policy(context):
+        captured["context"] = context
+        return SimpleNamespace(outcome=SimpleNamespace(value="DENY"))
+
+    monkeypatch.setattr(auth_api.pipeline, "evaluate", deny_policy)
+
+    payload = auth_api.LoginRequest(
+        email="user@example.com",
+        password="a-long-test-password",
+        device_id="attacker-controlled-device",
+        device_signals={"secure_boot": True, "hardware_backed": True},
+    )
+    with pytest.raises(HTTPException) as error:
+        auth_api.login(payload, db=db)
+
+    assert error.value.status_code == 403
+    snapshot = captured["context"].device
+    assert snapshot.registered is False
+    assert snapshot.hardware_backed is False
+    assert snapshot.attestation_verified is False
+    assert snapshot.binding_valid is False
+    assert snapshot.secure_boot is False
+    db.rollback.assert_called_once()
+    db.commit.assert_not_called()
