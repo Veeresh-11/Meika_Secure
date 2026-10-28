@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from uuid import UUID
 
 import jwt
-from sqlalchemy.orm import Session
 
 from app.db.device_models import Device
 from app.db.models import User
@@ -16,7 +15,6 @@ from app.db.webauthn_models import WebAuthnCredential
 from app.security.device.constants import DEVICE_STATE_ACTIVE
 from app.security.device_snapshot import DeviceSnapshot
 from app.security.errors import SecurityError
-from app.security.tokens.config import TokenConfig
 from app.security.tokens.enforce import enforce_device_bound_token
 
 
@@ -57,7 +55,7 @@ def resolve_registered_device_binding(
     except (jwt.InvalidTokenError, KeyError, TypeError, ValueError, AttributeError):
         raise SecurityError("Invalid token") from None
 
-    with SessionLocal() as db:  # type: Session
+    with SessionLocal() as db:
         rows = (
             db.query(WebAuthnCredential, Device)
             .join(Device, Device.id == WebAuthnCredential.device_id)
@@ -70,7 +68,7 @@ def resolve_registered_device_binding(
                 WebAuthnCredential.revoked.is_(False),
                 Device.user_id == user_id,
                 Device.state == DEVICE_STATE_ACTIVE,
-                User.status == "ACTIVE",
+                User.status == "active",
             )
             .all()
         )
