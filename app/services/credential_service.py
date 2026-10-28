@@ -88,7 +88,9 @@ class CredentialService:
     def verify_password_credential(
         db: Session,
         user_id,
-        password: str
+        password: str,
+        *,
+        commit: bool = True,
     ) -> bool:
         credential = (
             db.query(Credential)
@@ -105,7 +107,10 @@ class CredentialService:
 
         if verify_password(credential.secret_ref, password):
             credential.last_used_at = datetime.now(timezone.utc).replace(tzinfo=None)
-            db.commit()
+            if commit:
+                db.commit()
+            else:
+                db.flush()
             return True
 
         return False
