@@ -252,52 +252,46 @@ def login(
             db=db,
             email=payload.email,
             password=payload.password,
+            commit=False,
         )
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=401, detail="Invalid credentials") from exc
 
     if not session:
+        db.rollback()
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     principal_id = str(session.user_id)
 
    # ---- Step 2: Device Context ----
+    # Password login cannot attest hardware, device registration, secure boot,
+    # or binding. Client-supplied device_signals are not trusted evidence.
     try:
-
-      posture = posture_evaluator.evaluate(payload.device_signals)
-
-      if isinstance(posture, DevicePostureContext):
-         posture_ctx = posture
-      else:
-        posture_ctx = DevicePostureContext(
-            secure_boot=bool(posture.get("secure_boot", True)),
-            compromised=bool(posture.get("compromised", False)),
+        device_ctx = DeviceContext(
+            device_id=payload.device_id,
+            registered=False,
+            state="unknown",
+            identity=DeviceIdentityContext(
+                hardware_backed=False,
+                attestation_verified=False,
+                binding_valid=False,
+                clone_confirmed=False,
+                replay_detected=False,
+                last_attested_at=None,
+            ),
+            posture=DevicePostureContext(
+                secure_boot=False,
+                compromised=False,
+            ),
         )
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid device context",
+        ) from exc
 
-      device_ctx = DeviceContext(
-        device_id=payload.device_id,
-        registered=device_registry.is_registered(
-            payload.device_id,
-            principal_id,
-        ),
-        state="active",
-        identity=DeviceIdentityContext(
-            hardware_backed=True,
-            attestation_verified=True,
-            binding_valid=True,
-            clone_confirmed=False,
-            replay_detected=False,
-            last_attested_at=datetime.now(timezone.utc).replace(tzinfo=None),
-        ),
-        posture=posture_ctx,
-    )
-
-    except Exception:
-      raise HTTPException(
-        status_code=400,
-        detail="Invalid device context",
-    )
-    
     # ---- Step 3: Security Context ----
     
 
@@ -330,28 +324,36 @@ def login(
     )
     # ---- Step 4: Zero Trust ----
     try:
-      decision = pipeline.evaluate(security_ctx)
-
+        decision = pipeline.evaluate(security_ctx)
     except Exception as exc:
-      import traceback
-      traceback.print_exc()
-
-      if isinstance(exc, SecurityPipelineError):
+        db.rollback()
+        if isinstance(exc, SecurityPipelineError):
+            raise HTTPException(status_code=403, detail="Access denied") from exc
         raise HTTPException(
             status_code=403,
-            detail="Access denied",
-        )
+            detail="Security evaluation failed",
+        ) from exc
 
-      raise HTTPException(
-        status_code=403,
-        detail="Security evaluation failed",
-      )
+    if decision.outcome.value != "ALLOW":
+        db.rollback()
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Session, password last-used timestamp, and audit record are committed
+    # only after the security policy explicitly allows the request.
+    try:
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to complete login",
+        ) from exc
 
     return {
         "session_id": str(session.id),
         "expires_at": session.expires_at,
         "decision": decision.outcome.value,
-        "webauthn_enrollment_token": issue_enrollment_token(session.user_id) if decision.outcome.value == "ALLOW" else None,
+        "webauthn_enrollment_token": issue_enrollment_token(session.user_id),
         "warning": "Password authentication is deprecated. Use this short-lived enrollment token only to register a passkey.",
     }
 
