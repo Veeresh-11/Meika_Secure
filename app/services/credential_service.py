@@ -37,6 +37,7 @@ class CredentialService:
         hardware_backed: bool,
         attestation_verified: bool,
         attestation_type: str,
+        commit: bool = True,
     ) -> WebAuthnCredential:
 
         user = db.query(User).filter(User.id == user_id).first()
@@ -55,7 +56,10 @@ class CredentialService:
     )
 
         db.add(credential)
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
         db.refresh(credential)
 
         return credential
@@ -111,11 +115,16 @@ class CredentialService:
         db: Session,
         credential: WebAuthnCredential,
         sign_count: int,
+        *,
+        commit: bool = True,
   ) -> WebAuthnCredential:
 
         credential.sign_count = sign_count
 
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
         db.refresh(credential)
 
         return credential
@@ -124,11 +133,16 @@ class CredentialService:
     def touch_last_used(
         db: Session,
         credential: WebAuthnCredential,
+        *,
+        commit: bool = True,
     ) -> WebAuthnCredential:
 
         credential.last_used_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
         db.refresh(credential)
 
         return credential
