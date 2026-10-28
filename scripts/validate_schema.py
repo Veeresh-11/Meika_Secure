@@ -372,6 +372,10 @@ REQUIRED_INDEXES = (
         "identity.webauthn_challenges",
     ),
     (
+        "uq_webauthn_enrollment_purpose",
+        "identity.webauthn_challenges",
+    ),
+    (
         "ix_sessions_tenant_id",
         "identity.sessions",
     ),
@@ -445,6 +449,7 @@ REQUIRED_MIGRATIONS = (
     "015_add_session_tenant.sql",
     "016_add_grant_tenant.sql",
     "017_add_audit_log_tenant.sql",
+    "018_enforce_single_use_webauthn_enrollment.sql",
 )
 
 
