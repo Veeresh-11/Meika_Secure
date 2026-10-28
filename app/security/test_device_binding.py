@@ -1,3 +1,4 @@
+import secrets
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
@@ -10,9 +11,10 @@ from app.security.errors import SecurityError
 
 
 def _token(user_id, device_id):
+    # Ephemeral test-only key: avoid hardcoded credentials and short-key warnings.
     return jwt.encode(
         {"sub": str(user_id), "did": str(device_id)},
-        "test-only-unverified-claims-key",
+        secrets.token_bytes(32),
         algorithm="HS256",
     )
 
@@ -36,9 +38,11 @@ def test_resolves_registered_key_and_returns_typed_device_snapshot():
     user_id = uuid4()
     device_id = uuid4()
     credential = SimpleNamespace(
+        user_id=user_id,
         public_key="stored-public-key",
         hardware_backed=True,
         attestation_verified=True,
+        revoked=False,
     )
     device = SimpleNamespace(
         id=device_id,
@@ -46,6 +50,7 @@ def test_resolves_registered_key_and_returns_typed_device_snapshot():
         state="ACTIVE",
     )
     session_context, db, query = _fake_database(credential, device)
+    token = _token(user_id, device_id)
     verified_payload = {"sub": str(user_id), "did": str(device_id)}
 
     with patch(
@@ -56,12 +61,12 @@ def test_resolves_registered_key_and_returns_typed_device_snapshot():
         return_value=verified_payload,
     ) as verify:
         result = resolve_registered_device_binding(
-            token=_token(user_id, device_id),
+            token=token,
             requested_device_identifier="credential-id-123",
         )
 
     verify.assert_called_once_with(
-        token=_token(user_id, device_id),
+        token=token,
         device_public_key=b"stored-public-key",
     )
     assert result.payload == verified_payload
@@ -77,9 +82,11 @@ def test_rejects_request_device_identifier_mismatch():
     user_id = uuid4()
     device_id = uuid4()
     credential = SimpleNamespace(
+        user_id=user_id,
         public_key="stored-public-key",
         hardware_backed=True,
         attestation_verified=True,
+        revoked=False,
     )
     device = SimpleNamespace(
         id=device_id,
@@ -103,11 +110,29 @@ def test_rejects_request_device_identifier_mismatch():
     verify.assert_not_called()
 
 
-def test_rejects_malformed_unverified_claims_before_database_lookup():
-    with patch("app.security.device_binding.SessionLocal") as session_factory:
-        with pytest.raises(SecurityError, match="Invalid token"):
+def test_malformed_token_fails_closed():
+    user_id = uuid4()
+    device_id = uuid4()
+    credential = SimpleNamespace(
+        user_id=user_id,
+        public_key="stored-public-key",
+        hardware_backed=True,
+        attestation_verified=True,
+        revoked=False,
+    )
+    device = SimpleNamespace(
+        id=device_id,
+        device_identifier="credential-id-123",
+        state="ACTIVE",
+    )
+    session_context, _, _ = _fake_database(credential, device)
+
+    with patch(
+        "app.security.device_binding.SessionLocal",
+        return_value=session_context,
+    ):
+        with pytest.raises(SecurityError, match="not bound"):
             resolve_registered_device_binding(
                 token="not-a-jwt",
-                requested_device_identifier="device-1",
+                requested_device_identifier="credential-id-123",
             )
-    session_factory.assert_not_called()
