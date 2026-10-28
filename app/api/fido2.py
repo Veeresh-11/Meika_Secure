@@ -15,7 +15,6 @@ from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.config.settings import settings
-from app.db.models import User
 from app.db.session import SessionLocal
 from app.db.webauthn_models import WebAuthnChallenge, WebAuthnCredential
 from app.security.webauthn.fido2 import (
