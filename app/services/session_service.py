@@ -23,6 +23,7 @@ class SessionService:
         user_id,
         device_id,
         expires_at=None,
+        commit: bool = True,
     ) -> Session:
 
         user = db.query(User).filter(User.id == user_id).first()
@@ -43,7 +44,10 @@ class SessionService:
         )
 
         db.add(session)
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
         db.refresh(session)
 
         return session
