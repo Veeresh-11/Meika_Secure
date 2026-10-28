@@ -1,4 +1,11 @@
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
+import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
+
+from app.api.fido2 import _consume_challenge
 
 from app.main import app
 
@@ -47,3 +54,38 @@ def test_fido2_registration_verification_requires_enrollment_token():
         },
     )
     assert response.status_code == 401
+
+
+
+def test_challenge_consume_is_part_of_caller_transaction():
+    db = MagicMock()
+    db.execute.return_value = SimpleNamespace(rowcount=1)
+    challenge = SimpleNamespace(id="challenge-id")
+
+    _consume_challenge(
+        db,
+        challenge,
+        purpose="fido2-authenticate",
+        user_id="user-id",
+    )
+
+    db.execute.assert_called_once()
+    db.commit.assert_not_called()
+    db.rollback.assert_not_called()
+
+
+def test_challenge_consume_rejects_race_without_committing():
+    db = MagicMock()
+    db.execute.return_value = SimpleNamespace(rowcount=0)
+    challenge = SimpleNamespace(id="challenge-id")
+
+    with pytest.raises(HTTPException) as error:
+        _consume_challenge(
+            db,
+            challenge,
+            purpose="fido2-authenticate",
+            user_id="user-id",
+        )
+
+    assert error.value.status_code == 400
+    db.commit.assert_not_called()
