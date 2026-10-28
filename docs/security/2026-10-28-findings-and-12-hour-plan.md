@@ -80,3 +80,11 @@ pytest -q -W error
 Verify exact test paths and database DSNs before use. Never point reset/bootstrap tests at the production `meika_secure_id` database.
 
 **Definition of done:** focused regression tests and full required suite pass on the exact candidate SHA; zero unexplained project warnings; no unresolved high/critical findings or ignored scanner failures; DB bootstrap/rollback/tenant isolation verified; all CI results and residual risks documented. Findings are not marked resolved by documentation alone.
+
+
+## Progress update — 2026-10-28 11:25 IST
+
+- Architecture/remediation map added as [SVG](../architecture/meika-secure-id-architecture-remediation-map.svg) and embedded in [architecture README](../architecture/README.md).
+- Dependency remediation PR #10 was merged after both required workflows passed on head `3219ee69e775a4d74378d21b3c25dfc4c1fb93d4` (PR Security Gate run 40633839431 and Deep Security Scan run 40633839414). The deep scan's pip-audit, OSV-Scanner and final enforcement gate passed. Image build/container scan and SonarQube remain skipped/not configured in that run.
+- FIX-001 implementation is now proposed in [PR #11](https://github.com/Veeresh-11/Meika_Secure/pull/11): resolve device key from active tenant-scoped WebAuthn credentials, validate signed JWT binding, use typed DeviceSnapshot, and reject invalid key types. Regression tests added for middleware, resolver behavior and malformed key material.
+- PR #11 validation is still running: Deep Security Scan run 40641128892 is in progress; PR Security Gate run 40641128914 is pending. FIX-001 remains **open** until both pass and key/header representation is reviewed against deployment configuration.
