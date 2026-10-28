@@ -363,3 +363,37 @@ def test_enrollment_challenge_index_is_partial_and_unique():
     sqlite_predicate = str(index.dialect_options["sqlite"]["where"])
     assert "fido2-register:%" in pg_predicate
     assert "fido2-register:%" in sqlite_predicate
+
+
+
+def test_password_login_token_issue_failure_rolls_back_session(monkeypatch):
+    session = SimpleNamespace(
+        id=uuid4(),
+        user_id=uuid4(),
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=30),
+    )
+    db = MagicMock()
+    monkeypatch.setattr(auth_api.AuthService, "login_user", lambda **kwargs: session)
+    monkeypatch.setattr(
+        auth_api.pipeline,
+        "evaluate",
+        lambda context: SimpleNamespace(outcome=SimpleNamespace(value="ALLOW")),
+    )
+    monkeypatch.setattr(
+        auth_api,
+        "issue_enrollment_token",
+        MagicMock(side_effect=RuntimeError("simulated token signing failure")),
+    )
+
+    payload = auth_api.LoginRequest(
+        email="user@example.com",
+        password="a-long-test-password",
+        device_id="unverified-device",
+        device_signals={},
+    )
+    with pytest.raises(HTTPException) as error:
+        auth_api.login(payload, db=db)
+
+    assert error.value.status_code == 500
+    db.rollback.assert_called_once()
+    db.commit.assert_not_called()
