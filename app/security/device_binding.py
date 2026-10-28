@@ -71,6 +71,12 @@ def resolve_registered_device_binding(
         )
 
         for credential, registered_device in rows:
+            if requested_device_identifier not in {
+                str(registered_device.id),
+                registered_device.device_identifier,
+            }:
+                continue
+
             public_key = credential.public_key
             if not isinstance(public_key, str) or not public_key:
                 continue
