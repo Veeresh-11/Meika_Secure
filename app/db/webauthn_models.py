@@ -9,6 +9,7 @@ from sqlalchemy import (
     Integer,
     ForeignKey,
     Index,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 
@@ -19,6 +20,14 @@ class WebAuthnChallenge(Base):
     __tablename__ = "webauthn_challenges"
     __table_args__ = (
         Index("ix_webauthn_challenges_tenant_id", "tenant_id"),
+        # One enrollment challenge per short-lived enrollment-token jti. This
+        # database constraint closes the concurrent options-request race.
+        Index(
+            "uq_webauthn_enrollment_purpose",
+            "purpose",
+            unique=True,
+            postgresql_where=text("purpose LIKE 'fido2-register:%'"),
+        ),
         {"schema": "identity"},
     )
 
