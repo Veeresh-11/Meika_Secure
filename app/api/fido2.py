@@ -12,6 +12,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from sqlalchemy import update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config.settings import settings
@@ -109,9 +110,18 @@ def registration_options(payload: RegistrationOptionsRequest, authorization: str
     )
     if existing_challenge is not None:
         raise HTTPException(status_code=401, detail="Passkey enrollment authorization already used")
-    challenge = ChallengeService.create(
-        db=db, user_id=user.id, purpose=enrollment_purpose
-    )
+    try:
+        challenge = ChallengeService.create(
+            db=db, user_id=user.id, purpose=enrollment_purpose
+        )
+    except IntegrityError as exc:
+        # The partial unique index serializes concurrent attempts to reuse a
+        # single-use enrollment token. Never leak the database constraint error.
+        db.rollback()
+        raise HTTPException(
+            status_code=401,
+            detail="Passkey enrollment authorization already used",
+        ) from exc
 
     existing = (
         db.query(WebAuthnCredential)
