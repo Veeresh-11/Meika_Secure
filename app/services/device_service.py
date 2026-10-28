@@ -57,6 +57,7 @@ class DeviceService:
         device_type: str = "unknown",
         hardware_backed: bool = False,
         attestation_verified: bool = False,
+        commit: bool = True,
     ) -> Device:
 
         user = db.query(User).filter(User.id == user_id).first()
@@ -82,7 +83,10 @@ class DeviceService:
         )
 
         db.add(device)
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
         db.refresh(device)
 
         return device
@@ -120,12 +124,16 @@ class DeviceService:
         db: Session,
         *,
         device: Device,
+        commit: bool = True,
     ) -> Device:
 
         device.last_seen = datetime.now(timezone.utc).replace(tzinfo=None)
         device.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
         db.refresh(device)
 
         return device
