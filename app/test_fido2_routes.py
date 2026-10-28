@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import uuid4
@@ -104,7 +104,7 @@ def test_registration_failure_rolls_back_challenge_consumption(monkeypatch):
         purpose="fido2-register:" + enrollment_jti,
         challenge="dGVzdC1jaGFsbGVuZ2UtYnl0ZXM",
         used=False,
-        expires_at=datetime.utcnow() + timedelta(minutes=5),
+        expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=5),
     )
     db = MagicMock()
     db.query.return_value.filter.return_value.first.return_value = challenge
