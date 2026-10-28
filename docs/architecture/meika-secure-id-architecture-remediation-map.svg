@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200" viewBox="0 0 1600 1200">
+<defs><style>
+.bg{fill:#f5f7fb}.panel{fill:#fff;stroke:#c8d2e1;stroke-width:2}.head{fill:#14233b}.txt{font:24px Arial,sans-serif;fill:#14233b}.small{font:19px Arial,sans-serif;fill:#34445d}.white{font:27px Arial,sans-serif;fill:#fff;font-weight:bold}.label{font:21px Arial,sans-serif;fill:#14233b;font-weight:bold}.green{fill:#e6f6ee;stroke:#4b9b77;stroke-width:2}.orange{fill:#fff3df;stroke:#d28a2e;stroke-width:2}.red{fill:#fde8e7;stroke:#c74b4b;stroke-width:2}.purple{fill:#f0eaff;stroke:#8667bf;stroke-width:2}.line{stroke:#63738c;stroke-width:3;fill:none;marker-end:url(#arrow)}
+</style><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#63738c"/></marker></defs>
+<rect class="bg" width="1600" height="1200"/>
+<rect class="head" x="0" y="0" width="1600" height="100"/>
+<text class="white" x="55" y="43">MEIKA SECURE ID — ARCHITECTURE &amp; REMEDIATION MAP</text>
+<text x="55" y="75" style="font:18px Arial;fill:#d7e3f4">Repository: Veeresh-11/Meika_Secure • reviewed main SHA 3d6c39aa • 28 Oct 2026</text>
+<!-- row one -->
+<rect class="panel" x="55" y="135" width="310" height="125" rx="14"/><text class="label" x="80" y="175">1. Client / API</text><text class="small" x="80" y="208">HTTP request + Bearer JWT</text><text class="small" x="80" y="235">X-Device-ID header</text>
+<rect class="red" x="430" y="135" width="330" height="125" rx="14"/><text class="label" x="455" y="175">2. FastAPI middleware</text><text class="small" x="455" y="208">Public route allowlist</text><text class="small" x="455" y="235">Broad exception → 403/400</text>
+<rect class="red" x="825" y="135" width="320" height="125" rx="14"/><text class="label" x="850" y="175">3. Device-bound JWT</text><text class="small" x="850" y="208">Current path passes dict</text><text class="small" x="850" y="235">to SHA-256 bytes contract</text>
+<rect class="orange" x="1210" y="135" width="335" height="125" rx="14"/><text class="label" x="1235" y="175">4. Security context</text><text class="small" x="1235" y="208">Transport dict reused as</text><text class="small" x="1235" y="235">principal / device / ID</text>
+<path class="line" d="M365 198 H423"/><path class="line" d="M760 198 H818"/><path class="line" d="M1145 198 H1203"/>
+<!-- row two -->
+<rect class="panel" x="55" y="330" width="450" height="145" rx="14"/><text class="label" x="80" y="370">Authentication + WebAuthn</text><text class="small" x="80" y="405">Challenge → credential lookup → verify</text><text class="small" x="80" y="435">Session + grant + access token</text><text class="small" x="80" y="460">Legacy mock-style route risk: open</text>
+<rect class="orange" x="575" y="330" width="450" height="145" rx="14"/><text class="label" x="600" y="370">Database transaction boundary</text><text class="small" x="600" y="405">Several services commit independently</text><text class="small" x="600" y="435">Failure may leave partial auth state</text><text class="small" x="600" y="460">Challenge validate/consume race</text>
+<rect class="orange" x="1095" y="330" width="450" height="145" rx="14"/><text class="label" x="1120" y="370">Evidence / authorization decision</text><text class="small" x="1120" y="405">Kernel + policy + grant/revocation</text><text class="small" x="1120" y="435">Durable evidence-before-ALLOW unproven</text><text class="small" x="1120" y="460">In-memory store exists in source tree</text>
+<path class="line" d="M275 260 V300 H275 V322"/><path class="line" d="M800 260 V300 H800 V322"/><path class="line" d="M1380 260 V300 H1380 V322"/>
+<!-- row three -->
+<rect class="green" x="55" y="535" width="450" height="135" rx="14"/><text class="label" x="80" y="575">Database / migrations</text><text class="small" x="80" y="610">PostgreSQL schemas + migrations 000–017</text><text class="small" x="80" y="640">DB-012 failure-semantics PR needs fresh CI</text>
+<rect class="green" x="575" y="535" width="450" height="135" rx="14"/><text class="label" x="600" y="575">PR security gate</text><text class="small" x="600" y="610">pytest / lint / CodeQL / secret scan</text><text class="small" x="600" y="640">New dependency PR checks in progress</text>
+<rect class="red" x="1095" y="535" width="450" height="135" rx="14"/><text class="label" x="1120" y="575">Deep security scan</text><text class="small" x="1120" y="610">Previous main run failed dependency gate</text><text class="small" x="1120" y="640">2 pip-audit items; OSV reported 1</text>
+<path class="line" d="M275 475 V525"/><path class="line" d="M800 475 V525"/><path class="line" d="M1320 475 V525"/>
+<!-- remediation -->
+<rect class="head" x="55" y="720" width="1490" height="62" rx="12"/><text class="white" x="80" y="760">TODAY'S REMEDIATION ORDER — 12 FOCUSED HOURS</text>
+<rect class="red" x="55" y="815" width="350" height="115" rx="12"/><text class="label" x="80" y="853">P0 • FIX-001</text><text class="small" x="80" y="886">Reproduce device key type mismatch</text><text class="small" x="80" y="912">Add fail-closed regression tests</text>
+<rect class="red" x="435" y="815" width="350" height="115" rx="12"/><text class="label" x="460" y="853">P0 • FIX-002 / 016</text><text class="small" x="460" y="886">Real FIDO2 verification</text><text class="small" x="460" y="912">Atomic one-time challenge use</text>
+<rect class="orange" x="815" y="815" width="350" height="115" rx="12"/><text class="label" x="840" y="853">P0 • FIX-003</text><text class="small" x="840" y="886">Atomic auth state transaction</text><text class="small" x="840" y="912">Injected-failure rollback tests</text>
+<rect class="orange" x="1195" y="815" width="350" height="115" rx="12"/><text class="label" x="1220" y="853">P0 • FIX-007 / 008</text><text class="small" x="1220" y="886">Durable evidence + typed context</text><text class="small" x="1220" y="912">Tenant-safe principal/device data</text>
+<text class="small" x="60" y="985">Legend: green = infrastructure/CI evidence observed • orange = needs implementation proof • red = high-risk source finding</text>
+<text class="small" x="60" y="1025">Safety gates: preserve worktree; use isolated test DB only; do not suppress warnings; do not merge until exact-SHA checks pass.</text>
+<text class="small" x="60" y="1065">Current dependency fix PR: https://github.com/Veeresh-11/Meika_Secure/pull/10</text>
+<text class="small" x="60" y="1105">Tracker: docs/security/2026-10-28-findings-and-12-hour-plan.md</text>
+</svg>
