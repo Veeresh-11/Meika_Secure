@@ -106,3 +106,11 @@ Verify exact test paths and database DSNs before use. Never point reset/bootstra
 - Added regression tests for atomic challenge-consumption behavior and race rejection in `app/test_fido2_routes.py`. Latest PR #9 head: `0a8af7bbc45fb91483718b2bab2abd248871f09f`. These changes are committed to the draft PR branch, but CI has not yet reported a run for the latest head in the current check.
 - Outstanding review items: run both required workflows against the latest PR #9 head; add/confirm failure-injection coverage for registration/authentication rollback; update the stale PR #9 base safely; verify that `public_key` stored as base64url for WebAuthn verification is intentionally encoded consistently for device-bound JWT HMAC signing; and finish PR #11 key/header compatibility review.
 - No PR was merged in this checkpoint. FIX-001 and FIX-002 remain open until CI and targeted tests prove the behavior.
+
+
+## Progress update — 2026-10-28 12:20 IST
+
+- FIX-002 draft PR #9 now has latest head `1119f3f92ea8e164b136df13a31911b279096209`. The change set includes transaction-aware service methods, atomic challenge consumption plus related registration/authentication writes, rollback paths, and tests for challenge races and registration failure rollback. GitGuardian reports no secrets for the latest head; the standard PR Security Gate and Deep Security Scan have not yet appeared for this head, so functional/security CI is still **unverified**.
+- The atomicity tests are committed but have not been executed locally in this session. The rollback regression injects a simulated device insert failure after challenge consumption and asserts rollback and no commit. Follow-up should add/confirm an analogous authentication failure test and execute the exact candidate against the required workflows.
+- FIX-001's PR #11 workflows remain in progress: PR Security Gate is in the `Tests + Coverage` step; Deep Security Scan is in `OSV-Scanner`. Earlier completed jobs on the gate (critical Python quality, workflow security, dependency review, secret scan) passed; scorecard was skipped. No final conclusions yet.
+- Neither PR #9 nor PR #11 has been merged. Do not mark FIX-001/FIX-002 complete until required checks pass on their exact latest heads, all transaction failure tests pass, and key/device identity contract is reviewed.
