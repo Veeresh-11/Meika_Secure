@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import IntegrityError
 
 from app.api import fido2 as fido2_api
 from app.api.fido2 import _consume_challenge
@@ -218,3 +219,41 @@ def test_authentication_failure_rolls_back_consumed_challenge(monkeypatch):
     assert error.value.status_code == 401
     db.rollback.assert_called_once()
     db.commit.assert_not_called()
+
+
+
+def test_registration_options_rejects_concurrent_enrollment_token_reuse(monkeypatch):
+    user = SimpleNamespace(id=uuid4(), tenant_id=uuid4(), email="user@example.com")
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = None
+
+    monkeypatch.setattr(
+        fido2_api,
+        "verify_enrollment_token",
+        lambda token: {"sub": str(user.id), "jti": "one-time-enrollment"},
+    )
+    monkeypatch.setattr(
+        fido2_api.AuthService,
+        "get_user_by_email",
+        lambda db, email: user,
+    )
+    monkeypatch.setattr(
+        fido2_api.ChallengeService,
+        "create",
+        MagicMock(side_effect=IntegrityError("INSERT", {}, Exception("unique violation"))),
+    )
+
+    payload = fido2_api.RegistrationOptionsRequest(
+        email="user@example.com",
+        device_name="test device",
+    )
+    with pytest.raises(HTTPException) as error:
+        fido2_api.registration_options(
+            payload,
+            authorization="Bearer enrollment-token",
+            db=db,
+        )
+
+    assert error.value.status_code == 401
+    assert "already used" in error.value.detail.lower()
+    db.rollback.assert_called_once()
