@@ -38,6 +38,7 @@ class GrantService:
         device_id,
         grant_type: str = "access",
         created_by: str = "webauthn",
+        commit: bool = True,
     ) -> Grant:
 
         user = db.query(User).filter(User.id == user_id).first()
@@ -62,7 +63,10 @@ class GrantService:
         )
 
         db.add(grant)
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
         db.refresh(grant)
 
         return grant
@@ -160,6 +164,7 @@ class GrantService:
         *,
         grant: Grant,
         ip_address: str | None = None,
+        commit: bool = True,
     ) -> Grant:
 
         grant.last_used_at = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -167,7 +172,10 @@ class GrantService:
         if ip_address is not None:
             grant.last_used_ip = ip_address
 
-        db.commit()
+        if commit:
+            db.commit()
+        else:
+            db.flush()
         db.refresh(grant)
 
         return grant
