@@ -355,6 +355,7 @@ jobs:
               "015_add_session_tenant.sql",
               "016_add_grant_tenant.sql",
               "017_add_audit_log_tenant.sql",
+              "018_enforce_single_use_webauthn_enrollment.sql",
           ]
 
           conn = psycopg2.connect(
@@ -383,10 +384,10 @@ jobs:
 
               if actual_versions != expected_versions:
                   raise SystemExit(
-                      "FAIL: migration history does not exactly match 000-017"
+                      "FAIL: migration history does not exactly match 000-018"
                   )
 
-              print("PASS: migration history exactly matches 000-017")
+              print("PASS: migration history exactly matches 000-018")
           finally:
               conn.close()
           PY
