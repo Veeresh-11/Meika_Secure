@@ -341,6 +341,7 @@ def login(
     # Session, password last-used timestamp, and audit record are committed
     # only after the security policy explicitly allows the request.
     try:
+        enrollment_token = issue_enrollment_token(session.user_id)
         db.commit()
     except Exception as exc:
         db.rollback()
@@ -353,7 +354,7 @@ def login(
         "session_id": str(session.id),
         "expires_at": session.expires_at,
         "decision": decision.outcome.value,
-        "webauthn_enrollment_token": issue_enrollment_token(session.user_id),
+        "webauthn_enrollment_token": enrollment_token,
         "warning": "Password authentication is deprecated. Use this short-lived enrollment token only to register a passkey.",
     }
 
